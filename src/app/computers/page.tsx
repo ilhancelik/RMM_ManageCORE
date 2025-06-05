@@ -18,15 +18,17 @@ import {
 } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 
+const ALL_GROUPS_VALUE = "all-groups"; // Özel bir değer tanımla
+
 export default function ComputersPage() {
-  const [selectedGroupId, setSelectedGroupId] = useState<string>(''); // Empty string for 'All Groups'
+  const [selectedGroupId, setSelectedGroupId] = useState<string>(ALL_GROUPS_VALUE); // Başlangıç değerini güncelle
 
   const computers: Computer[] = mockComputers;
   const groups: ComputerGroup[] = mockComputerGroups;
 
   const filteredComputers = useMemo(() => {
-    if (!selectedGroupId) {
-      return computers; // Show all if no group is selected
+    if (selectedGroupId === ALL_GROUPS_VALUE) { // Kontrolü güncelle
+      return computers; 
     }
     return computers.filter(computer => 
       computer.groupIds?.includes(selectedGroupId)
@@ -46,7 +48,7 @@ export default function ComputersPage() {
                 <SelectValue placeholder="Select a group" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Groups</SelectItem>
+                <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem> {/* Değeri güncelle */}
                 {groups.map(group => (
                   <SelectItem key={group.id} value={group.id}>
                     {group.name}
@@ -66,10 +68,10 @@ export default function ComputersPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {selectedGroupId ? `${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers` : 'All Computers'}
+            {selectedGroupId !== ALL_GROUPS_VALUE ? `${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers` : 'All Computers'}
           </CardTitle>
           <CardDescription>
-            {selectedGroupId 
+            {selectedGroupId !== ALL_GROUPS_VALUE
               ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
               : 'View and manage all connected computers.'}
           </CardDescription>
@@ -79,7 +81,7 @@ export default function ComputersPage() {
             <ComputerTable computers={filteredComputers} />
           ) : (
             <p className="text-center text-muted-foreground py-8">
-              {selectedGroupId ? `No computers found in the selected group.` : `No computers found.`}
+              {selectedGroupId !== ALL_GROUPS_VALUE ? `No computers found in the selected group.` : `No computers found.`}
             </p>
           )}
         </CardContent>
