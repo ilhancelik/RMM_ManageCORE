@@ -12,10 +12,17 @@ export interface Computer {
   groupIds?: string[];
 }
 
+export interface ScheduleConfig {
+  type: 'disabled' | 'interval';
+  intervalValue?: number;
+  intervalUnit?: 'minutes' | 'hours' | 'days';
+}
+
 export interface AssociatedProcedureConfig {
   procedureId: string;
   runOnNewMember: boolean;
-  // scheduleConfig?: string; // Future: for specific scheduling options
+  schedule?: ScheduleConfig;
+  // Order is implicit by its position in the array.
 }
 
 export interface ComputerGroup {
@@ -51,7 +58,7 @@ export interface ProcedureExecution {
 }
 
 export interface CustomCommand {
-    id: string;
+    id:string;
     computerId: string; // Will also be used for group if targetType is 'group'
     targetType?: 'computer' | 'group'; // To distinguish target
     targetId: string; // computerId or groupId

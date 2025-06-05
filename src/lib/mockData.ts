@@ -16,10 +16,12 @@ export let mockComputerGroups: ComputerGroup[] = [
     description: 'Computers used by the development team.', 
     computerIds: ['comp-1', 'comp-3'],
     associatedProcedures: [
-      { procedureId: 'proc-1', runOnNewMember: true }
+      { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'disabled' } }
     ]
   },
-  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [] },
+  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [
+      { procedureId: 'proc-2', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 2, intervalUnit: 'hours' } }
+  ] },
   { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [] },
 ];
 
@@ -95,7 +97,6 @@ export function updateComputerGroup(updatedGroup: ComputerGroup) {
   } else {
      mockComputerGroups.push(updatedGroup); // Should ideally not happen for update
   }
-  // console.log("Updated mockComputerGroups:", mockComputerGroups);
 }
 
 export function addComputerGroup(newGroup: ComputerGroup) {
@@ -103,7 +104,6 @@ export function addComputerGroup(newGroup: ComputerGroup) {
     if (existingIndex === -1) {
         mockComputerGroups.push(newGroup);
     } else {
-        // Handle if group with same ID already exists, e.g., update or error
         mockComputerGroups[existingIndex] = newGroup; 
     }
 }

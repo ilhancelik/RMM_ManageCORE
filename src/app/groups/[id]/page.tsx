@@ -3,10 +3,10 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { mockComputerGroups, mockComputers, mockProcedures, updateComputerGroup, getProcedureById, getComputerGroupById } from '@/lib/mockData';
-import type { ComputerGroup, Computer, Procedure, AssociatedProcedureConfig } from '@/types';
+import type { ComputerGroup, Computer, Procedure, AssociatedProcedureConfig, ScheduleConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Edit, Trash2, PlusCircle, Settings, ListChecks, XCircle } from 'lucide-react';
+import { ArrowLeft, Users, Edit, Trash2, PlusCircle, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown } from 'lucide-react';
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
 export default function GroupDetailsPage() {
@@ -44,16 +46,28 @@ export default function GroupDetailsPage() {
     if (foundGroup) {
       const computersInGroup = mockComputers.filter(c => foundGroup.computerIds.includes(c.id));
       setMemberComputers(computersInGroup);
-      setCurrentAssociatedProcedures(foundGroup.associatedProcedures || []);
+      // Ensure associatedProcedures and their schedules are well-defined for local state
+      const initialProcedures = (foundGroup.associatedProcedures || []).map(ap => ({
+        ...ap,
+        schedule: ap.schedule || { type: 'disabled' as const } 
+      }));
+      setCurrentAssociatedProcedures(initialProcedures);
     }
-  }, [id]);
+  }, [id]); // Removed 'group' from dependencies to avoid loop on setGroup
 
   const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => {
-    if (isAssociated) {
-      setCurrentAssociatedProcedures(prev => [...prev, { procedureId, runOnNewMember: false }]);
-    } else {
-      setCurrentAssociatedProcedures(prev => prev.filter(p => p.procedureId !== procedureId));
-    }
+    setCurrentAssociatedProcedures(prev => {
+      if (isAssociated) {
+        // Add if not already present
+        if (!prev.some(p => p.procedureId === procedureId)) {
+          return [...prev, { procedureId, runOnNewMember: false, schedule: { type: 'disabled' } }];
+        }
+        return prev;
+      } else {
+        // Remove
+        return prev.filter(p => p.procedureId !== procedureId);
+      }
+    });
   };
 
   const handleRunOnNewMemberChange = (procedureId: string, runOnNewMember: boolean) => {
@@ -62,14 +76,66 @@ export default function GroupDetailsPage() {
     );
   };
 
+  const handleScheduleChange = (
+    procedureId: string,
+    field: keyof ScheduleConfig | 'type',
+    value: any
+  ) => {
+    setCurrentAssociatedProcedures(prev =>
+      prev.map(p => {
+        if (p.procedureId === procedureId) {
+          const updatedSchedule = { ...(p.schedule || { type: 'disabled' as const }) };
+          if (field === 'type') {
+            updatedSchedule.type = value as 'disabled' | 'interval';
+            if (value === 'disabled') {
+              delete updatedSchedule.intervalValue;
+              delete updatedSchedule.intervalUnit;
+            } else if (value === 'interval' && !updatedSchedule.intervalValue) {
+              updatedSchedule.intervalValue = 60;
+              updatedSchedule.intervalUnit = 'minutes';
+            }
+          } else if (field === 'intervalValue') {
+            updatedSchedule.intervalValue = value ? parseInt(value, 10) : undefined;
+          } else if (field === 'intervalUnit') {
+            updatedSchedule.intervalUnit = value as 'minutes' | 'hours' | 'days';
+          }
+          return { ...p, schedule: updatedSchedule };
+        }
+        return p;
+      })
+    );
+  };
+
+  const handleMoveProcedure = (currentIndex: number, direction: 'up' | 'down') => {
+    setCurrentAssociatedProcedures(prev => {
+      const newArray = [...prev];
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= newArray.length) return newArray;
+      [newArray[currentIndex], newArray[targetIndex]] = [newArray[targetIndex], newArray[currentIndex]];
+      return newArray;
+    });
+  };
+
   const handleSaveAssociatedProcedures = () => {
     if (!group) return;
     const updatedGroup = { ...group, associatedProcedures: currentAssociatedProcedures };
-    updateComputerGroup(updatedGroup); // Update mock data
-    setGroup(updatedGroup); // Update local state
+    updateComputerGroup(updatedGroup);
+    setGroup(updatedGroup); // Update local state for the main page display
     setIsManageProceduresModalOpen(false);
     toast({ title: "Success", description: "Associated procedures updated." });
   };
+
+  const openManageProceduresModal = () => {
+    if (!group) return;
+    // Initialize dialog state from the potentially updated group state
+    const initialDialogProcedures = (group.associatedProcedures || []).map(ap => ({
+      ...ap,
+      schedule: ap.schedule || { type: 'disabled' as const }
+    }));
+    setCurrentAssociatedProcedures(initialDialogProcedures);
+    setIsManageProceduresModalOpen(true);
+  };
+
 
   if (!group) {
     return <div className="container mx-auto py-10 text-center">Group not found.</div>;
@@ -93,7 +159,6 @@ export default function GroupDetailsPage() {
                     </div>
                     <CardDescription>{group.description}</CardDescription>
                     </div>
-                    {/* Edit/Delete buttons can be added back here if needed, similar to original */}
                 </div>
                 </CardHeader>
                 <CardContent>
@@ -129,45 +194,131 @@ export default function GroupDetailsPage() {
                         <CardTitle>Associated Procedures</CardTitle>
                         <Dialog open={isManageProceduresModalOpen} onOpenChange={setIsManageProceduresModalOpen}>
                             <DialogTrigger asChild>
-                                <Button variant="outline" size="sm" onClick={() => setCurrentAssociatedProcedures(group.associatedProcedures || [])}>
+                                <Button variant="outline" size="sm" onClick={openManageProceduresModal}>
                                     <Settings className="mr-2 h-4 w-4" /> Manage
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="sm:max-w-[625px]">
+                            <DialogContent className="sm:max-w-[725px]">
                                 <DialogHeader>
                                 <DialogTitle>Manage Associated Procedures for {group.name}</DialogTitle>
-                                <DialogDescription>Select procedures to associate with this group and configure their behavior.</DialogDescription>
+                                <DialogDescription>Select procedures, configure their behavior, schedule, and order.</DialogDescription>
                                 </DialogHeader>
-                                <ScrollArea className="max-h-[400px] p-1">
+                                <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
                                 <div className="space-y-3 py-2">
                                     {mockProcedures.map(proc => {
-                                    const isAssociated = currentAssociatedProcedures.some(ap => ap.procedureId === proc.id);
-                                    const config = currentAssociatedProcedures.find(ap => ap.procedureId === proc.id);
-                                    return (
-                                        <div key={proc.id} className="rounded-md border p-3">
-                                            <div className="flex items-center justify-between">
-                                                <Label htmlFor={`proc-assoc-${proc.id}`} className="font-medium">{proc.name}</Label>
-                                                <Checkbox
-                                                    id={`proc-assoc-${proc.id}`}
-                                                    checked={isAssociated}
-                                                    onCheckedChange={(checked) => handleProcedureAssociationChange(proc.id, !!checked)}
-                                                />
+                                        const assocIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
+                                        const isAssociated = assocIndex !== -1;
+                                        const config = isAssociated ? currentAssociatedProcedures[assocIndex] : undefined;
+                                        
+                                        return (
+                                            <div key={proc.id} className="rounded-md border p-4">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <Label htmlFor={`proc-assoc-${proc.id}`} className="font-medium text-base">{proc.name}</Label>
+                                                        <p className="text-xs text-muted-foreground mt-1">{proc.description}</p>
+                                                    </div>
+                                                    <Checkbox
+                                                        id={`proc-assoc-${proc.id}`}
+                                                        checked={isAssociated}
+                                                        onCheckedChange={(checked) => handleProcedureAssociationChange(proc.id, !!checked)}
+                                                    />
+                                                </div>
+                                                
+                                                {isAssociated && config && (
+                                                <div className="mt-3 space-y-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`proc-runnew-${proc.id}`}
+                                                            checked={config.runOnNewMember}
+                                                            onCheckedChange={(checked) => handleRunOnNewMemberChange(proc.id, !!checked)}
+                                                        />
+                                                        <Label htmlFor={`proc-runnew-${proc.id}`} className="text-sm font-normal">
+                                                            Run automatically when a new computer is added to this group
+                                                        </Label>
+                                                    </div>
+
+                                                    <div className="pt-3 border-t">
+                                                        <Label className="text-sm font-semibold text-muted-foreground">Scheduling</Label>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-1">
+                                                        <Select
+                                                            value={config.schedule?.type || 'disabled'}
+                                                            onValueChange={(value: 'disabled' | 'interval') => handleScheduleChange(proc.id, 'type', value)}
+                                                        >
+                                                            <SelectTrigger><SelectValue placeholder="Select schedule type" /></SelectTrigger>
+                                                            <SelectContent>
+                                                            <SelectItem value="disabled">Disabled</SelectItem>
+                                                            <SelectItem value="interval">Run at Interval</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        </div>
+                                                        {config.schedule?.type === 'interval' && (
+                                                        <div className="grid grid-cols-2 gap-2 items-end mt-2">
+                                                            <div className='space-y-1'>
+                                                                <Label htmlFor={`interval-val-${proc.id}`} className="text-xs">Interval Value</Label>
+                                                                <Input
+                                                                    id={`interval-val-${proc.id}`}
+                                                                    type="number"
+                                                                    placeholder="e.g., 60"
+                                                                    min="1"
+                                                                    value={config.schedule.intervalValue || ''}
+                                                                    onChange={(e) => handleScheduleChange(proc.id, 'intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                                />
+                                                            </div>
+                                                            <div className='space-y-1'>
+                                                                <Label htmlFor={`interval-unit-${proc.id}`} className="text-xs">Interval Unit</Label>
+                                                                <Select
+                                                                    id={`interval-unit-${proc.id}`}
+                                                                    value={config.schedule.intervalUnit || 'minutes'}
+                                                                    onValueChange={(value: 'minutes' | 'hours' | 'days') => handleScheduleChange(proc.id, 'intervalUnit', value)}
+                                                                >
+                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                    <SelectItem value="minutes">Minutes</SelectItem>
+                                                                    <SelectItem value="hours">Hours</SelectItem>
+                                                                    <SelectItem value="days">Days</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+                                                        )}
+                                                    </div>
+                                                    {/* Reordering buttons will be outside this map, acting on currentAssociatedProcedures */}
+                                                </div>
+                                                )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-1">{proc.description}</p>
-                                            {isAssociated && (
-                                            <div className="mt-2 flex items-center space-x-2">
-                                                <Checkbox
-                                                id={`proc-runnew-${proc.id}`}
-                                                checked={config?.runOnNewMember || false}
-                                                onCheckedChange={(checked) => handleRunOnNewMemberChange(proc.id, !!checked)}
-                                                />
-                                                <Label htmlFor={`proc-runnew-${proc.id}`} className="text-sm font-normal">
-                                                Run automatically when a new computer is added to this group
-                                                </Label>
+                                        );
+                                    })}
+                                    {/* Placeholder for reordering - This needs to map over currentAssociatedProcedures for ordering */}
+                                    {currentAssociatedProcedures.length > 0 && <Separator className="my-4"/> }
+                                    <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Order</Label>
+                                    {currentAssociatedProcedures.map((assocProc, index) => {
+                                        const procedure = getProcedureById(assocProc.procedureId);
+                                        if (!procedure) return null;
+                                        return (
+                                            <div key={`order-${assocProc.procedureId}`} className="flex items-center justify-between p-2 border rounded-md mb-2">
+                                                <span className="text-sm">{index + 1}. {procedure.name}</span>
+                                                <div className="flex gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7"
+                                                    onClick={() => handleMoveProcedure(index, 'up')}
+                                                    disabled={index === 0}
+                                                >
+                                                    <ArrowUp className="h-4 w-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-7 w-7"
+                                                    onClick={() => handleMoveProcedure(index, 'down')}
+                                                    disabled={index === currentAssociatedProcedures.length - 1}
+                                                >
+                                                    <ArrowDown className="h-4 w-4" />
+                                                </Button>
+                                                </div>
                                             </div>
-                                            )}
-                                        </div>
-                                    );
+                                        );
                                     })}
                                 </div>
                                 </ScrollArea>
@@ -178,27 +329,32 @@ export default function GroupDetailsPage() {
                             </DialogContent>
                         </Dialog>
                     </div>
-                     <CardDescription>Procedures linked to this group and their automation settings.</CardDescription>
+                     <CardDescription>Procedures linked to this group, their automation settings, schedule, and order.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {(!group.associatedProcedures || group.associatedProcedures.length === 0) ? (
                         <p className="text-sm text-muted-foreground">No procedures associated with this group yet.</p>
                     ) : (
                         <ul className="space-y-3">
-                            {group.associatedProcedures.map(assocProc => {
+                            {group.associatedProcedures.map((assocProc, index) => {
                                 const procedure = getProcedureById(assocProc.procedureId);
                                 if (!procedure) return null;
                                 return (
-                                    <li key={assocProc.procedureId} className="text-sm p-3 border rounded-md">
-                                        <div className="font-medium">{procedure.name}</div>
-                                        <div className="text-xs text-muted-foreground">
-                                            {assocProc.runOnNewMember ? (
-                                                <span className="flex items-center text-green-600"><ListChecks className="mr-1 h-3 w-3" /> Runs on new members</span>
-                                            ) : (
-                                                <span className="flex items-center text-gray-500"><XCircle className="mr-1 h-3 w-3" /> Does not run on new members</span>
-                                            )}
-                                        </div>
-                                        {/* Future: Display scheduleConfig here */}
+                                    <li key={assocProc.procedureId} className="text-sm p-3 border rounded-md space-y-1">
+                                        <div className="font-medium">{index + 1}. {procedure.name}</div>
+                                        
+                                        {assocProc.runOnNewMember && (
+                                            <div className="flex items-center text-xs text-green-600"><ListChecks className="mr-1 h-3 w-3" /> Runs on new members</div>
+                                        )}
+                                        {assocProc.schedule && assocProc.schedule.type === 'interval' && (
+                                            <div className="flex items-center text-xs text-blue-600">
+                                                <Clock className="mr-1 h-3 w-3" />
+                                                Runs every {assocProc.schedule.intervalValue || 'N/A'} {assocProc.schedule.intervalUnit || ''}
+                                            </div>
+                                        )}
+                                        {(!assocProc.schedule || assocProc.schedule.type === 'disabled') && !assocProc.runOnNewMember && (
+                                             <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> No active automation</div>
+                                        )}
                                     </li>
                                 );
                             })}
