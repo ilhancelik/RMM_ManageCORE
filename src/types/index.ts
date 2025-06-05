@@ -12,11 +12,18 @@ export interface Computer {
   groupIds?: string[];
 }
 
+export interface AssociatedProcedureConfig {
+  procedureId: string;
+  runOnNewMember: boolean;
+  // scheduleConfig?: string; // Future: for specific scheduling options
+}
+
 export interface ComputerGroup {
   id: string;
   name: string;
   description: string;
   computerIds: string[];
+  associatedProcedures?: AssociatedProcedureConfig[];
 }
 
 export type ScriptType = 'CMD' | 'Regedit' | 'PowerShell' | 'Python';
@@ -45,7 +52,9 @@ export interface ProcedureExecution {
 
 export interface CustomCommand {
     id: string;
-    computerId: string;
+    computerId: string; // Will also be used for group if targetType is 'group'
+    targetType?: 'computer' | 'group'; // To distinguish target
+    targetId: string; // computerId or groupId
     command: string;
     scriptType: ScriptType;
     status: 'Pending' | 'Sent' | 'Success' | 'Failed';

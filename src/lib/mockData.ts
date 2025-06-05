@@ -1,7 +1,7 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand } from '@/types';
 
-export const mockComputers: Computer[] = [
+export let mockComputers: Computer[] = [
   { id: 'comp-1', name: 'Workstation-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date().toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 40, groupIds: ['group-1'] },
   { id: 'comp-2', name: 'Server-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '192.168.1.10', lastSeen: new Date().toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 20, groupIds: ['group-2'] },
   { id: 'comp-3', name: 'Laptop-Dev', status: 'Offline', os: 'Windows 10 Pro', ipAddress: '192.168.1.102', lastSeen: new Date(Date.now() - 3600 * 1000 * 24).toISOString(), groupIds: ['group-1', 'group-3'] },
@@ -9,13 +9,21 @@ export const mockComputers: Computer[] = [
   { id: 'comp-5', name: 'Finance-PC', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.104', lastSeen: new Date().toISOString(), cpuUsage: 15, ramUsage: 45, diskUsage: 55, groupIds: ['group-2'] },
 ];
 
-export const mockComputerGroups: ComputerGroup[] = [
-  { id: 'group-1', name: 'Development Team', description: 'Computers used by the development team.', computerIds: ['comp-1', 'comp-3'] },
-  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'] },
-  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'] },
+export let mockComputerGroups: ComputerGroup[] = [
+  { 
+    id: 'group-1', 
+    name: 'Development Team', 
+    description: 'Computers used by the development team.', 
+    computerIds: ['comp-1', 'comp-3'],
+    associatedProcedures: [
+      { procedureId: 'proc-1', runOnNewMember: true }
+    ]
+  },
+  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [] },
+  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [] },
 ];
 
-export const mockProcedures: Procedure[] = [
+export let mockProcedures: Procedure[] = [
   {
     id: 'proc-1',
     name: 'Disk Cleanup',
@@ -45,7 +53,7 @@ export const mockProcedures: Procedure[] = [
   },
 ];
 
-export const mockProcedureExecutions: ProcedureExecution[] = [
+export let mockProcedureExecutions: ProcedureExecution[] = [
     {
         id: 'exec-1',
         procedureId: 'proc-1',
@@ -70,4 +78,53 @@ export const mockProcedureExecutions: ProcedureExecution[] = [
     },
 ];
 
+export let mockCustomCommands: CustomCommand[] = [];
+
+
 export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
+
+// Helper functions to manage mock data
+export function addProcedureExecution(execution: ProcedureExecution) {
+  mockProcedureExecutions.unshift(execution);
+}
+
+export function updateComputerGroup(updatedGroup: ComputerGroup) {
+  const index = mockComputerGroups.findIndex(g => g.id === updatedGroup.id);
+  if (index !== -1) {
+    mockComputerGroups[index] = { ...mockComputerGroups[index], ...updatedGroup };
+  } else {
+     mockComputerGroups.push(updatedGroup); // Should ideally not happen for update
+  }
+  // console.log("Updated mockComputerGroups:", mockComputerGroups);
+}
+
+export function addComputerGroup(newGroup: ComputerGroup) {
+    const existingIndex = mockComputerGroups.findIndex(g => g.id === newGroup.id);
+    if (existingIndex === -1) {
+        mockComputerGroups.push(newGroup);
+    } else {
+        // Handle if group with same ID already exists, e.g., update or error
+        mockComputerGroups[existingIndex] = newGroup; 
+    }
+}
+
+export function addCustomCommand(command: CustomCommand) {
+  mockCustomCommands.unshift(command);
+}
+
+export function updateCustomCommand(commandToUpdate: Partial<CustomCommand> & { id: string }) {
+  mockCustomCommands = mockCustomCommands.map(cmd => 
+    cmd.id === commandToUpdate.id ? { ...cmd, ...commandToUpdate } : cmd
+  );
+}
+
+
+export function getComputerGroupById(groupId: string): ComputerGroup | undefined {
+    return mockComputerGroups.find(g => g.id === groupId);
+}
+export function getProcedureById(procedureId: string): Procedure | undefined {
+    return mockProcedures.find(p => p.id === procedureId);
+}
+export function getComputerById(computerId: string): Computer | undefined {
+    return mockComputers.find(c => c.id === computerId);
+}
