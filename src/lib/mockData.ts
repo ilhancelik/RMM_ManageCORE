@@ -86,6 +86,18 @@ export let mockCustomCommands: CustomCommand[] = [];
 export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
 
 // Helper functions to manage mock data
+export function addComputer(computer: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer {
+  const newComputer: Computer = {
+    ...computer,
+    id: `comp-${Date.now()}`,
+    lastSeen: new Date().toISOString(),
+    groupIds: [],
+    // cpuUsage, ramUsage, diskUsage will be undefined by default
+  };
+  mockComputers.push(newComputer);
+  return newComputer;
+}
+
 export function addProcedureExecution(execution: ProcedureExecution) {
   mockProcedureExecutions.unshift(execution);
 }
