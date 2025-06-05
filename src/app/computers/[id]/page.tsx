@@ -13,6 +13,8 @@ import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+
 export default function ComputerDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -25,7 +27,15 @@ export default function ComputerDetailsPage() {
     const foundComputer = mockComputers.find(c => c.id === id) || null;
     setComputer(foundComputer);
     if (foundComputer) {
-      setRelatedExecutions(mockProcedureExecutions.filter(exec => exec.computerId === foundComputer.id));
+      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+      const recentExecutions = mockProcedureExecutions.filter(exec => {
+        if (exec.computerId === foundComputer.id) {
+          const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
+          return execTime >= thirtyDaysAgo;
+        }
+        return false;
+      }).sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+      setRelatedExecutions(recentExecutions);
     }
   }, [id]);
 
@@ -123,7 +133,7 @@ export default function ComputerDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>Recent Activity (Last 30 Days)</CardTitle>
           <CardDescription>Procedures executed on this computer.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -162,10 +172,12 @@ export default function ComputerDetailsPage() {
               </TableBody>
             </Table>
           ) : (
-            <p className="text-muted-foreground">No recent procedure executions for this computer.</p>
+            <p className="text-muted-foreground">No recent procedure executions for this computer in the last 30 days.</p>
           )}
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    

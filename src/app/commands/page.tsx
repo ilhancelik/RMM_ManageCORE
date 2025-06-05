@@ -24,6 +24,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 
 type TargetType = "computer" | "group";
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function CommandsPage() {
   const { toast } = useToast();
@@ -35,11 +36,16 @@ export default function CommandsPage() {
   
   const [commandScriptType, setCommandScriptType] = useState<ScriptType>('CMD');
   const [commandContent, setCommandContent] = useState('');
-  const [commandHistory, setCommandHistory] = useState<CustomCommand[]>(mockCustomCommands);
+  const [commandHistory, setCommandHistory] = useState<CustomCommand[]>([]);
 
   useEffect(() => {
-    setCommandHistory(mockCustomCommands); // Keep history in sync
-  }, []);
+    const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+    const recentCommands = mockCustomCommands.filter(cmd => {
+        const cmdTime = new Date(cmd.executedAt || 0).getTime();
+        return cmdTime >= thirtyDaysAgo;
+    }).sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
+    setCommandHistory(recentCommands);
+  }, []); // Runs once on mount to load initial history
 
 
   useEffect(() => {
@@ -49,6 +55,15 @@ export default function CommandsPage() {
       setTargetType("computer");
     }
   }, [searchParams]);
+
+  const refreshCommandHistory = () => {
+    const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+    const recentCommands = mockCustomCommands.filter(cmd => {
+        const cmdTime = new Date(cmd.executedAt || new Date().toISOString()).getTime(); // Use current time for pending/just sent
+        return cmdTime >= thirtyDaysAgo;
+    }).sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
+    setCommandHistory(recentCommands);
+  }
 
   const handleSendCommand = () => {
     let targetId: string;
@@ -99,24 +114,23 @@ export default function CommandsPage() {
             const newCommand: CustomCommand = {
                 ...baseCommandInfo,
                 id: `cmd-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-                computerId: computer.id, // For history display purposes
-                targetId: computer.id, // Actual target for this specific command instance
+                computerId: computer.id, 
+                targetId: selectedGroupId, // Store group ID as targetId
                 status: 'Pending',
             };
-            addCustomCommand(newCommand);
-            setCommandHistory(prev => [newCommand, ...prev]); // Update local state immediately
+            addCustomCommand(newCommand); // Adds to global mockCustomCommands
 
             setTimeout(() => {
                 updateCustomCommand({ id: newCommand.id, status: 'Sent' });
-                setCommandHistory(prev => prev.map(cmd => cmd.id === newCommand.id ? {...cmd, status: 'Sent'} : cmd));
+                refreshCommandHistory(); // Refresh local state from global, applying 30-day filter
             }, 500);
 
             setTimeout(() => {
-                const success = Math.random() > 0.2; // 80% success
+                const success = Math.random() > 0.2; 
                 const finalStatus = success ? 'Success' : 'Failed';
                 const output = success ? `Command executed successfully on ${computer.name}. Output: OK` : `Failed to execute on ${computer.name}. Error: Simulated execution failure.`;
                 updateCustomCommand({id: newCommand.id, status: finalStatus, output });
-                setCommandHistory(prev => prev.map(cmd => cmd.id === newCommand.id ? { ...cmd, status: finalStatus, output } : cmd));
+                refreshCommandHistory();
             }, 2000 + Math.random() * 1500);
         });
 
@@ -130,24 +144,24 @@ export default function CommandsPage() {
             status: 'Pending',
         };
         addCustomCommand(newCommand);
-        setCommandHistory(prev => [newCommand, ...prev]);
 
         setTimeout(() => {
             updateCustomCommand({ id: newCommand.id, status: 'Sent' });
-            setCommandHistory(prev => prev.map(cmd => cmd.id === newCommand.id ? {...cmd, status: 'Sent'} : cmd));
+            refreshCommandHistory();
         }, 500);
 
         setTimeout(() => {
-            const success = Math.random() > 0.2; // 80% success
+            const success = Math.random() > 0.2; 
             const finalStatus = success ? 'Success' : 'Failed';
             const outputMessage = success ? `Command executed successfully on ${computer.name}. Output: OK` : `Failed to execute on ${computer.name}. Error: Simulated execution failure.`;
             updateCustomCommand({id: newCommand.id, status: finalStatus, output: outputMessage });
-            setCommandHistory(prev => prev.map(cmd => cmd.id === newCommand.id ? { ...cmd, status: finalStatus, output: outputMessage } : cmd));
+            refreshCommandHistory();
         }, 2000 + Math.random() * 1500);
         toast({ title: "Command Sent", description: `Custom command sent to ${computer.name}.` });
     }
     
-    setCommandContent(''); // Optionally clear content after sending
+    refreshCommandHistory(); // Ensure history is up-to-date after adding commands
+    setCommandContent(''); 
   };
 
   const getStatusBadgeVariant = (status: CustomCommand['status']) => {
@@ -159,14 +173,6 @@ export default function CommandsPage() {
     }
   };
   
-  const getTargetName = (cmd: CustomCommand): string => {
-    if (cmd.targetType === 'group') {
-        return mockComputerGroups.find(g => g.id === cmd.targetId)?.name || cmd.targetId;
-    }
-    return mockComputers.find(c => c.id === cmd.targetId)?.name || cmd.targetId;
-  };
-
-
   return (
     <div className="container mx-auto py-2">
       <div className="flex justify-between items-center mb-6">
@@ -271,14 +277,14 @@ export default function CommandsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Command History</CardTitle>
+          <CardTitle>Command History (Last 30 Days)</CardTitle>
           <CardDescription>Recent custom commands executed.</CardDescription>
         </CardHeader>
         <CardContent>
            {commandHistory.length === 0 ? (
              <div className="text-center py-8 text-muted-foreground">
                 <ListChecks className="mx-auto h-10 w-10 mb-2" />
-                No commands sent yet.
+                No commands sent in the last 30 days.
             </div>
            ) : (
             <ScrollArea className="h-96">
@@ -297,8 +303,11 @@ export default function CommandsPage() {
                         {commandHistory.map(cmd => (
                             <TableRow key={cmd.id}>
                                 <TableCell>
-                                  {cmd.targetType === 'group' ? `Group: ${mockComputerGroups.find(g => g.id === cmd.targetId)?.name || 'N/A'}` : mockComputers.find(c => c.id === cmd.targetId)?.name || 'N/A'}
-                                  {cmd.targetType === 'group' && ` (on ${mockComputers.find(c=>c.id === cmd.computerId)?.name})`}
+                                  {cmd.targetType === 'group' 
+                                    ? `Group: ${mockComputerGroups.find(g => g.id === cmd.targetId)?.name || 'N/A'}` 
+                                    : mockComputers.find(c => c.id === cmd.targetId)?.name || 'N/A'}
+                                  {/* For group commands, show which computer it ran on if computerId is present (it should be) */}
+                                  {cmd.targetType === 'group' && cmd.computerId && ` (on ${mockComputers.find(c=>c.id === cmd.computerId)?.name || 'Unknown Comp.'})`}
                                 </TableCell>
                                 <TableCell>{cmd.scriptType}</TableCell>
                                 <TableCell>
@@ -318,3 +327,5 @@ export default function CommandsPage() {
     </div>
   );
 }
+
+    

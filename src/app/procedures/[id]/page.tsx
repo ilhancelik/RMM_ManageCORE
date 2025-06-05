@@ -23,6 +23,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+
 export default function ProcedureDetailPage() {
   const router = useRouter();
   const params = useParams();
@@ -63,8 +65,15 @@ export default function ProcedureDetailPage() {
       setEditScriptType(foundProcedure.scriptType);
       setEditScriptContent(foundProcedure.scriptContent);
       
-      // Load executions for this procedure
-      setExecutions(mockProcedureExecutions.filter(exec => exec.procedureId === id));
+      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+      const recentExecutions = mockProcedureExecutions.filter(exec => {
+        if (exec.procedureId === id) {
+          const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
+          return execTime >= thirtyDaysAgo;
+        }
+        return false;
+      });
+      setExecutions(recentExecutions);
     }
   }, [id]);
 
@@ -79,8 +88,6 @@ export default function ProcedureDetailPage() {
       updatedAt: new Date().toISOString(),
     };
     setProcedure(updatedProcedure);
-    // Here you would typically call an API to save the procedure
-    // For mock data, we can update the mockProcedures array if needed, or just reflect in state
     const index = mockProcedures.findIndex(p => p.id === id);
     if (index !== -1) mockProcedures[index] = updatedProcedure;
     
@@ -99,33 +106,52 @@ export default function ProcedureDetailPage() {
         toast({ title: "Execution Error", description: "Please select at least one computer.", variant: "destructive"});
         return;
     }
-    const newExecs: ProcedureExecution[] = selectedComputers.map(compId => {
+    const newExecsData: ProcedureExecution[] = selectedComputers.map(compId => {
       const computer = mockComputers.find(c => c.id === compId);
       return {
         id: `exec-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
         procedureId: procedure.id,
         computerId: compId,
         computerName: computer?.name || 'Unknown Computer',
-        status: 'Pending' as const, // Cast to literal type
+        status: 'Pending' as const, 
         logs: `Execution started for ${procedure.name} on ${computer?.name || compId}...`,
         startTime: new Date().toISOString(),
       };
     });
-    setExecutions(prev => [...newExecs, ...prev]);
+
+    // Add to global mock data (though this won't be filtered by 30-day rule immediately unless re-fetched)
+    newExecsData.forEach(exec => mockProcedureExecutions.unshift(exec));
+
+    // Update local state, which will be filtered by the 30-day rule on next render or if explicitly re-filtered
+    // For immediate display, add them to the current 'executions' state if they are within 30 days (which they will be)
+    const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+    const allCurrentProcedureExecutions = mockProcedureExecutions.filter(exec => {
+        if (exec.procedureId === procedure.id) {
+            const execTime = new Date(exec.endTime || exec.startTime || new Date().toISOString()).getTime();
+            return execTime >= thirtyDaysAgo;
+        }
+        return false;
+    });
+    setExecutions(allCurrentProcedureExecutions.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
+
+
     // Simulate execution
-    newExecs.forEach(exec => {
+    newExecsData.forEach(exec => {
         setTimeout(() => {
-            setExecutions(prev => prev.map(e => e.id === exec.id ? {...e, status: 'Running'} : e));
+             mockProcedureExecutions.find(e => e.id === exec.id)!.status = 'Running';
+             const updatedExecs = mockProcedureExecutions.filter(e => e.procedureId === procedure.id && new Date(e.endTime || e.startTime || 0).getTime() >= thirtyDaysAgo);
+             setExecutions(updatedExecs.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
         }, 1000);
         setTimeout(() => {
-            const success = Math.random() > 0.3; // 70% success rate
-            setExecutions(prev => prev.map(e => e.id === exec.id ? {
-                ...e, 
-                status: success ? 'Success' : 'Failed',
-                endTime: new Date().toISOString(),
-                logs: `${e.logs}\n${success ? 'Execution completed successfully.' : 'Execution failed. Error: Simulated error.'}`,
-                output: success ? 'Output: OK' : 'Output: Error XYZ'
-            } : e));
+            const success = Math.random() > 0.3; 
+            const mockExec = mockProcedureExecutions.find(e => e.id === exec.id)!;
+            mockExec.status = success ? 'Success' : 'Failed';
+            mockExec.endTime = new Date().toISOString();
+            mockExec.logs = `${exec.logs}\n${success ? 'Execution completed successfully.' : 'Execution failed. Error: Simulated error.'}`;
+            mockExec.output = success ? 'Output: OK' : 'Output: Error XYZ';
+            
+            const updatedExecs = mockProcedureExecutions.filter(e => e.procedureId === procedure.id && new Date(e.endTime || e.startTime || 0).getTime() >= thirtyDaysAgo);
+            setExecutions(updatedExecs.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
         }, 3000 + Math.random() * 2000);
     });
     toast({ title: "Procedure Execution Started", description: `Executing ${procedure.name} on ${selectedComputers.length} computer(s).`});
@@ -332,14 +358,14 @@ export default function ProcedureDetailPage() {
 
             <Card className="md:col-span-2">
               <CardHeader>
-                <CardTitle>Execution History</CardTitle>
+                <CardTitle>Execution History (Last 30 Days)</CardTitle>
                 <CardDescription>Status of past and current executions for this procedure.</CardDescription>
               </CardHeader>
               <CardContent>
                 {executions.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
                         <ListChecks className="mx-auto h-10 w-10 mb-2" />
-                        No executions yet for this procedure.
+                        No recent executions for this procedure in the last 30 days.
                     </div>
                 ) : (
                 <ScrollArea className="h-[20rem]"> {/* approx 320px */}
@@ -353,7 +379,7 @@ export default function ProcedureDetailPage() {
                         </TableRow>
                         </TableHeader>
                         <TableBody>
-                        {executions.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()).map(exec => (
+                        {executions.map(exec => (
                             <TableRow key={exec.id}>
                             <TableCell>{exec.computerName}</TableCell>
                             <TableCell>
@@ -392,7 +418,7 @@ export default function ProcedureDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <Label htmlFor="aiInputLogs">Execution Logs (Optional)</Label>
+                <Label htmlFor="aiInputLogs">Execution Logs (Optional, from last 30 days)</Label>
                 <Textarea
                   id="aiInputLogs"
                   value={aiInputLogs}
@@ -401,6 +427,13 @@ export default function ProcedureDetailPage() {
                   rows={5}
                   className="font-mono text-xs"
                 />
+                 <Button variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => {
+                    const recentLogs = executions.slice(0, 5).map(e => `Computer: ${e.computerName}\nStatus: ${e.status}\nStart: ${e.startTime}\nEnd: ${e.endTime}\nLogs:\n${e.logs}\nOutput: ${e.output || 'N/A'}\n---`).join('\n\n');
+                    setAiInputLogs(recentLogs || "No logs from last 30 days found for this procedure.");
+                    if (recentLogs) toast({title: "Loaded recent logs", description: "Up to 5 most recent execution logs loaded."});
+                 }}>
+                    Load recent logs for this procedure
+                 </Button>
               </div>
               <Button onClick={handleImproveProcedure} disabled={isImproving || isPending}>
                 <Sparkles className="mr-2 h-4 w-4" />
@@ -466,3 +499,5 @@ export default function ProcedureDetailPage() {
     </div>
   );
 }
+
+    
