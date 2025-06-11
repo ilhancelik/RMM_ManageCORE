@@ -109,3 +109,4 @@ export interface SMTPSettings {
   fromEmail: string; // Email address to send from
   defaultToEmail: string; // Default recipient for alerts
 }
+
