@@ -1,3 +1,4 @@
+
 import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings } from '@/types';
 import axios from 'axios';
 
@@ -19,8 +20,11 @@ const handleError = (error: unknown, context: string) => {
       // that falls out of the range of 2xx
       throw new Error(`API Error (${context}): ${error.response.status} ${error.response.data?.message || error.message}`);
     } else if (error.request) {
-      // The request was made but no response was received
-      throw new Error(`API Error (${context}): No response received from server. Is the API running at ${apiClient.defaults.baseURL}?`);
+      // The request was made but no response was received (Network Error)
+      let message = `API Error (${context}): No response received from server. `;
+      message += `Is the API running at ${apiClient.defaults.baseURL}? `;
+      message += `Also, please check your browser's console for CORS (Cross-Origin Resource Sharing) errors if the API is on a different domain.`;
+      throw new Error(message);
     } else {
       // Something happened in setting up the request that triggered an Error
       throw new Error(`API Error (${context}): ${error.message}`);
