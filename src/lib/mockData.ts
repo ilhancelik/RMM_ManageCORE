@@ -19,6 +19,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 1,
     defaultIntervalUnit: 'hours',
     sendEmailOnAlert: true,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -31,6 +32,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 30,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
+    remediationProcedureId: 'proc-1', // Example: Auto run disk cleanup
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -43,6 +45,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -55,6 +58,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 15,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: false,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -67,6 +71,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -79,6 +84,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -91,6 +97,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
+    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -133,6 +140,7 @@ export let mockProcedures: Procedure[] = [
     scriptContent: 'cleanmgr /sagerun:1',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    parameters: [],
   },
   {
     id: 'proc-2',
@@ -142,6 +150,7 @@ export let mockProcedures: Procedure[] = [
     scriptContent: 'winget install -e --id VideoLAN.VLC\nwinget install -e --id 7zip.7zip',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    parameters: [],
   },
   {
     id: 'proc-3',
@@ -151,6 +160,7 @@ export let mockProcedures: Procedure[] = [
     scriptContent: 'import sys\nprint(sys.version)',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    parameters: [],
   },
 ];
 
@@ -222,6 +232,7 @@ export function addMonitor(monitor: Omit<Monitor, 'id' | 'createdAt' | 'updatedA
   const newMonitor: Monitor = {
     ...monitor,
     id: `mon-${Date.now()}`,
+    remediationProcedureId: monitor.remediationProcedureId || '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -329,3 +340,28 @@ export function addMonitorExecutionLog(log: MonitorExecutionLog) {
   // }
 }
 
+// Function to simulate computer metric updates
+export function updateMockComputerMetrics(): void {
+  mockComputers.forEach(computer => {
+    if (computer.status === 'Online') {
+      computer.lastSeen = new Date().toISOString();
+
+      // Simulate CPU usage fluctuation (e.g., +/- 5% from current or default 30%)
+      let currentCpu = computer.cpuUsage === undefined ? 30 : computer.cpuUsage;
+      currentCpu += Math.floor(Math.random() * 11) - 5; // Fluctuate by -5 to +5
+      computer.cpuUsage = Math.max(5, Math.min(95, currentCpu)); // Keep within 5-95 range
+
+      // Simulate RAM usage fluctuation
+      let currentRam = computer.ramUsage === undefined ? 50 : computer.ramUsage;
+      currentRam += Math.floor(Math.random() * 11) - 5;
+      computer.ramUsage = Math.max(10, Math.min(90, currentRam));
+
+      // Simulate Disk usage (less fluctuation)
+      let currentDisk = computer.diskUsage === undefined ? 40 : computer.diskUsage;
+      currentDisk += Math.floor(Math.random() * 3) - 1; // Fluctuate by -1 to +1
+      computer.diskUsage = Math.max(10, Math.min(90, currentDisk));
+    }
+    // For Offline or Error computers, metrics (cpuUsage, ramUsage, diskUsage) are not updated
+    // and should remain undefined to be displayed as "N/A".
+  });
+}

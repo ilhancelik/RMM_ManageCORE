@@ -22,7 +22,7 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
-import { mockComputers, mockComputerGroups, mockProcedures, addProcedureExecution, getProcedureById } from '@/lib/mockData';
+import { mockComputers, mockComputerGroups, mockProcedures, addProcedureExecution, getProcedureById, updateMockComputerMetrics } from '@/lib/mockData';
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution } from '@/types';
 import { PlusCircle, ListFilter, Search, Play } from 'lucide-react';
 import Link from 'next/link';
@@ -31,6 +31,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 const ALL_GROUPS_VALUE = "all-groups";
+const METRIC_SIMULATION_INTERVAL = 7000; // Simulate updates every 7 seconds
 
 export default function ComputersPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(ALL_GROUPS_VALUE);
@@ -39,15 +40,25 @@ export default function ComputersPage() {
 
   const [computers, setComputers] = useState<Computer[]>(mockComputers);
   const groups: ComputerGroup[] = mockComputerGroups;
-  const allProcedures: Procedure[] = mockProcedures; // Renamed to allProcedures
+  const allProcedures: Procedure[] = mockProcedures; 
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
-  const [procedureSearchTerm, setProcedureSearchTerm] = useState(''); // New state for procedure search
+  const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
   useEffect(() => {
-    setComputers(mockComputers); 
+    // Initial load
+    setComputers([...mockComputers]);
+
+    // Start simulation interval
+    const intervalId = setInterval(() => {
+      updateMockComputerMetrics();
+      setComputers([...mockComputers]); // Create a new array reference to trigger re-render
+    }, METRIC_SIMULATION_INTERVAL);
+
+    // Clear interval on component unmount
+    return () => clearInterval(intervalId);
   }, []);
 
 
@@ -127,6 +138,7 @@ export default function ComputersPage() {
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
           if (mockExec) mockExec.status = 'Running';
+          setComputers([...mockComputers]); // Refresh to show pending status potentially in other UI parts
         }, 1000);
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
@@ -137,6 +149,7 @@ export default function ComputersPage() {
             mockExec.logs += success ? '\nExecution completed successfully.' : '\nExecution failed (simulated batch-run error).';
             mockExec.output = success ? "OK" : "Error";
           }
+          setComputers([...mockComputers]); // Refresh
         }, 3000 + Math.random() * 1500);
       }
     });
@@ -157,10 +170,9 @@ export default function ComputersPage() {
     setIsRunProcedureModalOpen(false);
     setSelectedComputerIds([]);
     setSelectedProcedureId('');
-    setProcedureSearchTerm(''); // Reset procedure search term
+    setProcedureSearchTerm(''); 
   };
 
-  // Filter procedures for the dialog based on procedureSearchTerm
   const filteredProceduresForDialog = useMemo(() => {
     if (!procedureSearchTerm.trim()) {
       return allProcedures;
@@ -219,7 +231,7 @@ export default function ComputersPage() {
         <div className="mb-4 flex justify-start">
           <Dialog open={isRunProcedureModalOpen} onOpenChange={(isOpen) => {
             setIsRunProcedureModalOpen(isOpen);
-            if (!isOpen) setProcedureSearchTerm(''); // Reset search on close
+            if (!isOpen) setProcedureSearchTerm(''); 
           }}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -304,9 +316,11 @@ export default function ComputersPage() {
          {filteredComputers.length > 0 && (
           <CardFooter className="text-sm text-muted-foreground">
             Showing {filteredComputers.length} of {computers.length} computers.
+            <span className="ml-2 text-xs text-blue-500">(Metrics are simulated and update periodically)</span>
           </CardFooter>
         )}
       </Card>
     </div>
   );
 }
+
