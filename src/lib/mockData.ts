@@ -1,14 +1,16 @@
 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog } from '@/types';
 
-export let mockComputers: Computer[] = [
-  { id: 'comp-1', name: 'Workstation-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date().toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 40, groupIds: ['group-1'] },
-  { id: 'comp-2', name: 'Server-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '192.168.1.10', lastSeen: new Date().toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 20, groupIds: ['group-2'] },
-  { id: 'comp-3', name: 'Laptop-Dev', status: 'Offline', os: 'Windows 10 Pro', ipAddress: '192.168.1.102', lastSeen: new Date(Date.now() - 3600 * 1000 * 24).toISOString(), groupIds: ['group-1', 'group-3'] },
-  { id: 'comp-4', name: 'Kiosk-Display', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.1.103', lastSeen: new Date(Date.now() - 3600 * 1000 * 2).toISOString(), cpuUsage: 90, ramUsage: 95, diskUsage: 70 },
-  { id: 'comp-5', name: 'Finance-PC', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.104', lastSeen: new Date().toISOString(), cpuUsage: 15, ramUsage: 45, diskUsage: 55, groupIds: ['group-2'] },
-];
+// mockComputers is now managed by the API, so we can remove or comment it out.
+// export let mockComputers: Computer[] = [
+//   { id: 'comp-1', name: 'Workstation-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date().toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 40, groupIds: ['group-1'] },
+//   { id: 'comp-2', name: 'Server-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '192.168.1.10', lastSeen: new Date().toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 20, groupIds: ['group-2'] },
+//   { id: 'comp-3', name: 'Laptop-Dev', status: 'Offline', os: 'Windows 10 Pro', ipAddress: '192.168.1.102', lastSeen: new Date(Date.now() - 3600 * 1000 * 24).toISOString(), groupIds: ['group-1', 'group-3'] },
+//   { id: 'comp-4', name: 'Kiosk-Display', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.1.103', lastSeen: new Date(Date.now() - 3600 * 1000 * 2).toISOString(), cpuUsage: 90, ramUsage: 95, diskUsage: 70 },
+//   { id: 'comp-5', name: 'Finance-PC', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.104', lastSeen: new Date().toISOString(), cpuUsage: 15, ramUsage: 45, diskUsage: 55, groupIds: ['group-2'] },
+// ];
 
+// We keep other mock data for now, to be migrated to API step-by-step
 export let mockMonitors: Monitor[] = [
   {
     id: 'mon-1',
@@ -93,7 +95,7 @@ export let mockMonitors: Monitor[] = [
     name: 'Network Usage Monitor',
     description: 'Alerts if network activity is consistently very high (simulated).',
     scriptType: 'PowerShell',
-    scriptContent: '# This is a simplified check. Real network utilization monitoring is complex.\n$networkActivityScore = Get-Random -Minimum 0 -Maximum 100; # Simulated score\nif ($networkActivityScore -gt 95) { Write-Output "ALERT: High network activity detected (Simulated Score: $networkActivityScore)." } else { Write-Output "OK: Network activity normal (Simulated Score: $networkActivityScore)." }',
+    scriptContent: '# This is a simplified check. Real network utilization monitoring is complex.\\n$networkActivityScore = Get-Random -Minimum 0 -Maximum 100; # Simulated score\\nif ($networkActivityScore -gt 95) { Write-Output "ALERT: High network activity detected (Simulated Score: $networkActivityScore)." } else { Write-Output "OK: Network activity normal (Simulated Score: $networkActivityScore)." }',
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
@@ -108,7 +110,7 @@ export let mockComputerGroups: ComputerGroup[] = [
     id: 'group-1', 
     name: 'Development Team', 
     description: 'Computers used by the development team.', 
-    computerIds: ['comp-1', 'comp-3'],
+    computerIds: ['comp-1', 'comp-3'], // These IDs might become stale if API returns different computer IDs
     associatedProcedures: [
       { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'disabled' } }
     ],
@@ -117,7 +119,7 @@ export let mockComputerGroups: ComputerGroup[] = [
       { monitorId: 'mon-perf-cpu', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
     ]
   },
-  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], 
+  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], // These IDs might become stale
     associatedProcedures: [
       { procedureId: 'proc-2', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 2, intervalUnit: 'hours' } }
     ],
@@ -128,7 +130,7 @@ export let mockComputerGroups: ComputerGroup[] = [
       { monitorId: 'mon-perf-network', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
     ]
   },
-  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] },
+  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] }, // This ID might become stale
 ];
 
 export let mockProcedures: Procedure[] = [
@@ -147,7 +149,7 @@ export let mockProcedures: Procedure[] = [
     name: 'Install Basic Software',
     description: 'Installs common software using PowerShell.',
     scriptType: 'PowerShell',
-    scriptContent: 'winget install -e --id VideoLAN.VLC\nwinget install -e --id 7zip.7zip',
+    scriptContent: 'winget install -e --id VideoLAN.VLC\\nwinget install -e --id 7zip.7zip',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     parameters: [],
@@ -157,7 +159,7 @@ export let mockProcedures: Procedure[] = [
     name: 'Check Python Version',
     description: 'Verifies the installed Python version.',
     scriptType: 'Python',
-    scriptContent: 'import sys\nprint(sys.version)',
+    scriptContent: 'import sys\\nprint(sys.version)',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     parameters: [],
@@ -168,23 +170,23 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
     {
         id: 'exec-1',
         procedureId: 'proc-1',
-        computerId: 'comp-1',
+        computerId: 'comp-1', // This ID might become stale
         computerName: 'Workstation-01',
         status: 'Success',
         startTime: new Date(Date.now() - 3600 * 1000).toISOString(),
         endTime: new Date(Date.now() - 3500 * 1000).toISOString(),
-        logs: 'Starting disk cleanup...\nDisk cleanup successful.\nRemoved 1.2GB of temp files.',
+        logs: 'Starting disk cleanup...\\nDisk cleanup successful.\\nRemoved 1.2GB of temp files.',
         output: 'Success',
     },
     {
         id: 'exec-2',
         procedureId: 'proc-2',
-        computerId: 'comp-2',
+        computerId: 'comp-2', // This ID might become stale
         computerName: 'Server-Main',
         status: 'Failed',
         startTime: new Date(Date.now() - 7200 * 1000).toISOString(),
         endTime: new Date(Date.now() - 7000 * 1000).toISOString(),
-        logs: 'Starting software installation...\nFailed to install VideoLAN.VLC. Error code: 1603',
+        logs: 'Starting software installation...\\nFailed to install VideoLAN.VLC. Error code: 1603',
         output: 'Error: 1603',
     },
 ];
@@ -205,7 +207,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { 
     id: 'monlog-1', 
     monitorId: 'mon-3', 
-    computerId: 'comp-2', 
+    computerId: 'comp-2', // This ID might become stale
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 5 * 60000).toISOString(), 
     status: 'OK', 
@@ -215,7 +217,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { 
     id: 'monlog-2', 
     monitorId: 'mon-3', 
-    computerId: 'comp-2', 
+    computerId: 'comp-2', // This ID might become stale
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 10 * 60000).toISOString(), 
     status: 'ALERT', 
@@ -252,7 +254,6 @@ export function updateMonitor(updatedMonitor: Monitor): Monitor | null {
 export function deleteMonitor(monitorId: string): boolean {
   const initialLength = mockMonitors.length;
   mockMonitors = mockMonitors.filter(m => m.id !== monitorId);
-  // Also remove from group associations
   mockComputerGroups.forEach(group => {
     if (group.associatedMonitors) {
       group.associatedMonitors = group.associatedMonitors.filter(am => am.monitorId !== monitorId);
@@ -276,17 +277,17 @@ export function saveSmtpSettings(settings: SMTPSettings): void {
 
 
 // Helper functions to manage mock data
-export function addComputer(computer: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer {
-  const newComputer: Computer = {
-    ...computer,
-    id: `comp-${Date.now()}`,
-    lastSeen: new Date().toISOString(),
-    groupIds: [],
-    // cpuUsage, ramUsage, diskUsage will be undefined by default
-  };
-  mockComputers.push(newComputer);
-  return newComputer;
-}
+// addComputer is now handled by API, so we can remove or comment it out.
+// export function addComputer(computer: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer {
+//   const newComputer: Computer = {
+//     ...computer,
+//     id: `comp-${Date.now()}`,
+//     lastSeen: new Date().toISOString(),
+//     groupIds: [],
+//   };
+//   mockComputers.push(newComputer);
+//   return newComputer;
+// }
 
 export function addProcedureExecution(execution: ProcedureExecution) {
   mockProcedureExecutions.unshift(execution);
@@ -297,7 +298,7 @@ export function updateComputerGroup(updatedGroup: ComputerGroup) {
   if (index !== -1) {
     mockComputerGroups[index] = { ...mockComputerGroups[index], ...updatedGroup };
   } else {
-     mockComputerGroups.push(updatedGroup); // Should ideally not happen for update
+     mockComputerGroups.push(updatedGroup);
   }
 }
 
@@ -327,41 +328,18 @@ export function getComputerGroupById(groupId: string): ComputerGroup | undefined
 export function getProcedureById(procedureId: string): Procedure | undefined {
     return mockProcedures.find(p => p.id === procedureId);
 }
-export function getComputerById(computerId: string): Computer | undefined {
-    return mockComputers.find(c => c.id === computerId);
-}
+
+// getComputerById will fetch from API now, so this mock version might be less relevant
+// export function getComputerById(computerId: string): Computer | undefined {
+//     return mockComputers.find(c => c.id === computerId);
+// }
 
 // Monitor Execution Log Functions
 export function addMonitorExecutionLog(log: MonitorExecutionLog) {
-  mockMonitorExecutionLogs.unshift(log); // Add to the beginning for recent first
-  // Optional: Trim logs if they exceed a certain number for mock data management
-  // if (mockMonitorExecutionLogs.length > 100) {
-  //   mockMonitorExecutionLogs = mockMonitorExecutionLogs.slice(0, 100);
-  // }
+  mockMonitorExecutionLogs.unshift(log);
 }
 
-// Function to simulate computer metric updates
-export function updateMockComputerMetrics(): void {
-  mockComputers.forEach(computer => {
-    if (computer.status === 'Online') {
-      computer.lastSeen = new Date().toISOString();
+// Function to simulate computer metric updates is no longer needed here,
+// as metrics will come from the API.
+// export function updateMockComputerMetrics(): void { ... }
 
-      // Simulate CPU usage fluctuation (e.g., +/- 5% from current or default 30%)
-      let currentCpu = computer.cpuUsage === undefined ? 30 : computer.cpuUsage;
-      currentCpu += Math.floor(Math.random() * 11) - 5; // Fluctuate by -5 to +5
-      computer.cpuUsage = Math.max(5, Math.min(95, currentCpu)); // Keep within 5-95 range
-
-      // Simulate RAM usage fluctuation
-      let currentRam = computer.ramUsage === undefined ? 50 : computer.ramUsage;
-      currentRam += Math.floor(Math.random() * 11) - 5;
-      computer.ramUsage = Math.max(10, Math.min(90, currentRam));
-
-      // Simulate Disk usage (less fluctuation)
-      let currentDisk = computer.diskUsage === undefined ? 40 : computer.diskUsage;
-      currentDisk += Math.floor(Math.random() * 3) - 1; // Fluctuate by -1 to +1
-      computer.diskUsage = Math.max(10, Math.min(90, currentDisk));
-    }
-    // For Offline or Error computers, metrics (cpuUsage, ramUsage, diskUsage) are not updated
-    // and should remain undefined to be displayed as "N/A".
-  });
-}

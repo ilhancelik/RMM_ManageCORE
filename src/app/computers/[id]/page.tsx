@@ -2,16 +2,19 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { mockComputers, mockProcedures, mockProcedureExecutions } from '@/lib/mockData';
+import { mockProcedures, mockProcedureExecutions } from '@/lib/mockData'; // Keep for procedures, executions for now
+import { fetchComputerById } from '@/lib/apiClient'; // Import fetchComputerById
 import type { Computer, Procedure, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Cpu, HardDrive, MemoryStick, Play, Terminal, ListChecks, Edit, Trash2 } from 'lucide-react';
+import { ArrowLeft, Cpu, HardDrive, MemoryStick, Play, Terminal, ListChecks, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -19,29 +22,87 @@ export default function ComputerDetailsPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
+  const { toast } = useToast();
 
   const [computer, setComputer] = useState<Computer | null>(null);
-  const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]); // Keep using mock for now
 
   useEffect(() => {
-    const foundComputer = mockComputers.find(c => c.id === id) || null;
-    setComputer(foundComputer);
-    if (foundComputer) {
-      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-      const recentExecutions = mockProcedureExecutions.filter(exec => {
-        if (exec.computerId === foundComputer.id) {
-          const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
-          return execTime >= thirtyDaysAgo;
+    const loadComputerDetails = async () => {
+      if (!id) return;
+      setIsLoading(true);
+      setError(null);
+      try {
+        const fetchedComputer = await fetchComputerById(id);
+        setComputer(fetchedComputer);
+        if (fetchedComputer) {
+          // Procedure executions still from mock data for now
+          const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+          const recentExecutions = mockProcedureExecutions.filter(exec => {
+            if (exec.computerId === fetchedComputer.id) { // Match by ID from API
+              const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
+              return execTime >= thirtyDaysAgo;
+            }
+            return false;
+          }).sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+          setRelatedExecutions(recentExecutions);
+        } else {
+          setError('Computer not found.');
         }
-        return false;
-      }).sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
-      setRelatedExecutions(recentExecutions);
-    }
-  }, [id]);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load computer details.');
+        toast({
+          title: "Error Loading Computer",
+          description: err instanceof Error ? err.message : 'An unknown error occurred.',
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadComputerDetails();
+  }, [id, toast]);
 
-  if (!computer) {
-    return <div className="container mx-auto py-10 text-center">Computer not found.</div>;
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-2">
+        <Skeleton className="h-10 w-32 mb-6" />
+        <Card className="mb-6">
+          <CardHeader>
+            <Skeleton className="h-8 w-1/2 mb-2" />
+            <Skeleton className="h-4 w-3/4" />
+          </CardHeader>
+          <CardContent className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-1/4" /> <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-1/4" /> <Skeleton className="h-6 w-1/2" />
+              <Skeleton className="h-4 w-1/4" /> <Skeleton className="h-6 w-1/2" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-full" />
+              <Skeleton className="h-6 w-full" />
+              <Skeleton className="h-6 w-full" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader>
+          <CardContent><Skeleton className="h-20 w-full" /></CardContent>
+        </Card>
+      </div>
+    );
   }
+
+  if (error) {
+    return <div className="container mx-auto py-10 text-center text-destructive">{error} <Button onClick={() => router.back()} variant="link">Go Back</Button></div>;
+  }
+  
+  if (!computer) {
+     return <div className="container mx-auto py-10 text-center">Computer not found. <Button onClick={() => router.back()} variant="link">Go Back</Button></div>;
+  }
+
 
   const getStatusBadgeVariant = (status: Computer['status']) => {
     switch (status) {
@@ -67,10 +128,10 @@ export default function ComputerDetailsPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-3xl font-bold">{computer.name}</CardTitle>
-              <CardDescription>Details for {computer.name}</CardDescription>
+              <CardDescription>Details for {computer.name} (Data from API)</CardDescription>
             </div>
             <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => router.push(`/commands?computerId=${computer.id}`)}>
+                <Button variant="outline" size="sm" onClick={() => router.push(`/commands?computerId=${computer.id}`)} disabled={computer.status !== 'Online'}>
                     <Terminal className="mr-2 h-4 w-4" /> Run Command
                 </Button>
                 <Button variant="outline" size="sm">
@@ -133,8 +194,8 @@ export default function ComputerDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity (Last 30 Days)</CardTitle>
-          <CardDescription>Procedures executed on this computer.</CardDescription>
+          <CardTitle>Recent Activity (Last 30 Days - Mock Data)</CardTitle>
+          <CardDescription>Procedures executed on this computer. (Execution data still from mock data)</CardDescription>
         </CardHeader>
         <CardContent>
           {relatedExecutions.length > 0 ? (
@@ -179,5 +240,3 @@ export default function ComputerDetailsPage() {
     </div>
   );
 }
-
-    

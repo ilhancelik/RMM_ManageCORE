@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addComputer } from '@/lib/mockData';
+import { addComputerToApi } from '@/lib/apiClient'; // Import the API function
 import type { Computer } from '@/types';
 import { ArrowLeft, Save } from 'lucide-react';
 
@@ -35,12 +35,13 @@ export default function NewComputerPage() {
 
     setIsSubmitting(true);
     try {
-      addComputer({ name, os, ipAddress, status });
+      // Call the API to add the computer
+      await addComputerToApi({ name, os, ipAddress, status });
       toast({
         title: 'Success!',
-        description: `Computer "${name}" has been added.`,
+        description: `Computer "${name}" has been submitted to the API.`,
       });
-      router.push('/computers');
+      router.push('/computers'); // Navigate back to the computers list
     } catch (error) {
       toast({
         title: 'Error adding computer',
@@ -59,8 +60,8 @@ export default function NewComputerPage() {
 
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Add New Computer</CardTitle>
-          <CardDescription>Enter the details for the new computer you want to manage.</CardDescription>
+          <CardTitle>Add New Computer (via API)</CardTitle>
+          <CardDescription>Enter the details for the new computer. This will be sent to your API.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">

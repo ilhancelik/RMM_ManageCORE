@@ -22,25 +22,29 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
-import { mockComputers, mockComputerGroups, mockProcedures, addProcedureExecution, getProcedureById, updateMockComputerMetrics } from '@/lib/mockData';
+import { mockComputerGroups, mockProcedures, addProcedureExecution, getProcedureById } from '@/lib/mockData'; // Keep for groups, procedures for now
+import { fetchComputers } from '@/lib/apiClient'; // Import fetchComputers
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution } from '@/types';
-import { PlusCircle, ListFilter, Search, Play } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const ALL_GROUPS_VALUE = "all-groups";
-const METRIC_SIMULATION_INTERVAL = 7000; // Simulate updates every 7 seconds
 
 export default function ComputersPage() {
   const [selectedGroupId, setSelectedGroupId] = useState<string>(ALL_GROUPS_VALUE);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
-  const [computers, setComputers] = useState<Computer[]>(mockComputers);
-  const groups: ComputerGroup[] = mockComputerGroups;
-  const allProcedures: Procedure[] = mockProcedures; 
+  const [computers, setComputers] = useState<Computer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  const groups: ComputerGroup[] = mockComputerGroups; // Keep using mock for now
+  const allProcedures: Procedure[] = mockProcedures; // Keep using mock for now
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
@@ -48,18 +52,29 @@ export default function ComputersPage() {
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
   useEffect(() => {
-    // Initial load
-    setComputers([...mockComputers]);
+    const loadComputers = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const fetchedComputers = await fetchComputers();
+        setComputers(fetchedComputers);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load computers.');
+        toast({
+          title: "Error Loading Computers",
+          description: err instanceof Error ? err.message : 'An unknown error occurred.',
+          variant: "destructive",
+        });
+        setComputers([]); // Set to empty array on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    // Start simulation interval
-    const intervalId = setInterval(() => {
-      updateMockComputerMetrics();
-      setComputers([...mockComputers]); // Create a new array reference to trigger re-render
-    }, METRIC_SIMULATION_INTERVAL);
-
-    // Clear interval on component unmount
-    return () => clearInterval(intervalId);
-  }, []);
+    loadComputers();
+    // TODO: Add polling or WebSocket for real-time updates if needed
+    // For now, we fetch once on mount.
+  }, [toast]);
 
 
   const filteredComputers = useMemo(() => {
@@ -76,7 +91,7 @@ export default function ComputersPage() {
       filtered = filtered.filter(computer =>
         computer.name.toLowerCase().includes(lowerSearchTerm) ||
         (computer.os && computer.os.toLowerCase().includes(lowerSearchTerm)) ||
-        computer.ipAddress.toLowerCase().includes(lowerSearchTerm)
+        (computer.ipAddress && computer.ipAddress.toLowerCase().includes(lowerSearchTerm))
       );
     }
     return filtered;
@@ -104,6 +119,8 @@ export default function ComputersPage() {
   };
 
   const handleRunProcedureOnSelected = () => {
+    // This will need to be updated to call an API endpoint
+    // For now, it uses mockData logic
     if (!selectedProcedureId || selectedComputerIds.length === 0) {
       toast({
         title: "Error",
@@ -135,10 +152,10 @@ export default function ComputersPage() {
         addProcedureExecution(newExecution); 
         executionsCreated++;
         
+        // Simulating execution - replace with API calls and status polling/websockets
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
           if (mockExec) mockExec.status = 'Running';
-          setComputers([...mockComputers]); // Refresh to show pending status potentially in other UI parts
         }, 1000);
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
@@ -149,15 +166,14 @@ export default function ComputersPage() {
             mockExec.logs += success ? '\nExecution completed successfully.' : '\nExecution failed (simulated batch-run error).';
             mockExec.output = success ? "OK" : "Error";
           }
-          setComputers([...mockComputers]); // Refresh
         }, 3000 + Math.random() * 1500);
       }
     });
 
     if (executionsCreated > 0) {
       toast({
-        title: "Procedures Initiated",
-        description: `"${procedureToRun.name}" is being executed on ${executionsCreated} selected computer(s).`
+        title: "Procedures Initiated (Simulated)",
+        description: `"${procedureToRun.name}" is being executed on ${executionsCreated} selected computer(s). This is currently simulated.`
       });
     } else {
        toast({
@@ -243,7 +259,7 @@ export default function ComputersPage() {
                 <DialogTitle>Run Procedure on Selected Computers</DialogTitle>
                 <DialogDescription>
                   Select a procedure to run on the {selectedComputerIds.length} selected computer(s).
-                  Offline computers will be skipped.
+                  Offline computers will be skipped. This is currently simulated.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
@@ -294,11 +310,26 @@ export default function ComputersPage() {
             {selectedGroupId !== ALL_GROUPS_VALUE
               ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
               : 'View and manage all connected computers.'}
-            {filteredComputers.length === 0 && searchTerm && ' No computers match your search.'}
+            {filteredComputers.length === 0 && searchTerm && !isLoading && ' No computers match your search.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredComputers.length > 0 ? (
+          {isLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="ml-2 text-muted-foreground">Loading computers...</p>
+              </div>
+            </div>
+          ) : error ? (
+             <div className="text-center py-8 text-destructive">
+                <p>{error}</p>
+                <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Retry</Button>
+             </div>
+          ) : filteredComputers.length > 0 ? (
             <ComputerTable 
               computers={filteredComputers} 
               selectedComputerIds={selectedComputerIds}
@@ -309,18 +340,17 @@ export default function ComputersPage() {
             <p className="text-center text-muted-foreground py-8">
               {searchTerm && `No computers found matching "${searchTerm}".`}
               {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && `No computers found in the selected group.`}
-              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && `No computers found.`}
+              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? `No computers found. Ensure your API at ${process.env.NEXT_PUBLIC_API_BASE_URL}/computers is running and returning data.` : `No computers found.`)}
             </p>
           )}
         </CardContent>
-         {filteredComputers.length > 0 && (
+         {!isLoading && !error && filteredComputers.length > 0 && (
           <CardFooter className="text-sm text-muted-foreground">
             Showing {filteredComputers.length} of {computers.length} computers.
-            <span className="ml-2 text-xs text-blue-500">(Metrics are simulated and update periodically)</span>
+            {computers.length > 0 && <span className="ml-2 text-xs text-blue-500">(Metrics are fetched from API)</span>}
           </CardFooter>
         )}
       </Card>
     </div>
   );
 }
-
