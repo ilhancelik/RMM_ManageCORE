@@ -39,15 +39,15 @@ export default function ComputersPage() {
 
   const [computers, setComputers] = useState<Computer[]>(mockComputers);
   const groups: ComputerGroup[] = mockComputerGroups;
-  const procedures: Procedure[] = mockProcedures;
+  const allProcedures: Procedure[] = mockProcedures; // Renamed to allProcedures
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
-
+  const [procedureSearchTerm, setProcedureSearchTerm] = useState(''); // New state for procedure search
 
   useEffect(() => {
-    setComputers(mockComputers); // Ensure computers state is up-to-date if mockData changes elsewhere
+    setComputers(mockComputers); 
   }, []);
 
 
@@ -64,7 +64,7 @@ export default function ComputersPage() {
       const lowerSearchTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(computer =>
         computer.name.toLowerCase().includes(lowerSearchTerm) ||
-        computer.os.toLowerCase().includes(lowerSearchTerm) ||
+        (computer.os && computer.os.toLowerCase().includes(lowerSearchTerm)) ||
         computer.ipAddress.toLowerCase().includes(lowerSearchTerm)
       );
     }
@@ -121,10 +121,9 @@ export default function ComputersPage() {
           logs: `Batch execution started for "${procedureToRun.name}" on "${computer.name}"...`,
           startTime: new Date().toISOString(),
         };
-        addProcedureExecution(newExecution); // Adds to global mockProcedureExecutions
+        addProcedureExecution(newExecution); 
         executionsCreated++;
         
-        // Simulate execution progression (simplified)
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
           if (mockExec) mockExec.status = 'Running';
@@ -151,14 +150,27 @@ export default function ComputersPage() {
        toast({
         title: "No eligible computers",
         description: "No online computers were selected or found for procedure execution.",
-        variant: "default" // or "destructive" if it's an error
+        variant: "default"
       });
     }
 
     setIsRunProcedureModalOpen(false);
     setSelectedComputerIds([]);
     setSelectedProcedureId('');
+    setProcedureSearchTerm(''); // Reset procedure search term
   };
+
+  // Filter procedures for the dialog based on procedureSearchTerm
+  const filteredProceduresForDialog = useMemo(() => {
+    if (!procedureSearchTerm.trim()) {
+      return allProcedures;
+    }
+    const lowerSearchTerm = procedureSearchTerm.toLowerCase();
+    return allProcedures.filter(proc =>
+      proc.name.toLowerCase().includes(lowerSearchTerm) ||
+      proc.description.toLowerCase().includes(lowerSearchTerm)
+    );
+  }, [allProcedures, procedureSearchTerm]);
 
 
   return (
@@ -205,7 +217,10 @@ export default function ComputersPage() {
       
       {selectedComputerIds.length > 0 && (
         <div className="mb-4 flex justify-start">
-          <Dialog open={isRunProcedureModalOpen} onOpenChange={setIsRunProcedureModalOpen}>
+          <Dialog open={isRunProcedureModalOpen} onOpenChange={(isOpen) => {
+            setIsRunProcedureModalOpen(isOpen);
+            if (!isOpen) setProcedureSearchTerm(''); // Reset search on close
+          }}>
             <DialogTrigger asChild>
               <Button variant="outline">
                 <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
@@ -219,25 +234,37 @@ export default function ComputersPage() {
                   Offline computers will be skipped.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4 space-y-2">
-                <Label htmlFor="select-procedure">Procedure</Label>
-                <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId}>
-                  <SelectTrigger id="select-procedure">
-                    <SelectValue placeholder="Select a procedure to run" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <ScrollArea className="h-[200px]">
-                      {procedures.map(proc => (
-                        <SelectItem key={proc.id} value={proc.id}>
-                          {proc.name}
-                        </SelectItem>
-                      ))}
-                    </ScrollArea>
-                  </SelectContent>
-                </Select>
+              <div className="py-4 space-y-4">
+                <Input 
+                  type="search"
+                  placeholder="Search procedures..."
+                  value={procedureSearchTerm}
+                  onChange={(e) => setProcedureSearchTerm(e.target.value)}
+                  className="mb-2"
+                />
+                <div>
+                    <Label htmlFor="select-procedure">Procedure</Label>
+                    <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId}>
+                    <SelectTrigger id="select-procedure">
+                        <SelectValue placeholder="Select a procedure to run" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <ScrollArea className="h-[200px]">
+                        {filteredProceduresForDialog.length === 0 && (
+                            <p className="p-2 text-sm text-muted-foreground">No procedures found.</p>
+                        )}
+                        {filteredProceduresForDialog.map(proc => (
+                            <SelectItem key={proc.id} value={proc.id}>
+                            {proc.name}
+                            </SelectItem>
+                        ))}
+                        </ScrollArea>
+                    </SelectContent>
+                    </Select>
+                </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsRunProcedureModalOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }}>Cancel</Button>
                 <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId}>Run Procedure</Button>
               </DialogFooter>
             </DialogContent>
@@ -283,4 +310,3 @@ export default function ComputersPage() {
     </div>
   );
 }
-
