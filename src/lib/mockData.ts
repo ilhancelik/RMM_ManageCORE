@@ -1,16 +1,9 @@
 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog } from '@/types';
+import { fetchProcedures } from './apiClient'; // Added for getProcedureNameFromApi
 
-// mockComputers is now managed by the API, so we can remove or comment it out.
-// export let mockComputers: Computer[] = [
-//   { id: 'comp-1', name: 'Workstation-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date().toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 40, groupIds: ['group-1'] },
-//   { id: 'comp-2', name: 'Server-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '192.168.1.10', lastSeen: new Date().toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 20, groupIds: ['group-2'] },
-//   { id: 'comp-3', name: 'Laptop-Dev', status: 'Offline', os: 'Windows 10 Pro', ipAddress: '192.168.1.102', lastSeen: new Date(Date.now() - 3600 * 1000 * 24).toISOString(), groupIds: ['group-1', 'group-3'] },
-//   { id: 'comp-4', name: 'Kiosk-Display', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.1.103', lastSeen: new Date(Date.now() - 3600 * 1000 * 2).toISOString(), cpuUsage: 90, ramUsage: 95, diskUsage: 70 },
-//   { id: 'comp-5', name: 'Finance-PC', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.104', lastSeen: new Date().toISOString(), cpuUsage: 15, ramUsage: 45, diskUsage: 55, groupIds: ['group-2'] },
-// ];
+// Computer data is managed by the API.
 
-// We keep other mock data for now, to be migrated to API step-by-step
 export let mockMonitors: Monitor[] = [
   {
     id: 'mon-1',
@@ -21,7 +14,6 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 1,
     defaultIntervalUnit: 'hours',
     sendEmailOnAlert: true,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -34,7 +26,7 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 30,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
-    remediationProcedureId: 'proc-1', // Example: Auto run disk cleanup
+    // remediationProcedureId: 'proc-1', // This ID will now reference API-managed procedures
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -47,7 +39,6 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -60,7 +51,6 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 15,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: false,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -73,7 +63,6 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -86,7 +75,6 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -99,79 +87,22 @@ export let mockMonitors: Monitor[] = [
     defaultIntervalValue: 5,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
-    remediationProcedureId: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
 ];
 
-export let mockComputerGroups: ComputerGroup[] = [
-  { 
-    id: 'group-1', 
-    name: 'Development Team', 
-    description: 'Computers used by the development team.', 
-    computerIds: ['comp-1', 'comp-3'], // These IDs might become stale if API returns different computer IDs
-    associatedProcedures: [
-      { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'disabled' } }
-    ],
-    associatedMonitors: [
-      { monitorId: 'mon-2', schedule: { type: 'interval', intervalValue: 45, intervalUnit: 'minutes' } },
-      { monitorId: 'mon-perf-cpu', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
-    ]
-  },
-  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], // These IDs might become stale
-    associatedProcedures: [
-      { procedureId: 'proc-2', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 2, intervalUnit: 'hours' } }
-    ],
-    associatedMonitors: [
-      { monitorId: 'mon-3', schedule: { type: 'interval', intervalValue: 3, intervalUnit: 'minutes' } },
-      { monitorId: 'mon-4', schedule: { type: 'interval', intervalValue: 10, intervalUnit: 'minutes' } },
-      { monitorId: 'mon-perf-ram', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } },
-      { monitorId: 'mon-perf-network', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
-    ]
-  },
-  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] }, // This ID might become stale
-];
+// Group data is managed by the API.
 
-export let mockProcedures: Procedure[] = [
-  {
-    id: 'proc-1',
-    name: 'Disk Cleanup',
-    description: 'Runs standard disk cleanup utility.',
-    scriptType: 'CMD',
-    scriptContent: 'cleanmgr /sagerun:1',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    parameters: [],
-  },
-  {
-    id: 'proc-2',
-    name: 'Install Basic Software',
-    description: 'Installs common software using PowerShell.',
-    scriptType: 'PowerShell',
-    scriptContent: 'winget install -e --id VideoLAN.VLC\\nwinget install -e --id 7zip.7zip',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    parameters: [],
-  },
-  {
-    id: 'proc-3',
-    name: 'Check Python Version',
-    description: 'Verifies the installed Python version.',
-    scriptType: 'Python',
-    scriptContent: 'import sys\\nprint(sys.version)',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    parameters: [],
-  },
-];
+// Procedure data is now managed by the API.
+// export let mockProcedures: Procedure[] = [ ... ];
 
 export let mockProcedureExecutions: ProcedureExecution[] = [
     {
         id: 'exec-1',
-        procedureId: 'proc-1',
-        computerId: 'comp-1', // This ID might become stale
-        computerName: 'Workstation-01',
+        procedureId: 'proc-1', // This ID will reference API-managed procedures
+        computerId: 'comp-1', 
+        computerName: 'Workstation-01', // Name could be fetched or stored if API doesn't provide
         status: 'Success',
         startTime: new Date(Date.now() - 3600 * 1000).toISOString(),
         endTime: new Date(Date.now() - 3500 * 1000).toISOString(),
@@ -180,8 +111,8 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
     },
     {
         id: 'exec-2',
-        procedureId: 'proc-2',
-        computerId: 'comp-2', // This ID might become stale
+        procedureId: 'proc-2', // This ID will reference API-managed procedures
+        computerId: 'comp-2',
         computerName: 'Server-Main',
         status: 'Failed',
         startTime: new Date(Date.now() - 7200 * 1000).toISOString(),
@@ -207,7 +138,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { 
     id: 'monlog-1', 
     monitorId: 'mon-3', 
-    computerId: 'comp-2', // This ID might become stale
+    computerId: 'comp-2', 
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 5 * 60000).toISOString(), 
     status: 'OK', 
@@ -217,7 +148,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { 
     id: 'monlog-2', 
     monitorId: 'mon-3', 
-    computerId: 'comp-2', // This ID might become stale
+    computerId: 'comp-2', 
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 10 * 60000).toISOString(), 
     status: 'ALERT', 
@@ -226,7 +157,6 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   },
 ];
 
-
 export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
 
 // Monitor Functions
@@ -234,7 +164,7 @@ export function addMonitor(monitor: Omit<Monitor, 'id' | 'createdAt' | 'updatedA
   const newMonitor: Monitor = {
     ...monitor,
     id: `mon-${Date.now()}`,
-    remediationProcedureId: monitor.remediationProcedureId || '',
+    // remediationProcedureId: monitor.remediationProcedureId || '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -254,11 +184,13 @@ export function updateMonitor(updatedMonitor: Monitor): Monitor | null {
 export function deleteMonitor(monitorId: string): boolean {
   const initialLength = mockMonitors.length;
   mockMonitors = mockMonitors.filter(m => m.id !== monitorId);
-  mockComputerGroups.forEach(group => {
-    if (group.associatedMonitors) {
-      group.associatedMonitors = group.associatedMonitors.filter(am => am.monitorId !== monitorId);
-    }
-  });
+  // ComputerGroups are now API managed, so this direct manipulation might be out of sync.
+  // Consider how associated monitors are handled when a monitor is deleted if groups are API managed.
+  // mockComputerGroups.forEach(group => {
+  //   if (group.associatedMonitors) {
+  //     group.associatedMonitors = group.associatedMonitors.filter(am => am.monitorId !== monitorId);
+  //   }
+  // });
   return mockMonitors.length < initialLength;
 }
 
@@ -275,40 +207,9 @@ export function saveSmtpSettings(settings: SMTPSettings): void {
   smtpSettings = settings;
 }
 
-
 // Helper functions to manage mock data
-// addComputer is now handled by API, so we can remove or comment it out.
-// export function addComputer(computer: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer {
-//   const newComputer: Computer = {
-//     ...computer,
-//     id: `comp-${Date.now()}`,
-//     lastSeen: new Date().toISOString(),
-//     groupIds: [],
-//   };
-//   mockComputers.push(newComputer);
-//   return newComputer;
-// }
-
 export function addProcedureExecution(execution: ProcedureExecution) {
-  mockProcedureExecutions.unshift(execution);
-}
-
-export function updateComputerGroup(updatedGroup: ComputerGroup) {
-  const index = mockComputerGroups.findIndex(g => g.id === updatedGroup.id);
-  if (index !== -1) {
-    mockComputerGroups[index] = { ...mockComputerGroups[index], ...updatedGroup };
-  } else {
-     mockComputerGroups.push(updatedGroup);
-  }
-}
-
-export function addComputerGroup(newGroup: ComputerGroup) {
-    const existingIndex = mockComputerGroups.findIndex(g => g.id === newGroup.id);
-    if (existingIndex === -1) {
-        mockComputerGroups.push(newGroup);
-    } else {
-        mockComputerGroups[existingIndex] = newGroup; 
-    }
+  mockProcedureExecutions.unshift(execution); // Still used for simulated executions
 }
 
 export function addCustomCommand(command: CustomCommand) {
@@ -321,25 +222,19 @@ export function updateCustomCommand(commandToUpdate: Partial<CustomCommand> & { 
   );
 }
 
+// getComputerById, getGroupById, getProcedureById are now handled by apiClient.ts
+// The following might still be used by parts of the UI that haven't been fully migrated
+// or for components that need quick access to names from IDs for mock data.
+// These should be phased out or adapted as more modules move to API.
 
-export function getComputerGroupById(groupId: string): ComputerGroup | undefined {
-    return mockComputerGroups.find(g => g.id === groupId);
-}
-export function getProcedureById(procedureId: string): Procedure | undefined {
-    return mockProcedures.find(p => p.id === procedureId);
-}
-
-// getComputerById will fetch from API now, so this mock version might be less relevant
-// export function getComputerById(computerId: string): Computer | undefined {
-//     return mockComputers.find(c => c.id === computerId);
+// export function getProcedureById(procedureId: string): Procedure | undefined {
+//   // This would now ideally fetch from API if needed globally,
+//   // or components should manage their own data fetching.
+//   // For now, it's removed as procedures list page fetches its own.
+//   return undefined;
 // }
 
 // Monitor Execution Log Functions
 export function addMonitorExecutionLog(log: MonitorExecutionLog) {
   mockMonitorExecutionLogs.unshift(log);
 }
-
-// Function to simulate computer metric updates is no longer needed here,
-// as metrics will come from the API.
-// export function updateMockComputerMetrics(): void { ... }
-

@@ -22,12 +22,13 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
-import { mockComputerGroups, mockProcedures, addProcedureExecution, getProcedureById } from '@/lib/mockData'; // Keep for groups, procedures for now
-import { fetchComputers } from '@/lib/apiClient'; // Import fetchComputers
+// Removed getProcedureById from mockData, will fetch procedures from API
+import { mockComputerGroups, addProcedureExecution, mockProcedureExecutions } from '@/lib/mockData'; 
+import { fetchComputers, fetchProcedures, fetchGroups } from '@/lib/apiClient'; 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution } from '@/types';
 import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,41 +41,54 @@ export default function ComputersPage() {
   const { toast } = useToast();
 
   const [computers, setComputers] = useState<Computer[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isLoadingComputers, setIsLoadingComputers] = useState(true);
+  const [computerError, setComputerError] = useState<string | null>(null);
   
-  const groups: ComputerGroup[] = mockComputerGroups; // Keep using mock for now
-  const allProcedures: Procedure[] = mockProcedures; // Keep using mock for now
+  const [groups, setGroups] = useState<ComputerGroup[]>([]); 
+  const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
+  const [isLoadingProcedures, setIsLoadingProcedures] = useState(false);
+
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
+  const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
+
+
+  const loadInitialData = useCallback(async () => {
+    setIsLoadingComputers(true);
+    setComputerError(null);
+    setIsLoadingProcedures(true); // For procedures in dialog
+    try {
+      const [fetchedComputers, fetchedApiGroups, fetchedApiProcedures] = await Promise.all([
+        fetchComputers(),
+        fetchGroups(), // Fetch groups for filter dropdown
+        fetchProcedures() // Fetch procedures for run dialog
+      ]);
+      setComputers(fetchedComputers);
+      setGroups(fetchedApiGroups);
+      setAllProcedures(fetchedApiProcedures);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load initial data.';
+      setComputerError(errorMessage); // General error for now
+      toast({
+        title: "Error Loading Data",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setComputers([]);
+      setGroups([]);
+      setAllProcedures([]);
+    } finally {
+      setIsLoadingComputers(false);
+      setIsLoadingProcedures(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    const loadComputers = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const fetchedComputers = await fetchComputers();
-        setComputers(fetchedComputers);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load computers.');
-        toast({
-          title: "Error Loading Computers",
-          description: err instanceof Error ? err.message : 'An unknown error occurred.',
-          variant: "destructive",
-        });
-        setComputers([]); // Set to empty array on error
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadComputers();
-    // TODO: Add polling or WebSocket for real-time updates if needed
-    // For now, we fetch once on mount.
-  }, [toast]);
+    loadInitialData();
+  }, [loadInitialData]);
 
 
   const filteredComputers = useMemo(() => {
@@ -119,8 +133,8 @@ export default function ComputersPage() {
   };
 
   const handleRunProcedureOnSelected = () => {
-    // This will need to be updated to call an API endpoint
-    // For now, it uses mockData logic
+    // This remains a client-side simulation for now.
+    // Real execution would require an API endpoint.
     if (!selectedProcedureId || selectedComputerIds.length === 0) {
       toast({
         title: "Error",
@@ -130,12 +144,13 @@ export default function ComputersPage() {
       return;
     }
 
-    const procedureToRun = getProcedureById(selectedProcedureId);
+    const procedureToRun = allProcedures.find(p => p.id === selectedProcedureId);
     if (!procedureToRun) {
       toast({ title: "Error", description: "Selected procedure not found.", variant: "destructive" });
       return;
     }
     
+    setIsExecutingProcedure(true);
     let executionsCreated = 0;
     selectedComputerIds.forEach(computerId => {
       const computer = computers.find(c => c.id === computerId);
@@ -146,13 +161,13 @@ export default function ComputersPage() {
           computerId: computer.id,
           computerName: computer.name,
           status: 'Pending',
-          logs: `Batch execution started for "${procedureToRun.name}" on "${computer.name}"...`,
+          logs: `Batch execution (simulated) started for "${procedureToRun.name}" on "${computer.name}"...`,
           startTime: new Date().toISOString(),
         };
-        addProcedureExecution(newExecution); 
+        addProcedureExecution(newExecution); // Adds to global mockProcedureExecutions
         executionsCreated++;
         
-        // Simulating execution - replace with API calls and status polling/websockets
+        // Simulating execution
         setTimeout(() => {
           const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
           if (mockExec) mockExec.status = 'Running';
@@ -164,7 +179,10 @@ export default function ComputersPage() {
             mockExec.status = success ? 'Success' : 'Failed';
             mockExec.endTime = new Date().toISOString();
             mockExec.logs += success ? '\nExecution completed successfully.' : '\nExecution failed (simulated batch-run error).';
-            mockExec.output = success ? "OK" : "Error";
+            mockExec.output = success ? `Simulated OK Output for ${procedureToRun.scriptType}` : "Simulated Error Output";
+          }
+          if (selectedComputerIds.indexOf(computerId) === selectedComputerIds.length -1) { // last one
+            setIsExecutingProcedure(false);
           }
         }, 3000 + Math.random() * 1500);
       }
@@ -181,6 +199,7 @@ export default function ComputersPage() {
         description: "No online computers were selected or found for procedure execution.",
         variant: "default"
       });
+       setIsExecutingProcedure(false);
     }
 
     setIsRunProcedureModalOpen(false);
@@ -219,7 +238,7 @@ export default function ComputersPage() {
           <div className="flex items-center gap-2">
             <ListFilter className="h-5 w-5 text-muted-foreground" />
             <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId}>
+            <Select value={selectedGroupId} onValueChange={setSelectedGroupId} disabled={isLoadingComputers || groups.length === 0}>
               <SelectTrigger id="groupFilter" className="w-full sm:w-[180px]">
                 <SelectValue placeholder="Select a group" />
               </SelectTrigger>
@@ -269,31 +288,40 @@ export default function ComputersPage() {
                   value={procedureSearchTerm}
                   onChange={(e) => setProcedureSearchTerm(e.target.value)}
                   className="mb-2"
+                  disabled={isLoadingProcedures}
                 />
                 <div>
                     <Label htmlFor="select-procedure">Procedure</Label>
-                    <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId}>
+                    <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId} disabled={isLoadingProcedures}>
                     <SelectTrigger id="select-procedure">
-                        <SelectValue placeholder="Select a procedure to run" />
+                        <SelectValue placeholder={isLoadingProcedures ? "Loading procedures..." : "Select a procedure to run"} />
                     </SelectTrigger>
                     <SelectContent>
-                        <ScrollArea className="h-[200px]">
-                        {filteredProceduresForDialog.length === 0 && (
+                        {isLoadingProcedures ? (
+                            <div className="p-2 text-sm text-muted-foreground flex items-center justify-center">
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading...
+                            </div>
+                        ) : filteredProceduresForDialog.length === 0 ? (
                             <p className="p-2 text-sm text-muted-foreground">No procedures found.</p>
+                        ) : (
+                            <ScrollArea className="h-[200px]">
+                            {filteredProceduresForDialog.map(proc => (
+                                <SelectItem key={proc.id} value={proc.id}>
+                                {proc.name}
+                                </SelectItem>
+                            ))}
+                            </ScrollArea>
                         )}
-                        {filteredProceduresForDialog.map(proc => (
-                            <SelectItem key={proc.id} value={proc.id}>
-                            {proc.name}
-                            </SelectItem>
-                        ))}
-                        </ScrollArea>
                     </SelectContent>
                     </Select>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }}>Cancel</Button>
-                <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId}>Run Procedure</Button>
+                <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }} disabled={isExecutingProcedure}>Cancel</Button>
+                <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProcedures || isExecutingProcedure}>
+                  {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
+                  {isExecutingProcedure ? 'Executing...' : 'Run Procedure'}
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -310,11 +338,12 @@ export default function ComputersPage() {
             {selectedGroupId !== ALL_GROUPS_VALUE
               ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
               : 'View and manage all connected computers.'}
-            {filteredComputers.length === 0 && searchTerm && !isLoading && ' No computers match your search.'}
+            {filteredComputers.length === 0 && searchTerm && !isLoadingComputers && ' No computers match your search.'}
+             {!isLoadingComputers && computers.length > 0 && selectedGroupId !== ALL_GROUPS_VALUE && groups.length === 0 && ' (Group data not loaded or available from API)'}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {isLoadingComputers ? (
             <div className="space-y-4">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
@@ -324,10 +353,10 @@ export default function ComputersPage() {
                 <p className="ml-2 text-muted-foreground">Loading computers...</p>
               </div>
             </div>
-          ) : error ? (
+          ) : computerError ? (
              <div className="text-center py-8 text-destructive">
-                <p>{error}</p>
-                <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">Retry</Button>
+                <p>{computerError}</p>
+                <Button onClick={loadInitialData} variant="outline" className="mt-4">Retry</Button>
              </div>
           ) : filteredComputers.length > 0 ? (
             <ComputerTable 
@@ -344,7 +373,7 @@ export default function ComputersPage() {
             </p>
           )}
         </CardContent>
-         {!isLoading && !error && filteredComputers.length > 0 && (
+         {!isLoadingComputers && !computerError && filteredComputers.length > 0 && (
           <CardFooter className="text-sm text-muted-foreground">
             Showing {filteredComputers.length} of {computers.length} computers.
             {computers.length > 0 && <span className="ml-2 text-xs text-blue-500">(Metrics are fetched from API)</span>}

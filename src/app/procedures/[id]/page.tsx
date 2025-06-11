@@ -2,14 +2,15 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState, useTransition } from 'react';
-import { mockProcedures, mockComputers, mockProcedureExecutions, scriptTypes } from '@/lib/mockData';
+import React, { useEffect, useState, useTransition, useCallback } from 'react';
+import { mockComputers, mockProcedureExecutions, scriptTypes } from '@/lib/mockData'; // mockComputers and mockProcedureExecutions remain for now for execution simulation
 import type { Procedure, Computer, ProcedureExecution, ScriptType } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
+import { fetchProcedureById, updateProcedure } from '@/lib/apiClient';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,10 +32,13 @@ export default function ProcedureDetailPage() {
   const searchParams = useSearchParams();
   const id = params.id as string;
   const { toast } = useToast();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition(); // For AI improvement
 
   const [procedure, setProcedure] = useState<Procedure | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Editable fields
   const [editName, setEditName] = useState('');
@@ -42,9 +46,9 @@ export default function ProcedureDetailPage() {
   const [editScriptType, setEditScriptType] = useState<ScriptType>('CMD');
   const [editScriptContent, setEditScriptContent] = useState('');
 
-  // Execution state
+  // Execution state (still uses mockComputers and mockProcedureExecutions for simulation)
   const [selectedComputers, setSelectedComputers] = useState<string[]>([]);
-  const [executions, setExecutions] = useState<ProcedureExecution[]>([]);
+  const [executions, setExecutions] = useState<ProcedureExecution[]>([]); // Mock data for now
   
   // AI Improvement state
   const [aiInputLogs, setAiInputLogs] = useState('');
@@ -56,56 +60,90 @@ export default function ProcedureDetailPage() {
   const [copiedImprovedScript, setCopiedImprovedScript] = useState(false);
   const [copiedExplanation, setCopiedExplanation] = useState(false);
 
-  useEffect(() => {
-    const foundProcedure = mockProcedures.find(p => p.id === id) || null;
-    setProcedure(foundProcedure);
-    if (foundProcedure) {
-      setEditName(foundProcedure.name);
-      setEditDescription(foundProcedure.description);
-      setEditScriptType(foundProcedure.scriptType);
-      setEditScriptContent(foundProcedure.scriptContent);
-      
-      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-      const recentExecutions = mockProcedureExecutions.filter(exec => {
-        if (exec.procedureId === id) {
-          const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
-          return execTime >= thirtyDaysAgo;
-        }
-        return false;
-      });
-      setExecutions(recentExecutions);
+  const loadProcedureDetails = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedProcedure = await fetchProcedureById(id);
+      setProcedure(fetchedProcedure);
+      if (fetchedProcedure) {
+        setEditName(fetchedProcedure.name);
+        setEditDescription(fetchedProcedure.description);
+        setEditScriptType(fetchedProcedure.scriptType);
+        setEditScriptContent(fetchedProcedure.scriptContent);
+        
+        // Mock executions for this procedure (to be replaced by API call later)
+        const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
+        const recentExecutions = mockProcedureExecutions.filter(exec => {
+          if (exec.procedureId === id) {
+            const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
+            return execTime >= thirtyDaysAgo;
+          }
+          return false;
+        }).sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+        setExecutions(recentExecutions);
+
+      } else {
+        setError('Procedure not found.');
+      }
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load procedure details.';
+        setError(errorMessage);
+        toast({ title: "Error Loading Procedure", description: errorMessage, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
     }
-  }, [id]);
+  }, [id, toast]);
 
-  const handleSave = () => {
+  useEffect(() => {
+    loadProcedureDetails();
+  }, [loadProcedureDetails]);
+
+  const handleSave = async () => {
     if (!procedure) return;
-    const updatedProcedure: Procedure = {
-      ...procedure,
-      name: editName,
-      description: editDescription,
-      scriptType: editScriptType,
-      scriptContent: editScriptContent,
-      updatedAt: new Date().toISOString(),
-    };
-    setProcedure(updatedProcedure);
-    const index = mockProcedures.findIndex(p => p.id === id);
-    if (index !== -1) mockProcedures[index] = updatedProcedure;
-    
+    setIsSaving(true);
+    try {
+      const updatedData: Partial<Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>> = {
+        name: editName,
+        description: editDescription,
+        scriptType: editScriptType,
+        scriptContent: editScriptContent,
+      };
+      const updatedProc = await updateProcedure(procedure.id, updatedData);
+      setProcedure(updatedProc); // Update local state with response from API
+      setEditName(updatedProc.name);
+      setEditDescription(updatedProc.description);
+      setEditScriptType(updatedProc.scriptType);
+      setEditScriptContent(updatedProc.scriptContent);
+      setIsEditing(false);
+      toast({ title: "Procedure Saved", description: `${updatedProc.name} has been updated.` });
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving.';
+        toast({ title: "Error Saving Procedure", description: errorMessage, variant: "destructive" });
+    } finally {
+        setIsSaving(false);
+    }
+  };
+  
+  const handleCancelEdit = () => {
+    if (procedure) {
+        setEditName(procedure.name);
+        setEditDescription(procedure.description);
+        setEditScriptType(procedure.scriptType);
+        setEditScriptContent(procedure.scriptContent);
+    }
     setIsEditing(false);
-    toast({ title: "Procedure Saved", description: `${updatedProcedure.name} has been updated.` });
-  };
+  }
 
-  const handleComputerSelection = (computerId: string) => {
-    setSelectedComputers(prev =>
-      prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
-    );
-  };
-
+  // Note: handleExecuteProcedure still uses mock data for simulation.
+  // Real execution would require an API endpoint.
   const handleExecuteProcedure = () => {
     if (!procedure || selectedComputers.length === 0) {
         toast({ title: "Execution Error", description: "Please select at least one computer.", variant: "destructive"});
         return;
     }
+    // This part is simulation using mockProcedureExecutions
     const newExecsData: ProcedureExecution[] = selectedComputers.map(compId => {
       const computer = mockComputers.find(c => c.id === compId);
       return {
@@ -119,42 +157,34 @@ export default function ProcedureDetailPage() {
       };
     });
 
-    // Add to global mock data (though this won't be filtered by 30-day rule immediately unless re-fetched)
-    newExecsData.forEach(exec => mockProcedureExecutions.unshift(exec));
-
-    // Update local state, which will be filtered by the 30-day rule on next render or if explicitly re-filtered
-    // For immediate display, add them to the current 'executions' state if they are within 30 days (which they will be)
+    newExecsData.forEach(exec => mockProcedureExecutions.unshift(exec)); // Add to global mock
     const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-    const allCurrentProcedureExecutions = mockProcedureExecutions.filter(exec => {
-        if (exec.procedureId === procedure.id) {
-            const execTime = new Date(exec.endTime || exec.startTime || new Date().toISOString()).getTime();
-            return execTime >= thirtyDaysAgo;
-        }
-        return false;
-    });
-    setExecutions(allCurrentProcedureExecutions.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
+    const allCurrentProcedureExecutions = mockProcedureExecutions.filter(exec => 
+        exec.procedureId === procedure.id && new Date(exec.endTime || exec.startTime || new Date().toISOString()).getTime() >= thirtyDaysAgo
+    ).sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+    setExecutions(allCurrentProcedureExecutions); // Update local state for display
 
-
-    // Simulate execution
-    newExecsData.forEach(exec => {
+    newExecsData.forEach(exec => { // Simulate execution progression
         setTimeout(() => {
-             mockProcedureExecutions.find(e => e.id === exec.id)!.status = 'Running';
+             const mockExec = mockProcedureExecutions.find(e => e.id === exec.id);
+             if(mockExec) mockExec.status = 'Running';
              const updatedExecs = mockProcedureExecutions.filter(e => e.procedureId === procedure.id && new Date(e.endTime || e.startTime || 0).getTime() >= thirtyDaysAgo);
              setExecutions(updatedExecs.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
         }, 1000);
         setTimeout(() => {
             const success = Math.random() > 0.3; 
-            const mockExec = mockProcedureExecutions.find(e => e.id === exec.id)!;
-            mockExec.status = success ? 'Success' : 'Failed';
-            mockExec.endTime = new Date().toISOString();
-            mockExec.logs = `${exec.logs}\n${success ? 'Execution completed successfully.' : 'Execution failed. Error: Simulated error.'}`;
-            mockExec.output = success ? 'Output: OK' : 'Output: Error XYZ';
-            
+            const mockExec = mockProcedureExecutions.find(e => e.id === exec.id);
+            if(mockExec) {
+                mockExec.status = success ? 'Success' : 'Failed';
+                mockExec.endTime = new Date().toISOString();
+                mockExec.logs = `${exec.logs}\n${success ? 'Execution completed successfully.' : 'Execution failed. Error: Simulated error.'}`;
+                mockExec.output = success ? 'Output: OK' : 'Output: Error XYZ';
+            }
             const updatedExecs = mockProcedureExecutions.filter(e => e.procedureId === procedure.id && new Date(e.endTime || e.startTime || 0).getTime() >= thirtyDaysAgo);
             setExecutions(updatedExecs.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime()));
         }, 3000 + Math.random() * 2000);
     });
-    toast({ title: "Procedure Execution Started", description: `Executing ${procedure.name} on ${selectedComputers.length} computer(s).`});
+    toast({ title: "Procedure Execution Started (Simulated)", description: `Executing ${procedure.name} on ${selectedComputers.length} computer(s).`});
     setSelectedComputers([]);
   };
 
@@ -166,7 +196,7 @@ export default function ProcedureDetailPage() {
     setImprovementExplanation('');
 
     const input: ImproveProcedureInput = {
-      procedureScript: procedure.scriptContent,
+      procedureScript: procedure.scriptContent, // Use API-fetched script content
       executionLogs: aiInputLogs || "No specific execution logs provided for this improvement cycle. Analyze based on script itself.",
     };
 
@@ -190,6 +220,12 @@ export default function ProcedureDetailPage() {
       }
     });
   };
+  
+  const handleComputerSelection = (computerId: string) => {
+    setSelectedComputers(prev =>
+      prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
+    );
+  };
 
   const copyToClipboard = (text: string, type: 'script' | 'explanation') => {
     navigator.clipboard.writeText(text).then(() => {
@@ -205,26 +241,62 @@ export default function ProcedureDetailPage() {
       toast({ title: "Copy failed", description: err.message, variant: "destructive"});
     });
   };
+  
+  const defaultTab = searchParams.get('tab') || 'details';
 
-  if (!procedure) {
+  if (isLoading) {
     return (
       <div className="container mx-auto py-2">
          <Button variant="outline" onClick={() => router.push('/procedures')} className="mb-6">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to Procedures
         </Button>
-        <Card>
-            <CardHeader><CardTitle>Loading Procedure...</CardTitle></CardHeader>
-            <CardContent>
-                <Skeleton className="h-8 w-3/4 mb-4" />
-                <Skeleton className="h-20 w-full mb-4" />
-                <Skeleton className="h-40 w-full" />
-            </CardContent>
+        <Card className="mb-6">
+            <CardHeader>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <Skeleton className="h-8 w-1/2 mb-2" />
+                        <Skeleton className="h-4 w-3/4" />
+                    </div>
+                    <Skeleton className="h-10 w-32" />
+                </div>
+            </CardHeader>
         </Card>
+        <Skeleton className="h-10 w-full mb-4" /> {/* TabsList skeleton */}
+        <Card>
+            <CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader>
+            <CardContent><Skeleton className="h-40 w-full" /></CardContent>
+        </Card>
+        <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Loading procedure details...</p>
+        </div>
       </div>
     );
   }
 
-  const defaultTab = searchParams.get('tab') || 'details';
+  if (error) {
+    return (
+      <div className="container mx-auto py-10 text-center">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={() => router.push('/procedures')} variant="outline" className="mt-4">
+            Back to Procedures
+        </Button>
+        <Button onClick={loadProcedureDetails} variant="link" className="mt-2">Retry</Button>
+      </div>
+    );
+  }
+
+  if (!procedure) {
+     return (
+        <div className="container mx-auto py-10 text-center">
+            <p>Procedure not found. It might have been deleted.</p>
+            <Button onClick={() => router.push('/procedures')} variant="outline" className="mt-4">
+                Back to Procedures
+            </Button>
+        </div>
+     );
+  }
+
 
   return (
     <div className="container mx-auto py-2">
@@ -240,14 +312,17 @@ export default function ProcedureDetailPage() {
               <CardDescription>{isEditing ? editDescription : procedure.description}</CardDescription>
             </div>
             {!isEditing && (
-              <Button variant="outline" onClick={() => setIsEditing(true)}>
+              <Button variant="outline" onClick={() => setIsEditing(true)} disabled={isSaving}>
                 <Edit className="mr-2 h-4 w-4" /> Edit Procedure
               </Button>
             )}
             {isEditing && (
                 <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => { setIsEditing(false); /* Reset changes if needed */ }}>Cancel</Button>
-                    <Button onClick={handleSave}><Save className="mr-2 h-4 w-4" /> Save Changes</Button>
+                    <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>Cancel</Button>
+                    <Button onClick={handleSave} disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isSaving ? 'Saving...' : 'Save Changes'}
+                    </Button>
                 </div>
             )}
           </div>
@@ -257,15 +332,15 @@ export default function ProcedureDetailPage() {
                 <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="editName" className="text-right">Name</Label>
-                        <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} className="col-span-3" />
+                        <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} className="col-span-3" disabled={isSaving} />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="editDescription" className="text-right">Description</Label>
-                        <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" />
+                        <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" disabled={isSaving} />
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                         <Label htmlFor="editScriptType" className="text-right">Script Type</Label>
-                        <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)}>
+                        <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving}>
                         <SelectTrigger className="col-span-3">
                             <SelectValue placeholder="Select script type" />
                         </SelectTrigger>
@@ -276,14 +351,15 @@ export default function ProcedureDetailPage() {
                         </SelectContent>
                         </Select>
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="editScriptContent" className="text-right">Script Content</Label>
+                    <div className="grid grid-cols-4 items-start gap-4">
+                        <Label htmlFor="editScriptContent" className="text-right pt-2">Script Content</Label>
                         <Textarea
                         id="editScriptContent"
                         value={editScriptContent}
                         onChange={(e) => setEditScriptContent(e.target.value)}
                         className="col-span-3 font-code"
                         rows={10}
+                        disabled={isSaving}
                         />
                     </div>
                 </div>
@@ -294,7 +370,7 @@ export default function ProcedureDetailPage() {
       <Tabs defaultValue={defaultTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="details">Details</TabsTrigger>
-          <TabsTrigger value="execute">Execute</TabsTrigger>
+          <TabsTrigger value="execute">Execute (Simulated)</TabsTrigger>
           <TabsTrigger value="improve">Improve with AI</TabsTrigger>
         </TabsList>
 
@@ -331,10 +407,11 @@ export default function ProcedureDetailPage() {
             <Card className="md:col-span-1">
               <CardHeader>
                 <CardTitle>Select Target Computers</CardTitle>
+                 <CardDescription>Execution is currently simulated.</CardDescription>
               </CardHeader>
               <CardContent>
                 <ScrollArea className="h-72 border rounded-md p-2">
-                  {mockComputers.map(computer => (
+                  {mockComputers.map(computer => ( // Still uses mockComputers for selection UI
                     <div key={computer.id} className="flex items-center space-x-2 p-1">
                       <Checkbox
                         id={`comp-exec-${computer.id}`}
@@ -358,7 +435,7 @@ export default function ProcedureDetailPage() {
 
             <Card className="md:col-span-2">
               <CardHeader>
-                <CardTitle>Execution History (Last 30 Days)</CardTitle>
+                <CardTitle>Execution History (Last 30 Days - Simulated)</CardTitle>
                 <CardDescription>Status of past and current executions for this procedure.</CardDescription>
               </CardHeader>
               <CardContent>
@@ -368,7 +445,7 @@ export default function ProcedureDetailPage() {
                         No recent executions for this procedure in the last 30 days.
                     </div>
                 ) : (
-                <ScrollArea className="h-[20rem]"> {/* approx 320px */}
+                <ScrollArea className="h-[20rem]"> 
                     <Table>
                         <TableHeader>
                         <TableRow>
@@ -418,7 +495,7 @@ export default function ProcedureDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <Label htmlFor="aiInputLogs">Execution Logs (Optional, from last 30 days)</Label>
+                <Label htmlFor="aiInputLogs">Execution Logs (Optional, from last 30 days - Simulated)</Label>
                 <Textarea
                   id="aiInputLogs"
                   value={aiInputLogs}
@@ -432,7 +509,7 @@ export default function ProcedureDetailPage() {
                     setAiInputLogs(recentLogs || "No logs from last 30 days found for this procedure.");
                     if (recentLogs) toast({title: "Loaded recent logs", description: "Up to 5 most recent execution logs loaded."});
                  }}>
-                    Load recent logs for this procedure
+                    Load recent (simulated) logs for this procedure
                  </Button>
               </div>
               <Button onClick={handleImproveProcedure} disabled={isImproving || isPending}>
@@ -440,7 +517,7 @@ export default function ProcedureDetailPage() {
                 {isImproving || isPending ? 'Analyzing...' : 'Get AI Suggestions'}
               </Button>
 
-              {isImproving || isPending && (
+              {(isImproving || isPending) && (
                 <div className="space-y-4 mt-4">
                     <Skeleton className="h-8 w-1/3" />
                     <Skeleton className="h-24 w-full" />
@@ -499,5 +576,3 @@ export default function ProcedureDetailPage() {
     </div>
   );
 }
-
-    
