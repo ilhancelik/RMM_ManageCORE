@@ -30,6 +30,8 @@ import {
   Moon,
   Sun,
   Bot,
+  Activity, // For Monitors
+  Mail, // For Settings related to SMTP
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
@@ -38,8 +40,14 @@ const navItems = [
   { href: '/computers', label: 'Computers', icon: Computer },
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/procedures', label: 'Procedures', icon: FileCode },
+  { href: '/monitors', label: 'Monitors', icon: Activity },
   { href: '/commands', label: 'Custom Commands', icon: TerminalSquare },
 ];
+
+const settingsNavItems = [
+ { href: '/settings', label: 'Settings', icon: Settings },
+];
+
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -75,7 +83,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <Separator className="my-2 bg-sidebar-border" />
           <div className="flex-1 space-y-2 mt-4">
-            {[...Array(5)].map((_, i) => (
+            {[...Array(6)].map((_, i) => ( // Adjusted for new nav item
               <SidebarMenuSkeleton key={i} showIcon />
             ))}
           </div>
@@ -123,16 +131,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <Separator className="my-0 bg-sidebar-border group-data-[collapsible=icon]:mx-2" />
         <SidebarFooter className="p-2">
           <SidebarMenu>
+             {settingsNavItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <Link href={item.href} legacyBehavior passHref>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href))}
+                      tooltip={item.label}
+                    >
+                      <a>
+                        <item.icon />
+                        <span>{item.label}</span>
+                      </a>
+                    </SidebarMenuButton>
+                  </Link>
+                </SidebarMenuItem>
+              ))}
             <SidebarMenuItem>
               <SidebarMenuButton onClick={toggleTheme} tooltip={isDarkMode ? "Light Mode" : "Dark Mode"}>
                 {isDarkMode ? <Sun /> : <Moon />}
                 <span>{isDarkMode ? "Light Mode" : "Dark Mode"}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-            <SidebarMenuItem>
-              <SidebarMenuButton tooltip="Settings">
-                <Settings />
-                <span>Settings</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>

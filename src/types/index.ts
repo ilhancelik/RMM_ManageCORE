@@ -25,12 +25,19 @@ export interface AssociatedProcedureConfig {
   // Order is implicit by its position in the array.
 }
 
+export interface AssociatedMonitorConfig {
+  monitorId: string;
+  schedule: ScheduleConfig; // Group-specific schedule for the monitor
+  // sendEmailOnAlert is a property of the Monitor itself, not overridden per group for now.
+}
+
 export interface ComputerGroup {
   id: string;
   name: string;
   description: string;
   computerIds: string[];
   associatedProcedures?: AssociatedProcedureConfig[];
+  associatedMonitors?: AssociatedMonitorConfig[];
 }
 
 export type ScriptType = 'CMD' | 'Regedit' | 'PowerShell' | 'Python';
@@ -67,4 +74,38 @@ export interface CustomCommand {
     status: 'Pending' | 'Sent' | 'Success' | 'Failed';
     output?: string;
     executedAt?: string; // ISO date string
+}
+
+export interface Monitor {
+  id: string;
+  name: string;
+  description: string;
+  scriptType: ScriptType;
+  scriptContent: string; // Script that outputs OK or ALERT (or specific values)
+  defaultIntervalValue: number; // e.g., 5
+  defaultIntervalUnit: 'minutes' | 'hours' | 'days'; // e.g., 'minutes'
+  sendEmailOnAlert: boolean;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+}
+
+export interface MonitorExecutionLog {
+  id: string;
+  monitorId: string;
+  computerId: string; // The computer this log pertains to (if group-associated)
+  computerName?: string;
+  timestamp: string; // ISO date string
+  status: 'OK' | 'ALERT' | 'Error' | 'Running'; // Error if script fails, Running during check
+  message: string; // Output from the script or status message
+  notified?: boolean; // True if an email alert was sent (simulated)
+}
+
+export interface SMTPSettings {
+  server: string;
+  port: number;
+  username?: string; // Optional
+  password?: string; // Optional
+  secure: boolean; // TLS/SSL
+  fromEmail: string; // Email address to send from
+  defaultToEmail: string; // Default recipient for alerts
 }

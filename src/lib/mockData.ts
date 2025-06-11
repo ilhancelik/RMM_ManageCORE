@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog } from '@/types';
 
 export let mockComputers: Computer[] = [
   { id: 'comp-1', name: 'Workstation-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date().toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 40, groupIds: ['group-1'] },
@@ -7,6 +7,57 @@ export let mockComputers: Computer[] = [
   { id: 'comp-3', name: 'Laptop-Dev', status: 'Offline', os: 'Windows 10 Pro', ipAddress: '192.168.1.102', lastSeen: new Date(Date.now() - 3600 * 1000 * 24).toISOString(), groupIds: ['group-1', 'group-3'] },
   { id: 'comp-4', name: 'Kiosk-Display', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.1.103', lastSeen: new Date(Date.now() - 3600 * 1000 * 2).toISOString(), cpuUsage: 90, ramUsage: 95, diskUsage: 70 },
   { id: 'comp-5', name: 'Finance-PC', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.104', lastSeen: new Date().toISOString(), cpuUsage: 15, ramUsage: 45, diskUsage: 55, groupIds: ['group-2'] },
+];
+
+export let mockMonitors: Monitor[] = [
+  {
+    id: 'mon-1',
+    name: 'New Admin Account Check',
+    description: 'Checks if an unexpected admin account (e.g., "SuperAdmin") exists.',
+    scriptType: 'PowerShell',
+    scriptContent: 'if (Get-LocalUser -Name "SuperAdmin" -ErrorAction SilentlyContinue) { Write-Output "ALERT: New administrator account SuperAdmin found." } else { Write-Output "OK: No unexpected admin accounts." }',
+    defaultIntervalValue: 1,
+    defaultIntervalUnit: 'hours',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mon-2',
+    name: 'Low Disk Space (C: Drive)',
+    description: 'Checks if free space on C: drive is below 10%.',
+    scriptType: 'PowerShell',
+    scriptContent: '$disk = Get-PSDrive C; $percentFree = ($disk.Free / ($disk.Used + $disk.Free)) * 100; if ($percentFree -lt 10) { Write-Output "ALERT: Low disk space on C: ($([math]::Round($percentFree, 2))% free)." } else { Write-Output "OK: Disk space C: ($([math]::Round($percentFree, 2))% free)." }',
+    defaultIntervalValue: 30,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mon-3',
+    name: 'SQL Server Service Check',
+    description: 'Checks if the MSSQLSERVER service is running.',
+    scriptType: 'PowerShell',
+    scriptContent: '$service = Get-Service -Name "MSSQLSERVER" -ErrorAction SilentlyContinue; if ($null -eq $service -or $service.Status -ne "Running") { Write-Output "ALERT: SQL Server (MSSQLSERVER) service is not running or not found. Status: $($service.Status)" } else { Write-Output "OK: SQL Server (MSSQLSERVER) is running." }',
+    defaultIntervalValue: 5,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mon-4',
+    name: 'Recent Server Restart Check',
+    description: 'Checks if the server has restarted in the last 15 minutes.',
+    scriptType: 'PowerShell',
+    scriptContent: '$uptime = (Get-Date) - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime; if ($uptime.TotalMinutes -lt 15) { Write-Output "ALERT: Server restarted recently (uptime: $($uptime.ToString("hh\\:mm\\:ss")))." } else { Write-Output "OK: Server uptime normal ( $($uptime.ToString("d\\.\\.hh\\:mm\\:ss")) )." }',
+    defaultIntervalValue: 15,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 export let mockComputerGroups: ComputerGroup[] = [
@@ -17,12 +68,21 @@ export let mockComputerGroups: ComputerGroup[] = [
     computerIds: ['comp-1', 'comp-3'],
     associatedProcedures: [
       { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'disabled' } }
+    ],
+    associatedMonitors: [
+      { monitorId: 'mon-2', schedule: { type: 'interval', intervalValue: 45, intervalUnit: 'minutes' } }
     ]
   },
-  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [
+  { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], 
+    associatedProcedures: [
       { procedureId: 'proc-2', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 2, intervalUnit: 'hours' } }
-  ] },
-  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [] },
+    ],
+    associatedMonitors: [
+      { monitorId: 'mon-3', schedule: { type: 'interval', intervalValue: 3, intervalUnit: 'minutes' } },
+      { monitorId: 'mon-4', schedule: { type: 'interval', intervalValue: 10, intervalUnit: 'minutes' } }
+    ]
+  },
+  { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] },
 ];
 
 export let mockProcedures: Procedure[] = [
@@ -82,8 +142,88 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
 
 export let mockCustomCommands: CustomCommand[] = [];
 
+export let smtpSettings: SMTPSettings | null = {
+    server: 'smtp.example.com',
+    port: 587,
+    username: 'user@example.com',
+    password: 'password123',
+    secure: true,
+    fromEmail: 'noreply@example.com',
+    defaultToEmail: 'admin@example.com'
+};
+
+export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
+  { 
+    id: 'monlog-1', 
+    monitorId: 'mon-3', 
+    computerId: 'comp-2', 
+    computerName: 'Server-Main', 
+    timestamp: new Date(Date.now() - 5 * 60000).toISOString(), 
+    status: 'OK', 
+    message: 'OK: SQL Server (MSSQLSERVER) is running.',
+    notified: false
+  },
+  { 
+    id: 'monlog-2', 
+    monitorId: 'mon-3', 
+    computerId: 'comp-2', 
+    computerName: 'Server-Main', 
+    timestamp: new Date(Date.now() - 10 * 60000).toISOString(), 
+    status: 'ALERT', 
+    message: 'ALERT: SQL Server (MSSQLSERVER) service is not running. Status: Stopped',
+    notified: true
+  },
+];
+
 
 export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
+
+// Monitor Functions
+export function addMonitor(monitor: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>): Monitor {
+  const newMonitor: Monitor = {
+    ...monitor,
+    id: `mon-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockMonitors.push(newMonitor);
+  return newMonitor;
+}
+
+export function updateMonitor(updatedMonitor: Monitor): Monitor | null {
+  const index = mockMonitors.findIndex(m => m.id === updatedMonitor.id);
+  if (index !== -1) {
+    mockMonitors[index] = { ...mockMonitors[index], ...updatedMonitor, updatedAt: new Date().toISOString() };
+    return mockMonitors[index];
+  }
+  return null;
+}
+
+export function deleteMonitor(monitorId: string): boolean {
+  const initialLength = mockMonitors.length;
+  mockMonitors = mockMonitors.filter(m => m.id !== monitorId);
+  // Also remove from group associations
+  mockComputerGroups.forEach(group => {
+    if (group.associatedMonitors) {
+      group.associatedMonitors = group.associatedMonitors.filter(am => am.monitorId !== monitorId);
+    }
+  });
+  return mockMonitors.length < initialLength;
+}
+
+export function getMonitorById(monitorId: string): Monitor | undefined {
+  return mockMonitors.find(m => m.id === monitorId);
+}
+
+// SMTP Settings Functions
+export function getSmtpSettings(): SMTPSettings | null {
+  return smtpSettings;
+}
+
+export function saveSmtpSettings(settings: SMTPSettings): void {
+  smtpSettings = settings;
+}
+
 
 // Helper functions to manage mock data
 export function addComputer(computer: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer {
@@ -139,4 +279,13 @@ export function getProcedureById(procedureId: string): Procedure | undefined {
 }
 export function getComputerById(computerId: string): Computer | undefined {
     return mockComputers.find(c => c.id === computerId);
+}
+
+// Monitor Execution Log Functions
+export function addMonitorExecutionLog(log: MonitorExecutionLog) {
+  mockMonitorExecutionLogs.unshift(log); // Add to the beginning for recent first
+  // Optional: Trim logs if they exceed a certain number for mock data management
+  // if (mockMonitorExecutionLogs.length > 100) {
+  //   mockMonitorExecutionLogs = mockMonitorExecutionLogs.slice(0, 100);
+  // }
 }

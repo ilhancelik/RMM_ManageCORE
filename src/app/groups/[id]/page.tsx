@@ -2,11 +2,20 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { mockComputerGroups, mockComputers, mockProcedures, updateComputerGroup, getProcedureById, getComputerGroupById } from '@/lib/mockData';
-import type { ComputerGroup, Computer, Procedure, AssociatedProcedureConfig, ScheduleConfig } from '@/types';
+import { 
+    mockComputerGroups, 
+    mockComputers, 
+    mockProcedures, 
+    mockMonitors, // Import mockMonitors
+    updateComputerGroup, 
+    getProcedureById, 
+    getMonitorById, // Import getMonitorById
+    getComputerGroupById 
+} from '@/lib/mockData';
+import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Edit, Trash2, PlusCircle, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowLeft, Users, Edit, Trash2, PlusCircle, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity } from 'lucide-react'; // Added Activity
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -27,6 +36,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 
+const intervalUnits: ScheduleConfig['intervalUnit'][] = ['minutes', 'hours', 'days'];
+
 export default function GroupDetailsPage() {
   const router = useRouter();
   const params = useParams();
@@ -35,11 +46,13 @@ export default function GroupDetailsPage() {
 
   const [group, setGroup] = useState<ComputerGroup | null>(null);
   const [memberComputers, setMemberComputers] = useState<Computer[]>([]);
+  
   const [isManageProceduresModalOpen, setIsManageProceduresModalOpen] = useState(false);
-  const [
-    currentAssociatedProcedures, 
-    setCurrentAssociatedProcedures
-  ] = useState<AssociatedProcedureConfig[]>([]);
+  const [currentAssociatedProcedures, setCurrentAssociatedProcedures] = useState<AssociatedProcedureConfig[]>([]);
+
+  const [isManageMonitorsModalOpen, setIsManageMonitorsModalOpen] = useState(false);
+  const [currentAssociatedMonitors, setCurrentAssociatedMonitors] = useState<AssociatedMonitorConfig[]>([]);
+
 
   useEffect(() => {
     const foundGroup = getComputerGroupById(id) || null;
@@ -47,25 +60,30 @@ export default function GroupDetailsPage() {
     if (foundGroup) {
       const computersInGroup = mockComputers.filter(c => foundGroup.computerIds.includes(c.id));
       setMemberComputers(computersInGroup);
-      // Ensure associatedProcedures and their schedules are well-defined for local state
+      
       const initialProcedures = (foundGroup.associatedProcedures || []).map(ap => ({
         ...ap,
         schedule: ap.schedule || { type: 'disabled' as const } 
       }));
       setCurrentAssociatedProcedures(initialProcedures);
-    }
-  }, [id]); // Removed 'group' from dependencies to avoid loop on setGroup
 
+      const initialMonitors = (foundGroup.associatedMonitors || []).map(am => ({
+        ...am,
+        schedule: am.schedule || { type: 'disabled' as const }
+      }));
+      setCurrentAssociatedMonitors(initialMonitors);
+    }
+  }, [id]);
+
+  // Procedure Association Handlers
   const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => {
     setCurrentAssociatedProcedures(prev => {
       if (isAssociated) {
-        // Add if not already present
         if (!prev.some(p => p.procedureId === procedureId)) {
           return [...prev, { procedureId, runOnNewMember: false, schedule: { type: 'disabled' } }];
         }
         return prev;
       } else {
-        // Remove
         return prev.filter(p => p.procedureId !== procedureId);
       }
     });
@@ -77,7 +95,7 @@ export default function GroupDetailsPage() {
     );
   };
 
-  const handleScheduleChange = (
+  const handleProcedureScheduleChange = (
     procedureId: string,
     field: keyof ScheduleConfig | 'type',
     value: any
@@ -92,8 +110,8 @@ export default function GroupDetailsPage() {
               delete updatedSchedule.intervalValue;
               delete updatedSchedule.intervalUnit;
             } else if (value === 'interval' && !updatedSchedule.intervalValue) {
-              updatedSchedule.intervalValue = 60;
-              updatedSchedule.intervalUnit = 'minutes';
+              updatedSchedule.intervalValue = 60; // Default value
+              updatedSchedule.intervalUnit = 'minutes'; // Default unit
             }
           } else if (field === 'intervalValue') {
             updatedSchedule.intervalValue = value ? parseInt(value, 10) : undefined;
@@ -121,20 +139,91 @@ export default function GroupDetailsPage() {
     if (!group) return;
     const updatedGroup = { ...group, associatedProcedures: currentAssociatedProcedures };
     updateComputerGroup(updatedGroup);
-    setGroup(updatedGroup); // Update local state for the main page display
+    setGroup(updatedGroup); 
     setIsManageProceduresModalOpen(false);
     toast({ title: "Success", description: "Associated procedures updated." });
   };
 
   const openManageProceduresModal = () => {
     if (!group) return;
-    // Initialize dialog state from the potentially updated group state
     const initialDialogProcedures = (group.associatedProcedures || []).map(ap => ({
       ...ap,
       schedule: ap.schedule || { type: 'disabled' as const }
     }));
     setCurrentAssociatedProcedures(initialDialogProcedures);
     setIsManageProceduresModalOpen(true);
+  };
+
+  // Monitor Association Handlers
+  const handleMonitorAssociationChange = (monitorId: string, isAssociated: boolean) => {
+    setCurrentAssociatedMonitors(prev => {
+      if (isAssociated) {
+        if (!prev.some(m => m.monitorId === monitorId)) {
+          const monitor = getMonitorById(monitorId);
+          return [...prev, { 
+            monitorId, 
+            schedule: { 
+              type: 'interval', // Default to interval for monitors
+              intervalValue: monitor?.defaultIntervalValue || 5, 
+              intervalUnit: monitor?.defaultIntervalUnit || 'minutes' 
+            } 
+          }];
+        }
+        return prev;
+      } else {
+        return prev.filter(m => m.monitorId !== monitorId);
+      }
+    });
+  };
+
+  const handleMonitorScheduleChange = (
+    monitorId: string,
+    field: keyof ScheduleConfig | 'type',
+    value: any
+  ) => {
+    setCurrentAssociatedMonitors(prev =>
+      prev.map(m => {
+        if (m.monitorId === monitorId) {
+          const updatedSchedule = { ...(m.schedule || { type: 'interval' as const, intervalValue: 5, intervalUnit: 'minutes' as const }) };
+          if (field === 'type') { // Though for monitors, it's usually always interval based or uses monitor default implicitly.
+            updatedSchedule.type = value as 'disabled' | 'interval'; // Keep disabled for flexibility
+             if (value === 'disabled') {
+              delete updatedSchedule.intervalValue;
+              delete updatedSchedule.intervalUnit;
+            } else if (value === 'interval') {
+              const monitor = getMonitorById(monitorId);
+              updatedSchedule.intervalValue = updatedSchedule.intervalValue || monitor?.defaultIntervalValue || 5;
+              updatedSchedule.intervalUnit = updatedSchedule.intervalUnit || monitor?.defaultIntervalUnit || 'minutes';
+            }
+          } else if (field === 'intervalValue') {
+            updatedSchedule.intervalValue = value ? parseInt(value, 10) : undefined;
+          } else if (field === 'intervalUnit') {
+            updatedSchedule.intervalUnit = value as 'minutes' | 'hours' | 'days';
+          }
+          return { ...m, schedule: updatedSchedule };
+        }
+        return m;
+      })
+    );
+  };
+  
+  const handleSaveAssociatedMonitors = () => {
+    if (!group) return;
+    const updatedGroup = { ...group, associatedMonitors: currentAssociatedMonitors };
+    updateComputerGroup(updatedGroup);
+    setGroup(updatedGroup);
+    setIsManageMonitorsModalOpen(false);
+    toast({ title: "Success", description: "Associated monitors updated." });
+  };
+
+  const openManageMonitorsModal = () => {
+    if (!group) return;
+    const initialDialogMonitors = (group.associatedMonitors || []).map(am => ({
+      ...am,
+      schedule: am.schedule || { type: 'interval' as const, intervalValue: getMonitorById(am.monitorId)?.defaultIntervalValue || 5, intervalUnit: getMonitorById(am.monitorId)?.defaultIntervalUnit || 'minutes' }
+    }));
+    setCurrentAssociatedMonitors(initialDialogMonitors);
+    setIsManageMonitorsModalOpen(true);
   };
 
 
@@ -189,6 +278,7 @@ export default function GroupDetailsPage() {
         </div>
 
         <div className="lg:col-span-1 space-y-6">
+            {/* Associated Procedures Card */}
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -212,7 +302,7 @@ export default function GroupDetailsPage() {
                                         const config = isAssociated ? currentAssociatedProcedures[assocIndex] : undefined;
                                         
                                         return (
-                                            <div key={proc.id} className="rounded-md border p-4">
+                                            <div key={`proc-dialog-${proc.id}`} className="rounded-md border p-4">
                                                 <div className="flex items-start justify-between">
                                                     <div>
                                                         <Label htmlFor={`proc-assoc-${proc.id}`} className="font-medium text-base">{proc.name}</Label>
@@ -243,7 +333,7 @@ export default function GroupDetailsPage() {
                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-1">
                                                         <Select
                                                             value={config.schedule?.type || 'disabled'}
-                                                            onValueChange={(value: 'disabled' | 'interval') => handleScheduleChange(proc.id, 'type', value)}
+                                                            onValueChange={(value: 'disabled' | 'interval') => handleProcedureScheduleChange(proc.id, 'type', value)}
                                                         >
                                                             <SelectTrigger><SelectValue placeholder="Select schedule type" /></SelectTrigger>
                                                             <SelectContent>
@@ -255,68 +345,48 @@ export default function GroupDetailsPage() {
                                                         {config.schedule?.type === 'interval' && (
                                                         <div className="grid grid-cols-2 gap-2 items-end mt-2">
                                                             <div className='space-y-1'>
-                                                                <Label htmlFor={`interval-val-${proc.id}`} className="text-xs">Interval Value</Label>
+                                                                <Label htmlFor={`proc-interval-val-${proc.id}`} className="text-xs">Interval Value</Label>
                                                                 <Input
-                                                                    id={`interval-val-${proc.id}`}
+                                                                    id={`proc-interval-val-${proc.id}`}
                                                                     type="number"
                                                                     placeholder="e.g., 60"
                                                                     min="1"
                                                                     value={config.schedule.intervalValue || ''}
-                                                                    onChange={(e) => handleScheduleChange(proc.id, 'intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                                    onChange={(e) => handleProcedureScheduleChange(proc.id, 'intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
                                                                 />
                                                             </div>
                                                             <div className='space-y-1'>
-                                                                <Label htmlFor={`interval-unit-${proc.id}`} className="text-xs">Interval Unit</Label>
+                                                                <Label htmlFor={`proc-interval-unit-${proc.id}`} className="text-xs">Interval Unit</Label>
                                                                 <Select
-                                                                    id={`interval-unit-${proc.id}`}
+                                                                    id={`proc-interval-unit-${proc.id}`}
                                                                     value={config.schedule.intervalUnit || 'minutes'}
-                                                                    onValueChange={(value: 'minutes' | 'hours' | 'days') => handleScheduleChange(proc.id, 'intervalUnit', value)}
+                                                                    onValueChange={(value: 'minutes' | 'hours' | 'days') => handleProcedureScheduleChange(proc.id, 'intervalUnit', value)}
                                                                 >
                                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                                     <SelectContent>
-                                                                    <SelectItem value="minutes">Minutes</SelectItem>
-                                                                    <SelectItem value="hours">Hours</SelectItem>
-                                                                    <SelectItem value="days">Days</SelectItem>
+                                                                        {intervalUnits.map(unit => <SelectItem key={unit} value={unit}>{unit.charAt(0).toUpperCase() + unit.slice(1)}</SelectItem>)}
                                                                     </SelectContent>
                                                                 </Select>
                                                             </div>
                                                         </div>
                                                         )}
                                                     </div>
-                                                    {/* Reordering buttons will be outside this map, acting on currentAssociatedProcedures */}
                                                 </div>
                                                 )}
                                             </div>
                                         );
                                     })}
-                                    {/* Placeholder for reordering - This needs to map over currentAssociatedProcedures for ordering */}
                                     {currentAssociatedProcedures.length > 0 && <Separator className="my-4"/> }
                                     <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Order</Label>
                                     {currentAssociatedProcedures.map((assocProc, index) => {
                                         const procedure = getProcedureById(assocProc.procedureId);
                                         if (!procedure) return null;
                                         return (
-                                            <div key={`order-${assocProc.procedureId}`} className="flex items-center justify-between p-2 border rounded-md mb-2">
+                                            <div key={`order-proc-${assocProc.procedureId}`} className="flex items-center justify-between p-2 border rounded-md mb-2">
                                                 <span className="text-sm">{index + 1}. {procedure.name}</span>
                                                 <div className="flex gap-1">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7"
-                                                    onClick={() => handleMoveProcedure(index, 'up')}
-                                                    disabled={index === 0}
-                                                >
-                                                    <ArrowUp className="h-4 w-4" />
-                                                </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-7 w-7"
-                                                    onClick={() => handleMoveProcedure(index, 'down')}
-                                                    disabled={index === currentAssociatedProcedures.length - 1}
-                                                >
-                                                    <ArrowDown className="h-4 w-4" />
-                                                </Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(index, 'up')} disabled={index === 0}><ArrowUp className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(index, 'down')} disabled={index === currentAssociatedProcedures.length - 1}><ArrowDown className="h-4 w-4" /></Button>
                                                 </div>
                                             </div>
                                         );
@@ -341,12 +411,9 @@ export default function GroupDetailsPage() {
                                 const procedure = getProcedureById(assocProc.procedureId);
                                 if (!procedure) return null;
                                 return (
-                                    <li key={assocProc.procedureId} className="text-sm p-3 border rounded-md space-y-1">
+                                    <li key={`proc-display-${assocProc.procedureId}`} className="text-sm p-3 border rounded-md space-y-1">
                                         <div className="font-medium">{index + 1}. {procedure.name}</div>
-                                        
-                                        {assocProc.runOnNewMember && (
-                                            <div className="flex items-center text-xs text-green-600"><ListChecks className="mr-1 h-3 w-3" /> Runs on new members</div>
-                                        )}
+                                        {assocProc.runOnNewMember && (<div className="flex items-center text-xs text-green-600"><ListChecks className="mr-1 h-3 w-3" /> Runs on new members</div>)}
                                         {assocProc.schedule && assocProc.schedule.type === 'interval' && (
                                             <div className="flex items-center text-xs text-blue-600">
                                                 <Clock className="mr-1 h-3 w-3" />
@@ -355,6 +422,132 @@ export default function GroupDetailsPage() {
                                         )}
                                         {(!assocProc.schedule || assocProc.schedule.type === 'disabled') && !assocProc.runOnNewMember && (
                                              <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> No active automation</div>
+                                        )}
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Associated Monitors Card */}
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Associated Monitors</CardTitle>
+                        <Dialog open={isManageMonitorsModalOpen} onOpenChange={setIsManageMonitorsModalOpen}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" onClick={openManageMonitorsModal}>
+                                    <Settings className="mr-2 h-4 w-4" /> Manage
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[725px]">
+                                <DialogHeader>
+                                <DialogTitle>Manage Associated Monitors for {group.name}</DialogTitle>
+                                <DialogDescription>Select monitors and configure their schedule for this group.</DialogDescription>
+                                </DialogHeader>
+                                <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
+                                <div className="space-y-3 py-2">
+                                    {mockMonitors.map(mon => {
+                                        const isAssociated = currentAssociatedMonitors.some(am => am.monitorId === mon.id);
+                                        const config = currentAssociatedMonitors.find(am => am.monitorId === mon.id);
+                                        
+                                        return (
+                                            <div key={`mon-dialog-${mon.id}`} className="rounded-md border p-4">
+                                                <div className="flex items-start justify-between">
+                                                    <div>
+                                                        <Label htmlFor={`mon-assoc-${mon.id}`} className="font-medium text-base">{mon.name}</Label>
+                                                        <p className="text-xs text-muted-foreground mt-1">{mon.description}</p>
+                                                        <p className="text-xs text-muted-foreground mt-1">Default: Every {mon.defaultIntervalValue} {mon.defaultIntervalUnit}. Email on alert: {mon.sendEmailOnAlert ? 'Yes' : 'No'}</p>
+                                                    </div>
+                                                    <Checkbox
+                                                        id={`mon-assoc-${mon.id}`}
+                                                        checked={isAssociated}
+                                                        onCheckedChange={(checked) => handleMonitorAssociationChange(mon.id, !!checked)}
+                                                    />
+                                                </div>
+                                                
+                                                {isAssociated && config && (
+                                                <div className="mt-3 space-y-3">
+                                                    <div className="pt-3 border-t">
+                                                        <Label className="text-sm font-semibold text-muted-foreground">Group Schedule (Overrides Monitor Default)</Label>
+                                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-1">
+                                                            <Select
+                                                                value={config.schedule?.type || 'interval'} // Monitors usually interval
+                                                                onValueChange={(value: 'disabled' | 'interval') => handleMonitorScheduleChange(mon.id, 'type', value)}
+                                                            >
+                                                                <SelectTrigger><SelectValue placeholder="Select schedule type" /></SelectTrigger>
+                                                                <SelectContent>
+                                                                <SelectItem value="disabled">Disabled for this group</SelectItem>
+                                                                <SelectItem value="interval">Run at Interval for this group</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        {config.schedule?.type === 'interval' && (
+                                                        <div className="grid grid-cols-2 gap-2 items-end mt-2">
+                                                            <div className='space-y-1'>
+                                                                <Label htmlFor={`mon-interval-val-${mon.id}`} className="text-xs">Interval Value</Label>
+                                                                <Input
+                                                                    id={`mon-interval-val-${mon.id}`}
+                                                                    type="number"
+                                                                    placeholder="e.g., 5"
+                                                                    min="1"
+                                                                    value={config.schedule.intervalValue || ''}
+                                                                    onChange={(e) => handleMonitorScheduleChange(mon.id, 'intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                                />
+                                                            </div>
+                                                            <div className='space-y-1'>
+                                                                <Label htmlFor={`mon-interval-unit-${mon.id}`} className="text-xs">Interval Unit</Label>
+                                                                <Select
+                                                                    id={`mon-interval-unit-${mon.id}`}
+                                                                    value={config.schedule.intervalUnit || 'minutes'}
+                                                                    onValueChange={(value: 'minutes' | 'hours' | 'days') => handleMonitorScheduleChange(mon.id, 'intervalUnit', value)}
+                                                                >
+                                                                    <SelectTrigger><SelectValue /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {intervalUnits.map(unit => <SelectItem key={unit} value={unit}>{unit.charAt(0).toUpperCase() + unit.slice(1)}</SelectItem>)}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                </ScrollArea>
+                                <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsManageMonitorsModalOpen(false)}>Cancel</Button>
+                                <Button onClick={handleSaveAssociatedMonitors}>Save Monitor Associations</Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
+                    </div>
+                     <CardDescription>Monitors linked to this group and their group-specific schedules.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {(!group.associatedMonitors || group.associatedMonitors.length === 0) ? (
+                        <p className="text-sm text-muted-foreground">No monitors associated with this group yet.</p>
+                    ) : (
+                        <ul className="space-y-3">
+                            {group.associatedMonitors.map((assocMon) => {
+                                const monitor = getMonitorById(assocMon.monitorId);
+                                if (!monitor) return null;
+                                return (
+                                    <li key={`mon-display-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1">
+                                        <div className="font-medium">{monitor.name} {monitor.sendEmailOnAlert && <span className="text-xs text-blue-500">(Email Alert Active)</span>}</div>
+                                        {assocMon.schedule && assocMon.schedule.type === 'interval' && (
+                                            <div className="flex items-center text-xs text-blue-600">
+                                                <Clock className="mr-1 h-3 w-3" />
+                                                Runs for this group every {assocMon.schedule.intervalValue || 'N/A'} {assocMon.schedule.intervalUnit || ''}
+                                            </div>
+                                        )}
+                                         {assocMon.schedule && assocMon.schedule.type === 'disabled' && (
+                                            <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> Disabled for this group</div>
                                         )}
                                     </li>
                                 );
