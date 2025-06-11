@@ -23,7 +23,7 @@ const handleError = (error: unknown, context: string) => {
       // The request was made but no response was received (Network Error)
       let message = `API Error (${context}): No response received from server. `;
       message += `Is the API running at ${apiClient.defaults.baseURL}? `;
-      message += `Also, please check your browser's console for CORS (Cross-Origin Resource Sharing) errors if the API is on a different domain.`;
+      message += `Also, please check your browser's console for CORS (Cross-Origin Resource Sharing) errors if the API is on a different domain. Ensure the server at ${apiClient.defaults.baseURL} is configured to accept requests from this application's origin.`;
       throw new Error(message);
     } else {
       // Something happened in setting up the request that triggered an Error
