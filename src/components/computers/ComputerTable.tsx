@@ -9,12 +9,16 @@ import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Eye, Terminal, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ComputerTableProps {
   computers: Computer[];
+  selectedComputerIds: string[];
+  onComputerSelect: (computerId: string, checked: boolean) => void;
+  onSelectAll: (checked: boolean) => void;
 }
 
-export function ComputerTable({ computers }: ComputerTableProps) {
+export function ComputerTable({ computers, selectedComputerIds, onComputerSelect, onSelectAll }: ComputerTableProps) {
   const router = useRouter();
 
   const getStatusBadgeVariant = (status: Computer['status']) => {
@@ -38,10 +42,27 @@ export function ComputerTable({ computers }: ComputerTableProps) {
     router.push(`/commands?computerId=${computerId}`);
   };
 
+  const onlineComputersInTable = computers.filter(computer => computer.status === 'Online');
+  const allCurrentlyVisibleOnlineComputersSelected = 
+    onlineComputersInTable.length > 0 && 
+    onlineComputersInTable.every(computer => selectedComputerIds.includes(computer.id));
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-10">
+            <Checkbox
+              aria-label="Select all computers"
+              checked={allCurrentlyVisibleOnlineComputersSelected}
+              onCheckedChange={(checkedState) => {
+                if (typeof checkedState === 'boolean') {
+                  onSelectAll(checkedState);
+                }
+              }}
+              disabled={onlineComputersInTable.length === 0}
+            />
+          </TableHead>
           <TableHead>Name</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>OS</TableHead>
@@ -55,7 +76,19 @@ export function ComputerTable({ computers }: ComputerTableProps) {
       </TableHeader>
       <TableBody>
         {computers.map((computer) => (
-          <TableRow key={computer.id}>
+          <TableRow key={computer.id} data-state={selectedComputerIds.includes(computer.id) ? "selected" : ""}>
+            <TableCell>
+              <Checkbox
+                aria-label={`Select computer ${computer.name}`}
+                checked={selectedComputerIds.includes(computer.id)}
+                onCheckedChange={(checkedState) => {
+                  if (typeof checkedState === 'boolean') {
+                    onComputerSelect(computer.id, checkedState);
+                  }
+                }}
+                disabled={computer.status !== 'Online'}
+              />
+            </TableCell>
             <TableCell className="font-medium">{computer.name}</TableCell>
             <TableCell>
               <Badge variant="default" className={getStatusBadgeVariant(computer.status)}>
@@ -108,15 +141,15 @@ export function ComputerTable({ computers }: ComputerTableProps) {
                     <Eye className="mr-2 h-4 w-4" />
                     View Details
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleRunCommand(computer.id)}>
+                  <DropdownMenuItem onClick={() => handleRunCommand(computer.id)} disabled={computer.status !== 'Online'}>
                     <Terminal className="mr-2 h-4 w-4" />
                     Run Command
                   </DropdownMenuItem>
-                  <DropdownMenuItem>
+                  <DropdownMenuItem> {/* Edit functionality can be added later */}
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600">
+                  <DropdownMenuItem className="text-red-600"> {/* Delete functionality can be added later */}
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </DropdownMenuItem>
