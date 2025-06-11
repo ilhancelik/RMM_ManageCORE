@@ -13,9 +13,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface ComputerTableProps {
   computers: Computer[];
-  selectedComputerIds: string[];
-  onComputerSelect: (computerId: string, checked: boolean) => void;
-  onSelectAll: (checked: boolean) => void;
+  selectedComputerIds?: string[]; // Made optional
+  onComputerSelect?: (computerId: string, checked: boolean) => void; // Made optional
+  onSelectAll?: (checked: boolean) => void; // Made optional
 }
 
 export function ComputerTable({ computers, selectedComputerIds, onComputerSelect, onSelectAll }: ComputerTableProps) {
@@ -43,26 +43,32 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
   };
 
   const onlineComputersInTable = computers.filter(computer => computer.status === 'Online');
+  
   const allCurrentlyVisibleOnlineComputersSelected = 
+    !!selectedComputerIds && // Check if selectedComputerIds is provided
     onlineComputersInTable.length > 0 && 
     onlineComputersInTable.every(computer => selectedComputerIds.includes(computer.id));
+
+  const showSelectionColumn = !!onComputerSelect && !!onSelectAll && !!selectedComputerIds;
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-10">
-            <Checkbox
-              aria-label="Select all computers"
-              checked={allCurrentlyVisibleOnlineComputersSelected}
-              onCheckedChange={(checkedState) => {
-                if (typeof checkedState === 'boolean') {
-                  onSelectAll(checkedState);
-                }
-              }}
-              disabled={onlineComputersInTable.length === 0}
-            />
-          </TableHead>
+          {showSelectionColumn && (
+            <TableHead className="w-10">
+              <Checkbox
+                aria-label="Select all computers"
+                checked={allCurrentlyVisibleOnlineComputersSelected}
+                onCheckedChange={(checkedState) => {
+                  if (typeof checkedState === 'boolean' && onSelectAll) {
+                    onSelectAll(checkedState);
+                  }
+                }}
+                disabled={onlineComputersInTable.length === 0}
+              />
+            </TableHead>
+          )}
           <TableHead>Name</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>OS</TableHead>
@@ -76,19 +82,21 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
       </TableHeader>
       <TableBody>
         {computers.map((computer) => (
-          <TableRow key={computer.id} data-state={selectedComputerIds.includes(computer.id) ? "selected" : ""}>
-            <TableCell>
-              <Checkbox
-                aria-label={`Select computer ${computer.name}`}
-                checked={selectedComputerIds.includes(computer.id)}
-                onCheckedChange={(checkedState) => {
-                  if (typeof checkedState === 'boolean') {
-                    onComputerSelect(computer.id, checkedState);
-                  }
-                }}
-                disabled={computer.status !== 'Online'}
-              />
-            </TableCell>
+          <TableRow key={computer.id} data-state={showSelectionColumn && selectedComputerIds?.includes(computer.id) ? "selected" : ""}>
+            {showSelectionColumn && onComputerSelect && selectedComputerIds && (
+              <TableCell>
+                <Checkbox
+                  aria-label={`Select computer ${computer.name}`}
+                  checked={selectedComputerIds.includes(computer.id)}
+                  onCheckedChange={(checkedState) => {
+                    if (typeof checkedState === 'boolean') {
+                      onComputerSelect(computer.id, checkedState);
+                    }
+                  }}
+                  disabled={computer.status !== 'Online'}
+                />
+              </TableCell>
+            )}
             <TableCell className="font-medium">{computer.name}</TableCell>
             <TableCell>
               <Badge variant="default" className={getStatusBadgeVariant(computer.status)}>
