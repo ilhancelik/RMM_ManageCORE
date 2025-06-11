@@ -2,11 +2,11 @@
 "use client";
 
 import type { Monitor, ScriptType } from '@/types';
-import { mockMonitors, scriptTypes, addMonitor, updateMonitor, deleteMonitor } from '@/lib/mockData';
+import { scriptTypes } from '@/lib/mockData'; // scriptTypes can remain static
+import { fetchMonitors, createMonitor, updateMonitorApi, deleteMonitorFromApi } from '@/lib/apiClient';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Activity, Eye, ListFilter, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import Link from 'next/link';
+import { PlusCircle, Edit, Trash2, Activity, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,24 +25,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const intervalUnits: Monitor['defaultIntervalUnit'][] = ['minutes', 'hours', 'days'];
 
 export default function MonitorsPage() {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    setMonitors([...mockMonitors]);
-  }, []);
-  
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentMonitor, setCurrentMonitor] = useState<Monitor | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [monitorName, setMonitorName] = useState('');
@@ -54,6 +53,26 @@ export default function MonitorsPage() {
   const [monitorIntervalUnit, setMonitorIntervalUnit] = useState<Monitor['defaultIntervalUnit']>('minutes');
   const [monitorSendEmail, setMonitorSendEmail] = useState(true);
 
+  const loadMonitors = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedMonitors = await fetchMonitors();
+      setMonitors(fetchedMonitors);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load monitors.';
+      setError(errorMessage);
+      toast({ title: "Error Loading Monitors", description: errorMessage, variant: "destructive" });
+      setMonitors([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    loadMonitors();
+  }, [loadMonitors]);
+  
   const resetForm = () => {
     setMonitorName('');
     setMonitorDescription('');
@@ -68,6 +87,8 @@ export default function MonitorsPage() {
 
   const handleOpenCreateModal = () => {
     resetForm();
+    setIsEditMode(false);
+    setCurrentMonitor(null);
     setIsModalOpen(true);
   };
   
@@ -85,52 +106,63 @@ export default function MonitorsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!monitorName.trim() || !monitorScriptContent.trim() || monitorIntervalValue <= 0) {
       toast({ title: "Error", description: "Name, script content, and a valid interval are required.", variant: "destructive"});
       return;
     }
-
-    if (isEditMode && currentMonitor) {
-      const updatedMonitorData: Monitor = {
-        ...currentMonitor,
-        name: monitorName,
-        description: monitorDescription,
-        scriptType: monitorScriptType,
-        scriptContent: monitorScriptContent,
-        defaultIntervalValue: monitorIntervalValue,
-        defaultIntervalUnit: monitorIntervalUnit,
-        sendEmailOnAlert: monitorSendEmail,
-        updatedAt: new Date().toISOString(),
-      };
-      updateMonitor(updatedMonitorData);
-      setMonitors(mockMonitors.map(m => m.id === currentMonitor.id ? updatedMonitorData : m));
-      toast({title: "Success", description: `Monitor "${updatedMonitorData.name}" updated.`});
-    } else {
-      const newMonitorData = {
-        name: monitorName,
-        description: monitorDescription,
-        scriptType: monitorScriptType,
-        scriptContent: monitorScriptContent,
-        defaultIntervalValue: monitorIntervalValue,
-        defaultIntervalUnit: monitorIntervalUnit,
-        sendEmailOnAlert: monitorSendEmail,
-      };
-      const newMonitor = addMonitor(newMonitorData);
-      setMonitors(prev => [...prev, newMonitor]);
-      toast({title: "Success", description: `Monitor "${newMonitor.name}" created.`});
+    setIsSubmitting(true);
+    try {
+      if (isEditMode && currentMonitor) {
+        const updatedMonitorData: Partial<Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>> = {
+          name: monitorName,
+          description: monitorDescription,
+          scriptType: monitorScriptType,
+          scriptContent: monitorScriptContent,
+          defaultIntervalValue: monitorIntervalValue,
+          defaultIntervalUnit: monitorIntervalUnit,
+          sendEmailOnAlert: monitorSendEmail,
+        };
+        await updateMonitorApi(currentMonitor.id, updatedMonitorData);
+        toast({title: "Success", description: `Monitor "${monitorName}" updated.`});
+      } else {
+        const newMonitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> = {
+          name: monitorName,
+          description: monitorDescription,
+          scriptType: monitorScriptType,
+          scriptContent: monitorScriptContent,
+          defaultIntervalValue: monitorIntervalValue,
+          defaultIntervalUnit: monitorIntervalUnit,
+          sendEmailOnAlert: monitorSendEmail,
+        };
+        await createMonitor(newMonitorData);
+        toast({title: "Success", description: `Monitor "${monitorName}" created.`});
+      }
+      resetForm();
+      setIsModalOpen(false);
+      loadMonitors(); // Refresh list
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        toast({title: isEditMode ? "Error Updating Monitor" : "Error Creating Monitor", description: errorMessage, variant: "destructive"});
+    } finally {
+        setIsSubmitting(false);
     }
-    resetForm();
-    setIsModalOpen(false);
   };
 
-  const handleDelete = (monitorId: string) => {
-    const monitorToDelete = mockMonitors.find(m => m.id === monitorId);
-    if (deleteMonitor(monitorId)) {
-        setMonitors(currentMonitors => currentMonitors.filter(m => m.id !== monitorId));
-        toast({title: "Success", description: `Monitor "${monitorToDelete?.name || 'N/A'}" deleted.`});
-    } else {
-        toast({title: "Error", description: "Failed to delete monitor.", variant: "destructive"});
+  const handleDelete = async (monitorId: string, monitorNameText: string) => {
+    if (!window.confirm(`Are you sure you want to delete monitor "${monitorNameText}"? This action cannot be undone.`)) {
+        return;
+    }
+    setIsSubmitting(true);
+    try {
+        await deleteMonitorFromApi(monitorId);
+        toast({title: "Success", description: `Monitor "${monitorNameText}" deleted.`});
+        loadMonitors(); // Refresh list
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        toast({title: "Error Deleting Monitor", description: errorMessage, variant: "destructive"});
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -138,15 +170,15 @@ export default function MonitorsPage() {
     <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorName" className="text-right">Name</Label>
-        <Input id="monitorName" value={monitorName} onChange={(e) => setMonitorName(e.target.value)} className="col-span-3" />
+        <Input id="monitorName" value={monitorName} onChange={(e) => setMonitorName(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorDescription" className="text-right">Description</Label>
-        <Textarea id="monitorDescription" value={monitorDescription} onChange={(e) => setMonitorDescription(e.target.value)} className="col-span-3" />
+        <Textarea id="monitorDescription" value={monitorDescription} onChange={(e) => setMonitorDescription(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorScriptType" className="text-right">Script Type</Label>
-        <Select value={monitorScriptType} onValueChange={(value: ScriptType) => setMonitorScriptType(value)}>
+        <Select value={monitorScriptType} onValueChange={(value: ScriptType) => setMonitorScriptType(value)} disabled={isSubmitting}>
           <SelectTrigger className="col-span-3"><SelectValue placeholder="Select script type" /></SelectTrigger>
           <SelectContent>
             {scriptTypes.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}
@@ -162,13 +194,14 @@ export default function MonitorsPage() {
           className="col-span-3 font-code"
           rows={8}
           placeholder={`Enter ${monitorScriptType} script. Script should output 'OK:' or 'ALERT:' prefix.`}
+          disabled={isSubmitting}
         />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorIntervalValue" className="text-right">Default Interval</Label>
         <div className="col-span-3 grid grid-cols-2 gap-2">
-            <Input id="monitorIntervalValue" type="number" value={monitorIntervalValue} onChange={(e) => setMonitorIntervalValue(Math.max(1, parseInt(e.target.value)))} placeholder="e.g., 5" />
-            <Select value={monitorIntervalUnit} onValueChange={(value: Monitor['defaultIntervalUnit']) => setMonitorIntervalUnit(value)}>
+            <Input id="monitorIntervalValue" type="number" value={monitorIntervalValue} onChange={(e) => setMonitorIntervalValue(Math.max(1, parseInt(e.target.value)))} placeholder="e.g., 5" disabled={isSubmitting}/>
+            <Select value={monitorIntervalUnit} onValueChange={(value: Monitor['defaultIntervalUnit']) => setMonitorIntervalUnit(value)} disabled={isSubmitting}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                     {intervalUnits.map(unit => (<SelectItem key={unit} value={unit}>{unit.charAt(0).toUpperCase() + unit.slice(1)}</SelectItem>))}
@@ -179,23 +212,55 @@ export default function MonitorsPage() {
        <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorSendEmail" className="text-right">Notifications</Label>
         <div className="col-span-3 flex items-center space-x-2">
-            <Checkbox id="monitorSendEmail" checked={monitorSendEmail} onCheckedChange={(checked) => setMonitorSendEmail(!!checked)} />
+            <Checkbox id="monitorSendEmail" checked={monitorSendEmail} onCheckedChange={(checked) => setMonitorSendEmail(!!checked)} disabled={isSubmitting}/>
             <Label htmlFor="monitorSendEmail" className="font-normal">Send email notification on alert</Label>
         </div>
       </div>
     </div>
   );
 
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-2">
+        <div className="flex justify-between items-center mb-6">
+          <Skeleton className="h-10 w-48" /> <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
+            <Card key={`skel-mon-${i}`}>
+              <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-full mt-1" /></CardHeader>
+              <CardContent><Skeleton className="h-8 w-1/2" /></CardContent>
+              <CardFooter className="flex justify-end gap-2 border-t pt-4"><Skeleton className="h-9 w-20" /><Skeleton className="h-9 w-20" /></CardFooter>
+            </Card>
+          ))}
+        </div>
+        <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Loading monitors...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto py-10 text-center text-destructive">
+        <p>{error}</p>
+        <Button onClick={loadMonitors} variant="outline" className="mt-4">Retry</Button>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto py-2">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-foreground">Monitors</h1>
-        <Button onClick={handleOpenCreateModal}>
+        <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
             <PlusCircle className="mr-2 h-4 w-4" /> Create Monitor
         </Button>
       </div>
       
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) setIsModalOpen(isOpen); }}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Monitor' : 'Create New Monitor'}</DialogTitle>
@@ -205,13 +270,16 @@ export default function MonitorsPage() {
           </DialogHeader>
           {MonitorFormFields}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); }}>Cancel</Button>
-            <Button onClick={handleSubmit}>{isEditMode ? 'Save Changes' : 'Create Monitor'}</Button>
+            <Button variant="outline" onClick={() => { if(!isSubmitting) { setIsModalOpen(false); resetForm(); } }} disabled={isSubmitting}>Cancel</Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isEditMode ? <Edit className="mr-2 h-4 w-4" /> : <PlusCircle className="mr-2 h-4 w-4" />)}
+                {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Monitor')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {monitors.length === 0 ? (
+      {monitors.length === 0 && !isLoading ? (
          <Card className="text-center py-10">
             <CardHeader>
                 <Activity className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -219,7 +287,7 @@ export default function MonitorsPage() {
                 <CardDescription>Create monitors to keep an eye on your systems.</CardDescription>
             </CardHeader>
             <CardContent>
-                 <Button onClick={handleOpenCreateModal}>
+                 <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Monitor
                 </Button>
             </CardContent>
@@ -254,16 +322,10 @@ export default function MonitorsPage() {
                 </p>
               </CardContent>
               <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                 {/* Placeholder for future View Details link if a monitor detail page is created */}
-                 {/* <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/monitors/${monitor.id}`}>
-                        <Eye className="mr-2 h-4 w-4" /> View
-                    </Link>
-                 </Button> */}
-                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(monitor)}>
+                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(monitor)} disabled={isSubmitting}>
                     <Edit className="mr-2 h-4 w-4" /> Edit
                  </Button>
-                 <Button variant="destructive" size="sm" onClick={() => handleDelete(monitor.id)}>
+                 <Button variant="destructive" size="sm" onClick={() => handleDelete(monitor.id, monitor.name)} disabled={isSubmitting}>
                     <Trash2 className="mr-2 h-4 w-4" /> Delete
                  </Button>
               </CardFooter>
@@ -274,4 +336,3 @@ export default function MonitorsPage() {
     </div>
   );
 }
-

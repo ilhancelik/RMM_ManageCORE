@@ -159,6 +159,57 @@ export const deleteProcedure = async (id: string): Promise<void> => {
   }
 };
 
-// TODO: Add other API functions as needed for Commands, Monitors, Settings etc.
+// Monitor related API calls
+export const fetchMonitors = async (): Promise<Monitor[]> => {
+  try {
+    const response = await apiClient.get<Monitor[]>('/monitors');
+    return response.data;
+  } catch (error) {
+    handleError(error, 'fetching monitors');
+    return [];
+  }
+};
+
+export const fetchMonitorById = async (id: string): Promise<Monitor | null> => {
+  try {
+    const response = await apiClient.get<Monitor>(`/monitors/${id}`);
+    return response.data;
+  } catch (error) {
+    handleError(error, `fetching monitor ${id}`);
+    return null;
+  }
+};
+
+export const createMonitor = async (monitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>): Promise<Monitor> => {
+  try {
+    const response = await apiClient.post<Monitor>('/monitors', monitorData);
+    return response.data;
+  } catch (error) {
+    handleError(error, 'creating monitor');
+    throw error;
+  }
+};
+
+export const updateMonitorApi = async (id: string, monitorData: Partial<Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>>): Promise<Monitor> => {
+  try {
+    const response = await apiClient.put<Monitor>(`/monitors/${id}`, monitorData);
+    return response.data;
+  } catch (error) {
+    handleError(error, `updating monitor ${id}`);
+    throw error;
+  }
+};
+
+export const deleteMonitorFromApi = async (id: string): Promise<void> => {
+  try {
+    await apiClient.delete(`/monitors/${id}`);
+  } catch (error) {
+    handleError(error, `deleting monitor ${id}`);
+    throw error;
+  }
+};
+
+
+// TODO: Add other API functions as needed for Commands, Settings etc.
 
 export default apiClient;
