@@ -1,5 +1,5 @@
 
-import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings, AssociatedProcedureConfig, AssociatedMonitorConfig } from '@/types';
+import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings, AssociatedProcedureConfig, AssociatedMonitorConfig, ProcedureExecution, ScriptType } from '@/types';
 import axios from 'axios';
 
 const apiClient = axios.create({
@@ -109,8 +109,6 @@ export const deleteGroup = async (id: string): Promise<void> => {
 };
 
 export const fetchAllComputers = async (): Promise<Computer[]> => {
-  // This is a duplicate of fetchComputers, ensure it's needed or consolidate.
-  // For now, keeping it as it might be used in specific contexts like group details.
   try {
     const response = await apiClient.get<Computer[]>('/computers');
     return response.data;
@@ -225,20 +223,18 @@ export const deleteMonitorFromApi = async (id: string): Promise<void> => {
 export const fetchSmtpSettings = async (): Promise<SMTPSettings | null> => {
   try {
     const response = await apiClient.get<SMTPSettings>('/settings/smtp');
-    return response.data || null; // Handle if API returns empty 200 or 204 for no settings
+    return response.data || null;
   } catch (error) {
-    // If API returns 404 for no settings, treat as null, otherwise rethrow
     if (axios.isAxiosError(error) && error.response && error.response.status === 404) {
       return null; 
     }
     handleError(error, 'fetching SMTP settings');
-    throw error; // Rethrow to be caught by UI
+    throw error;
   }
 };
 
 export const saveSmtpSettingsToApi = async (settings: SMTPSettings): Promise<SMTPSettings> => {
   try {
-    // Using PUT as settings are typically a singleton resource to be replaced/updated
     const response = await apiClient.put<SMTPSettings>('/settings/smtp', settings);
     return response.data;
   } catch (error) {
@@ -247,7 +243,61 @@ export const saveSmtpSettingsToApi = async (settings: SMTPSettings): Promise<SMT
   }
 };
 
+// Custom Command related API calls
+interface SendCommandPayload {
+  targetId: string;
+  targetType: 'computer' | 'group';
+  command: string;
+  scriptType: ScriptType;
+}
+export const sendCustomCommand = async (commandData: SendCommandPayload): Promise<CustomCommand | CustomCommand[]> => {
+  try {
+    const response = await apiClient.post<CustomCommand | CustomCommand[]>('/commands', commandData);
+    return response.data;
+  } catch (error) {
+    handleError(error, 'sending custom command');
+    throw error;
+  }
+};
 
-// TODO: Add other API functions as needed for Commands, etc.
+export const fetchCommandHistory = async (): Promise<CustomCommand[]> => {
+  try {
+    // Assuming API returns commands for the last 30 days, sorted newest first.
+    // Add query params like ?limit=100&sort=desc&since=... if your API supports them.
+    const response = await apiClient.get<CustomCommand[]>('/commands');
+    return response.data;
+  } catch (error) {
+    handleError(error, 'fetching command history');
+    return [];
+  }
+};
+
+// Procedure Execution related API calls
+export const executeProcedure = async (procedureId: string, computerIds: string[]): Promise<ProcedureExecution[] | void> => {
+  try {
+    const response = await apiClient.post<ProcedureExecution[] | void>(`/procedures/${procedureId}/execute`, { computerIds });
+    return response.data;
+  } catch (error) {
+    handleError(error, `executing procedure ${procedureId}`);
+    throw error;
+  }
+};
+
+export const fetchExecutions = async (params?: { procedureId?: string; computerId?: string }): Promise<ProcedureExecution[]> => {
+  try {
+    const response = await apiClient.get<ProcedureExecution[]>('/executions', { params });
+    // Ensure API returns sorted data (newest first) and within a reasonable timeframe (e.g., last 30 days)
+    // Or implement client-side sorting if necessary, though API-side is preferred.
+    return response.data.sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+  } catch (error) {
+    const contextParts = [];
+    if (params?.procedureId) contextParts.push(`procedure ${params.procedureId}`);
+    if (params?.computerId) contextParts.push(`computer ${params.computerId}`);
+    const context = contextParts.length > 0 ? `for ${contextParts.join(' and ')}` : 'all';
+    handleError(error, `fetching executions ${context}`);
+    return [];
+  }
+};
+
 
 export default apiClient;

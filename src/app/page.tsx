@@ -1,19 +1,19 @@
 
-"use client"; // Add "use client" for useEffect and useState
+"use client"; 
 
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { fetchComputers } from '@/lib/apiClient'; // Import fetchComputers
-import type { Computer, ProcedureExecution, MonitorExecutionLog } from '@/types'; // Assuming these types exist
+import { fetchComputers, fetchExecutions } from '@/lib/apiClient'; 
+import type { Computer, ProcedureExecution, MonitorExecutionLog } from '@/types'; 
 import { BarChart, CircleDollarSign, Cpu, HardDrive, MemoryStick, Activity, ListChecks, PieChart, AlertTriangle, Loader2 } from 'lucide-react';
-import React, { useEffect, useState, useMemo } from 'react';
-import { Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'; // For Pie chart
-import { mockProcedureExecutions, mockMonitorExecutionLogs } from '@/lib/mockData'; // Keep for now for other charts
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'; 
+import { mockMonitorExecutionLogs } from '@/lib/mockData'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
 const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
-const PIE_COLORS = ['#16a34a', '#ef4444', '#f97316', '#3b82f6', '#6b7280']; // Green, Red, Orange, Blue, Gray
+const PIE_COLORS = ['#16a34a', '#ef4444', '#f97316', '#3b82f6', '#6b7280']; 
 
 
 export default function DashboardPage() {
@@ -22,33 +22,45 @@ export default function DashboardPage() {
   const [computerError, setComputerError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // For now, procedure executions and monitor logs are from mock data.
-  // These would also be fetched from an API in a full implementation.
-  const procedureExecutions: ProcedureExecution[] = mockProcedureExecutions;
-  const monitorLogs: MonitorExecutionLog[] = mockMonitorExecutionLogs;
+  const [procedureExecutions, setProcedureExecutions] = useState<ProcedureExecution[]>([]);
+  const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
+  const [executionsError, setExecutionsError] = useState<string | null>(null);
+  
+  const monitorLogs: MonitorExecutionLog[] = mockMonitorExecutionLogs; // Still mock for now
 
+
+  const loadDashboardData = useCallback(async () => {
+    setIsLoadingComputers(true);
+    setComputerError(null);
+    setIsLoadingExecutions(true);
+    setExecutionsError(null);
+
+    try {
+      const [fetchedComputers, fetchedExecutions] = await Promise.all([
+        fetchComputers(),
+        fetchExecutions() // Fetch all recent executions
+      ]);
+      setComputers(fetchedComputers);
+      setProcedureExecutions(fetchedExecutions);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data.';
+      // Set error for specific part if possible, or a general one
+      if (!computers.length) setComputerError(errorMessage);
+      if (!procedureExecutions.length) setExecutionsError(errorMessage);
+      toast({
+        title: "Error Loading Dashboard Data",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingComputers(false);
+      setIsLoadingExecutions(false);
+    }
+  }, [toast, computers.length, procedureExecutions.length]); // Added dependencies to avoid stale closures
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      setIsLoadingComputers(true);
-      setComputerError(null);
-      try {
-        const fetchedComputers = await fetchComputers();
-        setComputers(fetchedComputers);
-      } catch (err) {
-        setComputerError(err instanceof Error ? err.message : 'Failed to load computers.');
-        toast({
-          title: "Error Loading Computers",
-          description: err instanceof Error ? err.message : 'An unknown error occurred.',
-          variant: "destructive",
-        });
-        setComputers([]);
-      } finally {
-        setIsLoadingComputers(false);
-      }
-    };
-    loadInitialData();
-  }, [toast]);
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const onlineComputers = useMemo(() => computers.filter(c => c.status === 'Online').length, [computers]);
   const offlineComputers = useMemo(() => computers.filter(c => c.status === 'Offline').length, [computers]);
@@ -56,6 +68,9 @@ export default function DashboardPage() {
   const totalComputers = useMemo(() => computers.length, [computers]);
 
   const procedureStatusData = useMemo(() => {
+    if (isLoadingExecutions && procedureExecutions.length === 0) return [{ name: 'Loading...', value: 1, fill: PIE_COLORS[4] }];
+    if (executionsError && procedureExecutions.length === 0) return [{ name: 'Error', value: 1, fill: PIE_COLORS[1] }];
+    
     const successCount = procedureExecutions.filter(e => e.status === 'Success').length;
     const failedCount = procedureExecutions.filter(e => e.status === 'Failed').length;
     const pendingCount = procedureExecutions.filter(e => e.status === 'Pending' || e.status === 'Running').length;
@@ -66,7 +81,7 @@ export default function DashboardPage() {
     if (pendingCount > 0) data.push({ name: 'Pending/Running', value: pendingCount, fill: PIE_COLORS[3] });
     
     return data.length > 0 ? data : [{ name: 'No Data', value: 1, fill: PIE_COLORS[4] }];
-  }, [procedureExecutions]);
+  }, [procedureExecutions, isLoadingExecutions, executionsError]);
 
   const recentMonitorAlertsCount = useMemo(() => {
     const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
@@ -143,12 +158,19 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-6">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ListChecks /> Procedure Status (Mock)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><ListChecks /> Procedure Status (API)</CardTitle>
             <CardDescription>Overall success/failure of procedure executions.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] flex items-center justify-center">
-            {procedureExecutions.length === 0 ? (
-               <p className="text-sm text-muted-foreground">No procedure execution data yet.</p>
+            {(isLoadingExecutions && procedureExecutions.length === 0) ? (
+                <div className="flex flex-col items-center text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin mb-2 text-primary" />
+                    <p>Loading statuses...</p>
+                </div>
+            ) : (executionsError && procedureExecutions.length === 0) ? (
+                 <p className="text-sm text-destructive text-center">Error loading procedure statuses. <br/> {executionsError}</p>
+            ) : procedureStatusData[0]?.name === 'No Data' || procedureStatusData[0]?.name === 'Loading...' ? (
+                <p className="text-sm text-muted-foreground">{procedureStatusData[0].name === 'Loading...' ? 'Loading data...' : 'No procedure execution data found.'}</p>
             ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -175,7 +197,7 @@ export default function DashboardPage() {
         </Card>
          <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity /> System Health (Mock)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Activity /> System Health (API)</CardTitle>
              <CardDescription>Average resource usage across online systems.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] space-y-4 pt-6">
@@ -183,14 +205,30 @@ export default function DashboardPage() {
               <Cpu className="mr-3 h-6 w-6 text-blue-500" />
               <div>
                 <p className="text-sm font-medium">Avg. CPU Usage</p>
-                <p className="text-xl font-bold">N/A</p> {/* TODO: Calculate from API data */}
+                <p className="text-xl font-bold">
+                    {isLoadingComputers ? <Skeleton className="h-6 w-16 inline-block" /> : 
+                     computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined).length > 0 ? 
+                     `${(computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined)
+                                .reduce((acc, c) => acc + (c.cpuUsage || 0), 0) / 
+                                computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined).length
+                               ).toFixed(1)}%` 
+                     : 'N/A'}
+                </p> 
               </div>
             </div>
              <div className="flex items-center">
               <MemoryStick className="mr-3 h-6 w-6 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Avg. RAM Usage</p>
-                <p className="text-xl font-bold">N/A</p> {/* TODO: Calculate from API data */}
+                <p className="text-xl font-bold">
+                    {isLoadingComputers ? <Skeleton className="h-6 w-16 inline-block" /> : 
+                     computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined).length > 0 ? 
+                     `${(computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined)
+                                .reduce((acc, c) => acc + (c.ramUsage || 0), 0) / 
+                                computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined).length
+                               ).toFixed(1)}%` 
+                     : 'N/A'}
+                </p>
               </div>
             </div>
           </CardContent>

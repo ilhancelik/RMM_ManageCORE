@@ -22,9 +22,7 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
-// Removed getProcedureById from mockData, will fetch procedures from API
-import { mockComputerGroups, addProcedureExecution, mockProcedureExecutions } from '@/lib/mockData'; 
-import { fetchComputers, fetchProcedures, fetchGroups } from '@/lib/apiClient'; 
+import { fetchComputers, fetchProcedures, fetchGroups, executeProcedure } from '@/lib/apiClient'; 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution } from '@/types';
 import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
 import Link from 'next/link';
@@ -59,19 +57,19 @@ export default function ComputersPage() {
   const loadInitialData = useCallback(async () => {
     setIsLoadingComputers(true);
     setComputerError(null);
-    setIsLoadingProcedures(true); // For procedures in dialog
+    setIsLoadingProcedures(true); 
     try {
       const [fetchedComputers, fetchedApiGroups, fetchedApiProcedures] = await Promise.all([
         fetchComputers(),
-        fetchGroups(), // Fetch groups for filter dropdown
-        fetchProcedures() // Fetch procedures for run dialog
+        fetchGroups(), 
+        fetchProcedures() 
       ]);
       setComputers(fetchedComputers);
       setGroups(fetchedApiGroups);
       setAllProcedures(fetchedApiProcedures);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load initial data.';
-      setComputerError(errorMessage); // General error for now
+      setComputerError(errorMessage); 
       toast({
         title: "Error Loading Data",
         description: errorMessage,
@@ -132,9 +130,7 @@ export default function ComputersPage() {
     }
   };
 
-  const handleRunProcedureOnSelected = () => {
-    // This remains a client-side simulation for now.
-    // Real execution would require an API endpoint.
+  const handleRunProcedureOnSelected = async () => {
     if (!selectedProcedureId || selectedComputerIds.length === 0) {
       toast({
         title: "Error",
@@ -150,62 +146,29 @@ export default function ComputersPage() {
       return;
     }
     
-    setIsExecutingProcedure(true);
-    let executionsCreated = 0;
-    selectedComputerIds.forEach(computerId => {
-      const computer = computers.find(c => c.id === computerId);
-      if (computer && computer.status === 'Online') {
-        const newExecution: ProcedureExecution = {
-          id: `exec-batch-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-          procedureId: procedureToRun.id,
-          computerId: computer.id,
-          computerName: computer.name,
-          status: 'Pending',
-          logs: `Batch execution (simulated) started for "${procedureToRun.name}" on "${computer.name}"...`,
-          startTime: new Date().toISOString(),
-        };
-        addProcedureExecution(newExecution); // Adds to global mockProcedureExecutions
-        executionsCreated++;
-        
-        // Simulating execution
-        setTimeout(() => {
-          const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
-          if (mockExec) mockExec.status = 'Running';
-        }, 1000);
-        setTimeout(() => {
-          const mockExec = mockProcedureExecutions.find(e => e.id === newExecution.id);
-          if (mockExec) {
-            const success = Math.random() > 0.2;
-            mockExec.status = success ? 'Success' : 'Failed';
-            mockExec.endTime = new Date().toISOString();
-            mockExec.logs += success ? '\nExecution completed successfully.' : '\nExecution failed (simulated batch-run error).';
-            mockExec.output = success ? `Simulated OK Output for ${procedureToRun.scriptType}` : "Simulated Error Output";
-          }
-          if (selectedComputerIds.indexOf(computerId) === selectedComputerIds.length -1) { // last one
-            setIsExecutingProcedure(false);
-          }
-        }, 3000 + Math.random() * 1500);
-      }
-    });
-
-    if (executionsCreated > 0) {
-      toast({
-        title: "Procedures Initiated (Simulated)",
-        description: `"${procedureToRun.name}" is being executed on ${executionsCreated} selected computer(s). This is currently simulated.`
-      });
-    } else {
-       toast({
-        title: "No eligible computers",
-        description: "No online computers were selected or found for procedure execution.",
-        variant: "default"
-      });
-       setIsExecutingProcedure(false);
+    const onlineSelectedComputers = computers.filter(c => selectedComputerIds.includes(c.id) && c.status === 'Online');
+    if(onlineSelectedComputers.length === 0){
+        toast({ title: "Info", description: "No online computers selected for execution.", variant: "default"});
+        return;
     }
 
-    setIsRunProcedureModalOpen(false);
-    setSelectedComputerIds([]);
-    setSelectedProcedureId('');
-    setProcedureSearchTerm(''); 
+    setIsExecutingProcedure(true);
+    try {
+      await executeProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
+      toast({
+        title: "Procedures Execution Queued",
+        description: `"${procedureToRun.name}" has been queued for execution on ${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.`
+      });
+      setIsRunProcedureModalOpen(false);
+      setSelectedComputerIds([]);
+      setSelectedProcedureId('');
+      setProcedureSearchTerm(''); 
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to queue procedure execution.';
+        toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive"});
+    } finally {
+        setIsExecutingProcedure(false);
+    }
   };
 
   const filteredProceduresForDialog = useMemo(() => {
@@ -269,7 +232,7 @@ export default function ComputersPage() {
             if (!isOpen) setProcedureSearchTerm(''); 
           }}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" disabled={isExecutingProcedure}>
                 <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
               </Button>
             </DialogTrigger>
@@ -278,7 +241,7 @@ export default function ComputersPage() {
                 <DialogTitle>Run Procedure on Selected Computers</DialogTitle>
                 <DialogDescription>
                   Select a procedure to run on the {selectedComputerIds.length} selected computer(s).
-                  Offline computers will be skipped. This is currently simulated.
+                  Offline computers will be skipped.
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
@@ -320,7 +283,7 @@ export default function ComputersPage() {
                 <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }} disabled={isExecutingProcedure}>Cancel</Button>
                 <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProcedures || isExecutingProcedure}>
                   {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
-                  {isExecutingProcedure ? 'Executing...' : 'Run Procedure'}
+                  {isExecutingProcedure ? 'Queueing...' : 'Run Procedure'}
                 </Button>
               </DialogFooter>
             </DialogContent>

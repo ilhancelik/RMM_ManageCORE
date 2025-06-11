@@ -2,8 +2,7 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { mockProcedures, mockProcedureExecutions } from '@/lib/mockData'; // Keep for procedures, executions for now
-import { fetchComputerById } from '@/lib/apiClient'; // Import fetchComputerById
+import { fetchComputerById, fetchExecutions, fetchProcedures } from '@/lib/apiClient'; 
 import type { Computer, Procedure, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,11 +11,11 @@ import { ArrowLeft, Cpu, HardDrive, MemoryStick, Play, Terminal, ListChecks, Edi
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
-const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
 
 export default function ComputerDetailsPage() {
   const router = useRouter();
@@ -27,43 +26,45 @@ export default function ComputerDetailsPage() {
   const [computer, setComputer] = useState<Computer | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]); // Keep using mock for now
+  const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]);
+  const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
+  const [allProcedures, setAllProcedures] = useState<Procedure[]>([]); // To map procedureId to name
+
+  const loadComputerDetails = useCallback(async () => {
+    if (!id) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const fetchedComputer = await fetchComputerById(id);
+      setComputer(fetchedComputer);
+      if (fetchedComputer) {
+        // Fetch procedures to map names
+        const procs = await fetchProcedures();
+        setAllProcedures(procs);
+        // Fetch executions for this computer
+        setIsLoadingExecutions(true);
+        const executions = await fetchExecutions({ computerId: id });
+        setRelatedExecutions(executions); // API should return sorted and filtered (e.g., last 30 days)
+      } else {
+        setError('Computer not found.');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load computer details.';
+      setError(errorMessage);
+      toast({
+        title: "Error Loading Computer Data",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      setIsLoadingExecutions(false);
+    }
+  }, [id, toast]);
 
   useEffect(() => {
-    const loadComputerDetails = async () => {
-      if (!id) return;
-      setIsLoading(true);
-      setError(null);
-      try {
-        const fetchedComputer = await fetchComputerById(id);
-        setComputer(fetchedComputer);
-        if (fetchedComputer) {
-          // Procedure executions still from mock data for now
-          const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-          const recentExecutions = mockProcedureExecutions.filter(exec => {
-            if (exec.computerId === fetchedComputer.id) { // Match by ID from API
-              const execTime = new Date(exec.endTime || exec.startTime || 0).getTime();
-              return execTime >= thirtyDaysAgo;
-            }
-            return false;
-          }).sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
-          setRelatedExecutions(recentExecutions);
-        } else {
-          setError('Computer not found.');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load computer details.');
-        toast({
-          title: "Error Loading Computer",
-          description: err instanceof Error ? err.message : 'An unknown error occurred.',
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
     loadComputerDetails();
-  }, [id, toast]);
+  }, [loadComputerDetails]);
 
   if (isLoading) {
     return (
@@ -91,6 +92,10 @@ export default function ComputerDetailsPage() {
           <CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader>
           <CardContent><Skeleton className="h-20 w-full" /></CardContent>
         </Card>
+         <div className="flex justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <p className="ml-2 text-muted-foreground">Loading computer details...</p>
+        </div>
       </div>
     );
   }
@@ -114,7 +119,7 @@ export default function ComputerDetailsPage() {
   };
   
   const getProcedureName = (procedureId: string): string => {
-    return mockProcedures.find(p => p.id === procedureId)?.name || 'Unknown Procedure';
+    return allProcedures.find(p => p.id === procedureId)?.name || 'Unknown Procedure';
   };
 
   return (
@@ -194,46 +199,57 @@ export default function ComputerDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity (Last 30 Days - Mock Data)</CardTitle>
-          <CardDescription>Procedures executed on this computer. (Execution data still from mock data)</CardDescription>
+          <CardTitle>Recent Activity (Procedure Executions from API)</CardTitle>
+          <CardDescription>Procedures executed on this computer.</CardDescription>
         </CardHeader>
         <CardContent>
-          {relatedExecutions.length > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Procedure</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {relatedExecutions.map((exec) => (
-                  <TableRow key={exec.id}>
-                    <TableCell className="font-medium">{getProcedureName(exec.procedureId)}</TableCell>
-                    <TableCell>
-                      <Badge variant={exec.status === 'Success' ? 'default' : exec.status === 'Failed' ? 'destructive': 'secondary'} 
-                             className={exec.status === 'Success' ? 'bg-green-500 hover:bg-green-600' : exec.status === 'Failed' ? 'bg-red-500 hover:bg-red-600' : ''}>
-                        {exec.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{exec.startTime ? new Date(exec.startTime).toLocaleString() : 'N/A'}</TableCell>
-                    <TableCell>{exec.endTime ? new Date(exec.endTime).toLocaleString() : 'N/A'}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/procedures/${exec.procedureId}?executionId=${exec.id}`}>
-                            <ListChecks className="mr-2 h-4 w-4" /> View Log
-                        </Link>
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          {isLoadingExecutions ? (
+            <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-10 w-full" />
+                <div className="flex justify-center items-center pt-4">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    <p className="ml-2 text-muted-foreground">Loading executions...</p>
+                </div>
+            </div>
+          ) : relatedExecutions.length > 0 ? (
+            <ScrollArea className="h-96">
+                <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Procedure</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Start Time</TableHead>
+                    <TableHead>End Time</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {relatedExecutions.map((exec) => (
+                    <TableRow key={exec.id}>
+                        <TableCell className="font-medium">{getProcedureName(exec.procedureId)}</TableCell>
+                        <TableCell>
+                        <Badge variant={exec.status === 'Success' ? 'default' : exec.status === 'Failed' ? 'destructive': 'secondary'} 
+                                className={exec.status === 'Success' ? 'bg-green-500 hover:bg-green-600' : exec.status === 'Failed' ? 'bg-red-500 hover:bg-red-600' : exec.status === 'Pending' || exec.status === 'Running' ? 'bg-blue-500 hover:bg-blue-600' : ''}>
+                            {exec.status}
+                        </Badge>
+                        </TableCell>
+                        <TableCell>{exec.startTime ? new Date(exec.startTime).toLocaleString() : 'N/A'}</TableCell>
+                        <TableCell>{exec.endTime ? new Date(exec.endTime).toLocaleString() : 'N/A'}</TableCell>
+                        <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" asChild>
+                            <Link href={`/procedures/${exec.procedureId}?tab=execute`}>
+                                <ListChecks className="mr-2 h-4 w-4" /> View Log
+                            </Link>
+                        </Button>
+                        </TableCell>
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+            </ScrollArea>
           ) : (
-            <p className="text-muted-foreground">No recent procedure executions for this computer in the last 30 days.</p>
+            <p className="text-muted-foreground text-center py-8">No recent procedure executions for this computer.</p>
           )}
         </CardContent>
       </Card>
