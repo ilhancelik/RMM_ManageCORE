@@ -1,11 +1,5 @@
 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog } from '@/types';
-// Removed fetchProcedures as it's now handled by apiClient directly where needed.
-
-// Computer data is managed by the API.
-// Group data is managed by the API.
-// Procedure data is managed by the API.
-// Monitor data is managed by the API.
 
 export let mockProcedureExecutions: ProcedureExecution[] = [
     {
@@ -34,20 +28,21 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
 
 export let mockCustomCommands: CustomCommand[] = [];
 
-export let smtpSettings: SMTPSettings | null = {
-    server: 'smtp.example.com',
-    port: 587,
-    username: 'user@example.com',
-    password: 'password123',
-    secure: true,
-    fromEmail: 'noreply@example.com',
-    defaultToEmail: 'admin@example.com'
-};
+// SMTP settings are now managed by the API.
+// export let smtpSettings: SMTPSettings | null = {
+//     server: 'smtp.example.com',
+//     port: 587,
+//     username: 'user@example.com',
+//     password: 'password123',
+//     secure: true,
+//     fromEmail: 'noreply@example.com',
+//     defaultToEmail: 'admin@example.com'
+// };
 
 export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { 
     id: 'monlog-1', 
-    monitorId: 'mon-1', // This ID will reference API-managed monitors
+    monitorId: 'mon-1', 
     computerId: 'comp-2', 
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 5 * 60000).toISOString(), 
@@ -57,7 +52,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   },
   { 
     id: 'monlog-2', 
-    monitorId: 'mon-1', // This ID will reference API-managed monitors
+    monitorId: 'mon-1', 
     computerId: 'comp-2', 
     computerName: 'Server-Main', 
     timestamp: new Date(Date.now() - 10 * 60000).toISOString(), 
@@ -70,18 +65,18 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
 
 
-// SMTP Settings Functions
-export function getSmtpSettings(): SMTPSettings | null {
-  return smtpSettings;
-}
+// SMTP Settings Functions are now managed by API client.
+// export function getSmtpSettings(): SMTPSettings | null {
+//   return smtpSettings;
+// }
+// 
+// export function saveSmtpSettings(settings: SMTPSettings): void {
+//   smtpSettings = settings;
+// }
 
-export function saveSmtpSettings(settings: SMTPSettings): void {
-  smtpSettings = settings;
-}
-
-// Helper functions to manage mock data
+// Helper functions to manage mock data (those not yet migrated to API)
 export function addProcedureExecution(execution: ProcedureExecution) {
-  mockProcedureExecutions.unshift(execution); // Still used for simulated executions
+  mockProcedureExecutions.unshift(execution); 
 }
 
 export function addCustomCommand(command: CustomCommand) {

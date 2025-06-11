@@ -1,5 +1,5 @@
 
-import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings } from '@/types';
+import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings, AssociatedProcedureConfig, AssociatedMonitorConfig } from '@/types';
 import axios from 'axios';
 
 const apiClient = axios.create({
@@ -108,6 +108,18 @@ export const deleteGroup = async (id: string): Promise<void> => {
   }
 };
 
+export const fetchAllComputers = async (): Promise<Computer[]> => {
+  // This is a duplicate of fetchComputers, ensure it's needed or consolidate.
+  // For now, keeping it as it might be used in specific contexts like group details.
+  try {
+    const response = await apiClient.get<Computer[]>('/computers');
+    return response.data;
+  } catch (error) {
+    handleError(error, 'fetching all computers');
+    return [];
+  }
+};
+
 
 // Procedure related API calls
 export const fetchProcedures = async (): Promise<Procedure[]> => {
@@ -209,7 +221,33 @@ export const deleteMonitorFromApi = async (id: string): Promise<void> => {
   }
 };
 
+// Settings (SMTP) related API calls
+export const fetchSmtpSettings = async (): Promise<SMTPSettings | null> => {
+  try {
+    const response = await apiClient.get<SMTPSettings>('/settings/smtp');
+    return response.data || null; // Handle if API returns empty 200 or 204 for no settings
+  } catch (error) {
+    // If API returns 404 for no settings, treat as null, otherwise rethrow
+    if (axios.isAxiosError(error) && error.response && error.response.status === 404) {
+      return null; 
+    }
+    handleError(error, 'fetching SMTP settings');
+    throw error; // Rethrow to be caught by UI
+  }
+};
 
-// TODO: Add other API functions as needed for Commands, Settings etc.
+export const saveSmtpSettingsToApi = async (settings: SMTPSettings): Promise<SMTPSettings> => {
+  try {
+    // Using PUT as settings are typically a singleton resource to be replaced/updated
+    const response = await apiClient.put<SMTPSettings>('/settings/smtp', settings);
+    return response.data;
+  } catch (error) {
+    handleError(error, 'saving SMTP settings');
+    throw error;
+  }
+};
+
+
+// TODO: Add other API functions as needed for Commands, etc.
 
 export default apiClient;
