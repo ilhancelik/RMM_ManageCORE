@@ -3,12 +3,11 @@
 
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { fetchComputers, fetchExecutions } from '@/lib/apiClient'; 
+import { fetchComputers, fetchExecutions, fetchMonitorLogs } from '@/lib/apiClient'; 
 import type { Computer, ProcedureExecution, MonitorExecutionLog } from '@/types'; 
 import { BarChart, CircleDollarSign, Cpu, HardDrive, MemoryStick, Activity, ListChecks, PieChart, AlertTriangle, Loader2 } from 'lucide-react';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'; 
-import { mockMonitorExecutionLogs } from '@/lib/mockData'; 
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 
@@ -26,7 +25,9 @@ export default function DashboardPage() {
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
   const [executionsError, setExecutionsError] = useState<string | null>(null);
   
-  const monitorLogs: MonitorExecutionLog[] = mockMonitorExecutionLogs; // Still mock for now
+  const [monitorLogs, setMonitorLogs] = useState<MonitorExecutionLog[]>([]);
+  const [isLoadingMonitorLogs, setIsLoadingMonitorLogs] = useState(true);
+  const [monitorLogsError, setMonitorLogsError] = useState<string | null>(null);
 
 
   const loadDashboardData = useCallback(async () => {
@@ -34,19 +35,25 @@ export default function DashboardPage() {
     setComputerError(null);
     setIsLoadingExecutions(true);
     setExecutionsError(null);
+    setIsLoadingMonitorLogs(true);
+    setMonitorLogsError(null);
 
     try {
-      const [fetchedComputers, fetchedExecutions] = await Promise.all([
+      const [fetchedComputers, fetchedExecutions, fetchedMonitorLogsResult] = await Promise.all([
         fetchComputers(),
-        fetchExecutions() // Fetch all recent executions
+        fetchExecutions(), // Fetch all recent executions
+        fetchMonitorLogs()
       ]);
       setComputers(fetchedComputers);
       setProcedureExecutions(fetchedExecutions);
+      setMonitorLogs(fetchedMonitorLogsResult);
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data.';
-      // Set error for specific part if possible, or a general one
-      if (!computers.length) setComputerError(errorMessage);
-      if (!procedureExecutions.length) setExecutionsError(errorMessage);
+      if (!computers.length && !computerError) setComputerError(errorMessage);
+      if (!procedureExecutions.length && !executionsError) setExecutionsError(errorMessage);
+      if (!monitorLogs.length && !monitorLogsError) setMonitorLogsError(errorMessage);
+      
       toast({
         title: "Error Loading Dashboard Data",
         description: errorMessage,
@@ -55,8 +62,10 @@ export default function DashboardPage() {
     } finally {
       setIsLoadingComputers(false);
       setIsLoadingExecutions(false);
+      setIsLoadingMonitorLogs(false);
     }
-  }, [toast, computers.length, procedureExecutions.length]); // Added dependencies to avoid stale closures
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toast]); 
 
   useEffect(() => {
     loadDashboardData();
@@ -84,12 +93,15 @@ export default function DashboardPage() {
   }, [procedureExecutions, isLoadingExecutions, executionsError]);
 
   const recentMonitorAlertsCount = useMemo(() => {
+    if (isLoadingMonitorLogs && monitorLogs.length === 0) return 0;
+    if (monitorLogsError) return 0; 
+
     const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
     return monitorLogs.filter(log => 
       (log.status === 'ALERT' || log.status === 'Error') && 
       new Date(log.timestamp).getTime() >= thirtyDaysAgo
     ).length;
-  }, [monitorLogs]);
+  }, [monitorLogs, isLoadingMonitorLogs, monitorLogsError]);
 
   const renderComputerCards = () => {
     if (isLoadingComputers) {
@@ -186,13 +198,28 @@ export default function DashboardPage() {
         </Card>
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><AlertTriangle /> Monitor Alerts (Last 30 Days - Mock)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><AlertTriangle /> Monitor Alerts (Last 30 Days - API)</CardTitle>
             <CardDescription>Total critical alerts from monitors.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] flex flex-col items-center justify-center">
-            <div className="text-6xl font-bold text-orange-500">{recentMonitorAlertsCount}</div>
-            <p className="text-muted-foreground mt-2">Alerts Requiring Attention</p>
-            {monitorLogs.length === 0 && <p className="text-xs text-muted-foreground mt-4">No monitor log data yet.</p>}
+             {isLoadingMonitorLogs ? (
+                <div className="flex flex-col items-center text-muted-foreground">
+                    <Loader2 className="h-8 w-8 animate-spin mb-2 text-primary" />
+                    <p>Loading alerts...</p>
+                </div>
+            ) : monitorLogsError ? (
+                 <p className="text-sm text-destructive text-center">Error: {monitorLogsError}</p>
+            ) : (
+                <>
+                    <div className={`text-6xl font-bold ${recentMonitorAlertsCount > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+                        {recentMonitorAlertsCount}
+                    </div>
+                    <p className="text-muted-foreground mt-2">
+                        {recentMonitorAlertsCount > 0 ? 'Alerts Requiring Attention' : 'No Critical Alerts'}
+                    </p>
+                    {monitorLogs.length === 0 && !monitorLogsError && <p className="text-xs text-muted-foreground mt-4">No monitor log data found from API.</p>}
+                </>
+            )}
           </CardContent>
         </Card>
          <Card className="lg:col-span-1">

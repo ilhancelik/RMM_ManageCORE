@@ -1,5 +1,5 @@
 
-import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings, AssociatedProcedureConfig, AssociatedMonitorConfig, ProcedureExecution, ScriptType } from '@/types';
+import type { Computer, Procedure, ComputerGroup, CustomCommand, Monitor, SMTPSettings, AssociatedProcedureConfig, AssociatedMonitorConfig, ProcedureExecution, ScriptType, MonitorExecutionLog } from '@/types';
 import axios from 'axios';
 
 const apiClient = axios.create({
@@ -262,8 +262,6 @@ export const sendCustomCommand = async (commandData: SendCommandPayload): Promis
 
 export const fetchCommandHistory = async (): Promise<CustomCommand[]> => {
   try {
-    // Assuming API returns commands for the last 30 days, sorted newest first.
-    // Add query params like ?limit=100&sort=desc&since=... if your API supports them.
     const response = await apiClient.get<CustomCommand[]>('/commands');
     return response.data;
   } catch (error) {
@@ -286,8 +284,6 @@ export const executeProcedure = async (procedureId: string, computerIds: string[
 export const fetchExecutions = async (params?: { procedureId?: string; computerId?: string }): Promise<ProcedureExecution[]> => {
   try {
     const response = await apiClient.get<ProcedureExecution[]>('/executions', { params });
-    // Ensure API returns sorted data (newest first) and within a reasonable timeframe (e.g., last 30 days)
-    // Or implement client-side sorting if necessary, though API-side is preferred.
     return response.data.sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
   } catch (error) {
     const contextParts = [];
@@ -295,6 +291,18 @@ export const fetchExecutions = async (params?: { procedureId?: string; computerI
     if (params?.computerId) contextParts.push(`computer ${params.computerId}`);
     const context = contextParts.length > 0 ? `for ${contextParts.join(' and ')}` : 'all';
     handleError(error, `fetching executions ${context}`);
+    return [];
+  }
+};
+
+// Monitor Execution Log related API calls
+export const fetchMonitorLogs = async (): Promise<MonitorExecutionLog[]> => {
+  try {
+    const response = await apiClient.get<MonitorExecutionLog[]>('/monitor-logs');
+    // Optionally sort or filter client-side if API doesn't, e.g., by timestamp
+    return response.data.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  } catch (error) {
+    handleError(error, 'fetching monitor logs');
     return [];
   }
 };
