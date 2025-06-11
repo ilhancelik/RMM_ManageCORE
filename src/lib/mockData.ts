@@ -58,6 +58,42 @@ export let mockMonitors: Monitor[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
+  {
+    id: 'mon-perf-cpu',
+    name: 'CPU Usage Monitor',
+    description: 'Alerts if CPU usage is consistently above 95%.',
+    scriptType: 'PowerShell',
+    scriptContent: '$cpuUsage = (Get-Counter \'\\Processor(_Total)\\% Processor Time\' -ErrorAction SilentlyContinue).CounterSamples[0].CookedValue; if ($cpuUsage -gt 95) { Write-Output "ALERT: CPU usage at $([math]::Round($cpuUsage, 0))%." } else { Write-Output "OK: CPU usage at $([math]::Round($cpuUsage, 0))%." }',
+    defaultIntervalValue: 5,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mon-perf-ram',
+    name: 'RAM Usage Monitor',
+    description: 'Alerts if RAM usage is consistently above 95%.',
+    scriptType: 'PowerShell',
+    scriptContent: '$memory = Get-CimInstance Win32_OperatingSystem; $ramUsagePercent = (1 - ($memory.FreePhysicalMemory / $memory.TotalVisibleMemorySize)) * 100; if ($ramUsagePercent -gt 95) { Write-Output "ALERT: RAM usage at $([math]::Round($ramUsagePercent, 0))%." } else { Write-Output "OK: RAM usage at $([math]::Round($ramUsagePercent, 0))%." }',
+    defaultIntervalValue: 5,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'mon-perf-network',
+    name: 'Network Usage Monitor',
+    description: 'Alerts if network activity is consistently very high (simulated).',
+    scriptType: 'PowerShell',
+    scriptContent: '# This is a simplified check. Real network utilization monitoring is complex.\n$networkActivityScore = Get-Random -Minimum 0 -Maximum 100; # Simulated score\nif ($networkActivityScore -gt 95) { Write-Output "ALERT: High network activity detected (Simulated Score: $networkActivityScore)." } else { Write-Output "OK: Network activity normal (Simulated Score: $networkActivityScore)." }',
+    defaultIntervalValue: 5,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 export let mockComputerGroups: ComputerGroup[] = [
@@ -70,7 +106,8 @@ export let mockComputerGroups: ComputerGroup[] = [
       { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'disabled' } }
     ],
     associatedMonitors: [
-      { monitorId: 'mon-2', schedule: { type: 'interval', intervalValue: 45, intervalUnit: 'minutes' } }
+      { monitorId: 'mon-2', schedule: { type: 'interval', intervalValue: 45, intervalUnit: 'minutes' } },
+      { monitorId: 'mon-perf-cpu', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
     ]
   },
   { id: 'group-2', name: 'Servers', description: 'All production and staging servers.', computerIds: ['comp-2', 'comp-5'], 
@@ -79,7 +116,9 @@ export let mockComputerGroups: ComputerGroup[] = [
     ],
     associatedMonitors: [
       { monitorId: 'mon-3', schedule: { type: 'interval', intervalValue: 3, intervalUnit: 'minutes' } },
-      { monitorId: 'mon-4', schedule: { type: 'interval', intervalValue: 10, intervalUnit: 'minutes' } }
+      { monitorId: 'mon-4', schedule: { type: 'interval', intervalValue: 10, intervalUnit: 'minutes' } },
+      { monitorId: 'mon-perf-ram', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } },
+      { monitorId: 'mon-perf-network', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes' } }
     ]
   },
   { id: 'group-3', name: 'Remote Workers', description: 'Laptops for remote employees.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] },
