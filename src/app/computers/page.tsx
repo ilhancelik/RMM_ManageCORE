@@ -22,9 +22,22 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { getComputers, getProcedures, getGroups, executeMockProcedure } from '@/lib/mockData'; 
 import type { Computer, ComputerGroup, Procedure } from '@/types';
-import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, Play, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
@@ -53,6 +66,9 @@ export default function ComputersPage() {
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
   const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
+
+  const [openGroupFilterPopover, setOpenGroupFilterPopover] = useState(false);
+  const [openProcedureDialogPopover, setOpenProcedureDialogPopover] = useState(false);
 
 
   const loadInitialData = useCallback(() => {
@@ -208,45 +224,81 @@ export default function ComputersPage() {
                 <ListFilter className="h-5 w-5 text-muted-foreground" />
                 <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
             </div>
-            <div className="w-full sm:w-[180px] space-y-1">
-              <Input 
-                type="search" 
-                placeholder="Search groups..." 
-                value={groupFilterSearchTerm} 
-                onChange={(e) => setGroupFilterSearchTerm(e.target.value)}
-                className="h-9 text-xs mb-0.5"
-                disabled={isLoadingProceduresOrGroups}
-              />
-              <Select 
-                key={`group-filter-select-${groupFilterSearchTerm}`}
-                value={selectedGroupId} 
-                onValueChange={setSelectedGroupId} 
-                disabled={isLoadingProceduresOrGroups || (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) || (groups.length === 0 && !groupFilterSearchTerm)}
-              >
-                <SelectTrigger id="groupFilter" className="h-10">
-                  <SelectValue placeholder={
-                      isLoadingProceduresOrGroups ? "Loading groups..." :
-                      (groups.length === 0 && !groupFilterSearchTerm) ? "No groups available" :
-                      (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) ? "No groups match search" :
-                      "All Groups"
-                  } />
-                </SelectTrigger>
-                <SelectContent key={`group-filter-content-${groupFilterSearchTerm}`}>
-                  <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
-                  {filteredGroupsForFilterSelect.length > 0 ? (
-                    filteredGroupsForFilterSelect.map(group => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                     <SelectItem value="no-results" disabled>
-                        {groups.length === 0 && !groupFilterSearchTerm ? "No groups available" : "No groups match search"}
-                     </SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+             <Popover open={openGroupFilterPopover} onOpenChange={setOpenGroupFilterPopover}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openGroupFilterPopover}
+                  className="w-full sm:w-[180px] justify-between"
+                  disabled={isLoadingProceduresOrGroups}
+                >
+                  <span className="truncate">
+                    {selectedGroupId === ALL_GROUPS_VALUE
+                      ? "All Groups"
+                      : groups.find(group => group.id === selectedGroupId)?.name || "Select group..."}
+                  </span>
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                <Command
+                  filter={(value, search) => {
+                    const group = groups.find(g => g.id === value);
+                    if (value === ALL_GROUPS_VALUE && "all groups".includes(search.toLowerCase())) return 1;
+                    if (group && group.name.toLowerCase().includes(search.toLowerCase())) return 1;
+                    return 0;
+                  }}
+                >
+                  <CommandInput 
+                    placeholder="Search groups..." 
+                    value={groupFilterSearchTerm}
+                    onValueChange={setGroupFilterSearchTerm}
+                  />
+                  <CommandEmpty>No group found.</CommandEmpty>
+                  <CommandList>
+                    <CommandGroup>
+                      <CommandItem
+                        key={ALL_GROUPS_VALUE}
+                        value={ALL_GROUPS_VALUE}
+                        onSelect={() => {
+                          setSelectedGroupId(ALL_GROUPS_VALUE);
+                          setOpenGroupFilterPopover(false);
+                          setGroupFilterSearchTerm('');
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedGroupId === ALL_GROUPS_VALUE ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        All Groups
+                      </CommandItem>
+                      {filteredGroupsForFilterSelect.map((group) => (
+                        <CommandItem
+                          key={group.id}
+                          value={group.id}
+                          onSelect={() => {
+                            setSelectedGroupId(group.id);
+                            setOpenGroupFilterPopover(false);
+                            setGroupFilterSearchTerm('');
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              selectedGroupId === group.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {group.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <Button asChild>
             <Link href="/computers/new">
@@ -258,74 +310,100 @@ export default function ComputersPage() {
         </div>
       </div>
       
-      {selectedComputerIds.length > 0 && (
-        <div className="mb-4 flex justify-start">
-          <Dialog open={isRunProcedureModalOpen} onOpenChange={(isOpen) => {
-            setIsRunProcedureModalOpen(isOpen);
-            if (!isOpen) setProcedureSearchTerm(''); 
-          }}>
-            <DialogTrigger asChild>
-              <Button variant="outline" disabled={isExecutingProcedure}>
-                <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
+      <div className="mb-4 flex justify-start">
+        <Dialog open={isRunProcedureModalOpen} onOpenChange={(isOpen) => {
+          setIsRunProcedureModalOpen(isOpen);
+          if (!isOpen) {
+            setProcedureSearchTerm(''); 
+            setOpenProcedureDialogPopover(false); // Close popover when dialog closes
+          }
+        }}>
+          <DialogTrigger asChild>
+            <Button 
+              variant="outline" 
+              disabled={isExecutingProcedure || selectedComputerIds.length === 0}
+            >
+              <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Run Procedure on Selected Computers</DialogTitle>
+              <DialogDescription>
+                Select a procedure to run on the {selectedComputerIds.length} selected computer(s).
+                Offline computers will be skipped.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-2">
+              <Label htmlFor="select-procedure-dialog-trigger">Procedure</Label>
+              <Popover open={openProcedureDialogPopover} onOpenChange={setOpenProcedureDialogPopover}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="select-procedure-dialog-trigger"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={openProcedureDialogPopover}
+                    className="w-full justify-between"
+                    disabled={isLoadingProceduresOrGroups || allProcedures.length === 0}
+                  >
+                    <span className="truncate">
+                    {selectedProcedureId
+                      ? allProcedures.find(proc => proc.id === selectedProcedureId)?.name
+                      : "Select a procedure..."}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                  <Command 
+                     filter={(value, search) => {
+                        const proc = allProcedures.find(p => p.id === value);
+                        if (proc && (proc.name.toLowerCase().includes(search.toLowerCase()) || proc.description.toLowerCase().includes(search.toLowerCase()))) return 1;
+                        return 0;
+                      }}
+                  >
+                    <CommandInput 
+                      placeholder="Search procedures..." 
+                      value={procedureSearchTerm}
+                      onValueChange={setProcedureSearchTerm}
+                    />
+                    <CommandEmpty>No procedure found.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {filteredProceduresForDialog.map(proc => (
+                          <CommandItem
+                            key={proc.id}
+                            value={proc.id}
+                            onSelect={() => {
+                              setSelectedProcedureId(proc.id);
+                              setOpenProcedureDialogPopover(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedProcedureId === proc.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            {proc.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); setOpenProcedureDialogPopover(false);}} disabled={isExecutingProcedure}>Cancel</Button>
+              <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProceduresOrGroups || isExecutingProcedure}>
+                {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
+                {isExecutingProcedure ? 'Queueing...' : 'Run Procedure'}
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Run Procedure on Selected Computers</DialogTitle>
-                <DialogDescription>
-                  Select a procedure to run on the {selectedComputerIds.length} selected computer(s).
-                  Offline computers will be skipped.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-2">
-                <Label htmlFor="select-procedure-dialog">Procedure</Label>
-                <Input 
-                  type="search" 
-                  placeholder="Search procedures..." 
-                  value={procedureSearchTerm} 
-                  onChange={(e) => setProcedureSearchTerm(e.target.value)}
-                  className="mb-1"
-                  disabled={isLoadingProceduresOrGroups}
-                />
-                <Select 
-                  value={selectedProcedureId} 
-                  onValueChange={setSelectedProcedureId}
-                  disabled={isLoadingProceduresOrGroups || (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm) || (allProcedures.length === 0 && !procedureSearchTerm)}
-                >
-                  <SelectTrigger id="select-procedure-dialog">
-                    <SelectValue placeholder={
-                      isLoadingProceduresOrGroups ? "Loading procedures..." :
-                      (allProcedures.length === 0 && !procedureSearchTerm) ? "No procedures available" :
-                      (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm) ? "No procedures match search" :
-                      "Select a procedure..."
-                    }/>
-                  </SelectTrigger>
-                  <SelectContent key={`dialog-procedure-content-${procedureSearchTerm}`}>
-                    {filteredProceduresForDialog.length > 0 ? (
-                      filteredProceduresForDialog.map(proc => (
-                        <SelectItem key={proc.id} value={proc.id}>
-                          {proc.name}
-                        </SelectItem>
-                      ))
-                    ): (
-                      <SelectItem value="no-results" disabled>
-                        {allProcedures.length === 0 && !procedureSearchTerm ? "No procedures available" : "No procedures match search"}
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }} disabled={isExecutingProcedure}>Cancel</Button>
-                <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProceduresOrGroups || isExecutingProcedure}>
-                  {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
-                  {isExecutingProcedure ? 'Queueing...' : 'Run Procedure'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
-      )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       <Card>
         <CardHeader>
@@ -377,6 +455,3 @@ export default function ComputersPage() {
     </div>
   );
 }
-
-
-    
