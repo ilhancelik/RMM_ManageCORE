@@ -5,7 +5,7 @@ import type { Procedure, ScriptType } from '@/types';
 import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock } from '@/lib/mockData'; 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2, Search } from 'lucide-react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
@@ -48,6 +48,7 @@ export default function ProceduresPage() {
   const [procedureScriptContent, setProcedureScriptContent] = useState('');
 
   const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
+  const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
 
   const loadMockProcedures = useCallback(() => {
@@ -71,7 +72,20 @@ export default function ProceduresPage() {
     loadMockProcedures();
   }, [loadMockProcedures]);
   
-  const filteredProcedures = procedures.filter(proc => filterType === 'All' || proc.scriptType === filterType);
+  const filteredProcedures = useMemo(() => {
+    let results = procedures;
+    if (filterType !== 'All') {
+      results = results.filter(proc => proc.scriptType === filterType);
+    }
+    if (procedureSearchTerm.trim() !== '') {
+      const lowerSearchTerm = procedureSearchTerm.toLowerCase();
+      results = results.filter(proc =>
+        proc.name.toLowerCase().includes(lowerSearchTerm) ||
+        proc.description.toLowerCase().includes(lowerSearchTerm)
+      );
+    }
+    return results;
+  }, [procedures, filterType, procedureSearchTerm]);
 
 
   const resetForm = () => {
@@ -196,9 +210,10 @@ export default function ProceduresPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto py-2">
-        <div className="flex justify-between items-center mb-6">
-          <Skeleton className="h-10 w-48" />
-          <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h1 className="text-3xl font-bold text-foreground">Procedures</h1>
+          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <Skeleton className="h-10 w-full sm:w-[250px]" />
             <Skeleton className="h-10 w-24" />
             <Skeleton className="h-10 w-36" />
           </div>
@@ -238,9 +253,19 @@ export default function ProceduresPage() {
 
   return (
     <div className="container mx-auto py-2">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold text-foreground">Procedures</h1>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <div className="relative flex-grow sm:flex-grow-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="search"
+                placeholder="Search procedures..."
+                className="pl-8 w-full sm:w-[200px] lg:w-[250px]"
+                value={procedureSearchTerm}
+                onChange={(e) => setProcedureSearchTerm(e.target.value)}
+              />
+            </div>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline">
@@ -285,11 +310,19 @@ export default function ProceduresPage() {
          <Card className="text-center py-10">
             <CardHeader>
                 <FileCode className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>{filterType === 'All' ? 'No Procedures Yet' : `No ${filterType} Procedures`}</CardTitle>
+                <CardTitle>
+                  {procedureSearchTerm || filterType !== 'All'
+                    ? 'No Procedures Found'
+                    : 'No Procedures Yet'}
+                </CardTitle>
                 <CardDescription>
-                    {filterType === 'All' 
-                     ? 'Create procedures to automate tasks on your computers. Use the button above to get started.'
-                     : `No procedures found for type "${filterType}". Try a different filter or create one.`}
+                  {procedureSearchTerm && filterType !== 'All'
+                    ? `No procedures match your search for "${procedureSearchTerm}" with type "${filterType}".`
+                    : procedureSearchTerm
+                      ? `No procedures match your search for "${procedureSearchTerm}".`
+                      : filterType !== 'All'
+                        ? `No procedures found for type "${filterType}". Try a different filter or create one.`
+                        : 'Create procedures to automate tasks on your computers. Use the button above to get started.'}
                 </CardDescription>
             </CardHeader>
              <CardContent>
@@ -337,3 +370,5 @@ export default function ProceduresPage() {
     </div>
   );
 }
+
+    

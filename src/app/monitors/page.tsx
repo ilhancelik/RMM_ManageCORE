@@ -5,7 +5,7 @@ import type { Monitor, ScriptType } from '@/types';
 import { scriptTypes, getMonitors, addMonitorToMock, updateMonitorInMock, deleteMonitorFromMock } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Activity, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Activity, Loader2, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -52,6 +52,8 @@ export default function MonitorsPage() {
   const [monitorIntervalUnit, setMonitorIntervalUnit] = useState<Monitor['defaultIntervalUnit']>('minutes');
   const [monitorSendEmail, setMonitorSendEmail] = useState(true);
 
+  const [monitorSearchTerm, setMonitorSearchTerm] = useState('');
+
   const loadMockMonitors = useCallback(() => {
     setIsLoading(true);
     setError(null);
@@ -72,6 +74,17 @@ export default function MonitorsPage() {
   useEffect(() => {
     loadMockMonitors();
   }, [loadMockMonitors]);
+
+  const filteredMonitors = useMemo(() => {
+    if (!monitorSearchTerm.trim()) {
+      return monitors;
+    }
+    const lowerSearchTerm = monitorSearchTerm.toLowerCase();
+    return monitors.filter(monitor =>
+      monitor.name.toLowerCase().includes(lowerSearchTerm) ||
+      monitor.description.toLowerCase().includes(lowerSearchTerm)
+    );
+  }, [monitors, monitorSearchTerm]);
   
   const resetForm = () => {
     setMonitorName('');
@@ -220,8 +233,12 @@ export default function MonitorsPage() {
   if (isLoading) {
     return (
       <div className="container mx-auto py-2">
-        <div className="flex justify-between items-center mb-6">
-          <Skeleton className="h-10 w-48" /> <Skeleton className="h-10 w-36" />
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+          <h1 className="text-3xl font-bold text-foreground">Monitors</h1>
+          <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+            <Skeleton className="h-10 w-full sm:w-[250px]" />
+            <Skeleton className="h-10 w-36" />
+          </div>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(3)].map((_, i) => (
@@ -251,11 +268,23 @@ export default function MonitorsPage() {
 
   return (
     <div className="container mx-auto py-2">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold text-foreground">Monitors</h1>
-        <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Create Monitor
-        </Button>
+        <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
+          <div className="relative flex-grow sm:flex-grow-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search monitors..."
+              className="pl-8 w-full sm:w-[200px] lg:w-[250px]"
+              value={monitorSearchTerm}
+              onChange={(e) => setMonitorSearchTerm(e.target.value)}
+            />
+          </div>
+          <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Create Monitor
+          </Button>
+        </div>
       </div>
       
       <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) { setIsModalOpen(isOpen); if(!isOpen) resetForm(); } }}>
@@ -277,12 +306,16 @@ export default function MonitorsPage() {
         </DialogContent>
       </Dialog>
 
-      {monitors.length === 0 && !isLoading ? (
+      {filteredMonitors.length === 0 && !isLoading ? (
          <Card className="text-center py-10">
             <CardHeader>
                 <Activity className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>No Monitors Yet</CardTitle>
-                <CardDescription>Create monitors to keep an eye on your systems.</CardDescription>
+                <CardTitle>{monitorSearchTerm ? 'No Monitors Found' : 'No Monitors Yet'}</CardTitle>
+                <CardDescription>
+                  {monitorSearchTerm
+                    ? `No monitors match your search for "${monitorSearchTerm}". Try a different term or clear the search.`
+                    : 'Create monitors to keep an eye on your systems.'}
+                </CardDescription>
             </CardHeader>
             <CardContent>
                  <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
@@ -292,7 +325,7 @@ export default function MonitorsPage() {
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {monitors.map((monitor) => (
+          {filteredMonitors.map((monitor) => (
             <Card key={monitor.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -334,3 +367,5 @@ export default function MonitorsPage() {
     </div>
   );
 }
+
+    
