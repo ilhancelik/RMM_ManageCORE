@@ -66,7 +66,7 @@ export default function CommandsPage() {
     setIsLoadingProcedures(true);
     setHistoryError(null);
 
-    setTimeout(() => { // Simulate API delay
+    setTimeout(() => { 
         try {
             const fetchedHistory = getCommandHistory();
             const fetchedComputers = getComputers();
@@ -169,7 +169,7 @@ export default function CommandsPage() {
           return;
       }
       isTargetValid = true;
-    } else { // targetType === "group"
+    } else { 
       if (!selectedGroupId) {
         toast({ title: "Error", description: "Please select a target group.", variant: "destructive" });
         return;
@@ -179,13 +179,11 @@ export default function CommandsPage() {
       targetName = group?.name;
       if (group) {
         const onlineComputersInGroup = getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
-        if (onlineComputersInGroup.length === 0) {
-            toast({ title: "Info", description: `No online computers in group "${targetName}". Command/procedure will not be sent to group members (Mock).`, variant: "default" });
-             // For procedure mode, we might still want to log an attempt or handle differently
-             // For now, if no online members, and it's a group, we stop for procedures as well.
-            if (executionMode === "procedure") return;
+        if (onlineComputersInGroup.length === 0 && executionMode === "procedure") { // Only block for procedures if no online members
+            toast({ title: "Info", description: `No online computers in group "${targetName}" to run procedure.`, variant: "default" });
+            return;
         }
-         isTargetValid = true; // Group itself is a valid target, even if no online members for script.
+         isTargetValid = true; 
       }
     }
 
@@ -214,7 +212,7 @@ export default function CommandsPage() {
         const errorMessage = error instanceof Error ? error.message : "Failed to send command (Mock).";
         toast({ title: "Error Sending Command", description: errorMessage, variant: "destructive" });
       }
-    } else { // executionMode === "procedure"
+    } else { 
       if (!selectedProcedureIdForExecution) {
         toast({ title: "Error", description: "Please select a procedure to execute.", variant: "destructive" });
         setIsSendingCommand(false);
@@ -231,7 +229,7 @@ export default function CommandsPage() {
         let computerIdsForProcedure: string[] = [];
         if (targetType === 'computer') {
             computerIdsForProcedure = [targetIdValue];
-        } else { // group
+        } else { 
             const group = getGroupById(targetIdValue);
             computerIdsForProcedure = group ? getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online').map(c => c.id) : [];
         }
@@ -252,7 +250,7 @@ export default function CommandsPage() {
     }
 
     setTimeout(() => {
-      refreshCommandHistory(); // Refresh history regardless of mode
+      refreshCommandHistory(); 
       setIsSendingCommand(false);
     }, 1500);
   };
@@ -334,7 +332,12 @@ export default function CommandsPage() {
                     className="pl-8 mb-2"
                 />
               </div>
-              <Select value={selectedComputerId} onValueChange={setSelectedComputerId} disabled={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0}>
+              <Select 
+                key={`target-computer-select-${targetComputerSearchTerm}`}
+                value={selectedComputerId} 
+                onValueChange={setSelectedComputerId} 
+                disabled={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0}
+              >
                 <SelectTrigger id="targetComputer">
                   <SelectValue placeholder={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 ? "No online computers match search" : "Select an online computer"} />
                 </SelectTrigger>
@@ -344,7 +347,7 @@ export default function CommandsPage() {
                       {computer.name} ({computer.ipAddress})
                     </SelectItem>
                   ))}
-                  {filteredComputersForSelect.filter(c => c.status !== 'Online').length > 0 && filteredComputersForSelect.filter(c => c.status === 'Online').length > 0 && <React.Fragment><SelectItem value="disabled-sep" disabled>--- Offline / Other ---</SelectItem></React.Fragment>}
+                  {filteredComputersForSelect.filter(c => c.status !== 'Online').length > 0 && filteredComputersForSelect.filter(c => c.status === 'Online').length > 0 && <React.Fragment><SelectItem value="disabled-sep" disabled className="font-semibold text-muted-foreground opacity-100 pointer-events-none">--- Offline / Other ---</SelectItem></React.Fragment>}
                   {filteredComputersForSelect.filter(c => c.status !== 'Online').map(computer => (
                     <SelectItem key={computer.id} value={computer.id} disabled>
                       {computer.name} ({computer.status})
@@ -369,7 +372,12 @@ export default function CommandsPage() {
                     className="pl-8 mb-2"
                 />
               </div>
-              <Select value={selectedGroupId} onValueChange={setSelectedGroupId} disabled={filteredGroupsForSelect.length === 0}>
+              <Select 
+                key={`target-group-select-${targetGroupSearchTerm}`}
+                value={selectedGroupId} 
+                onValueChange={setSelectedGroupId} 
+                disabled={filteredGroupsForSelect.length === 0}
+              >
                 <SelectTrigger id="targetGroup">
                   <SelectValue placeholder={filteredGroupsForSelect.length === 0 ? "No groups match search" : "Select a group"} />
                 </SelectTrigger>
@@ -443,7 +451,12 @@ export default function CommandsPage() {
                             className="pl-8 mb-2"
                         />
                     </div>
-                    <Select value={selectedProcedureIdForExecution} onValueChange={setSelectedProcedureIdForExecution} disabled={filteredProceduresForSelect.length === 0}>
+                    <Select 
+                        key={`select-procedure-${procedureSelectSearchTerm}`}
+                        value={selectedProcedureIdForExecution} 
+                        onValueChange={setSelectedProcedureIdForExecution} 
+                        disabled={filteredProceduresForSelect.length === 0}
+                    >
                         <SelectTrigger id="selectProcedure">
                         <SelectValue placeholder={filteredProceduresForSelect.length === 0 ? "No procedures match search" : "Select a procedure"} />
                         </SelectTrigger>
@@ -529,4 +542,3 @@ export default function CommandsPage() {
     </div>
   );
 }
-
