@@ -34,9 +34,46 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
 ];
 
 export let mockMonitors: Monitor[] = [
-  { id: 'mon-1', name: 'CPU Usage Monitor', description: 'Alerts if CPU usage is high.', scriptType: 'PowerShell', scriptContent: 'if ((Get-Counter "\\Processor(_Total)\\% Processor Time").CounterSamples[0].CookedValue -gt 80) { "ALERT: CPU Usage High" } else { "OK: CPU Usage Normal" }', defaultIntervalValue: 5, defaultIntervalUnit: 'minutes', sendEmailOnAlert: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'mon-2', name: 'Disk Space Monitor', description: 'Checks free disk space.', scriptType: 'PowerShell', scriptContent: '$disk = Get-PSDrive C; if (($disk.Free / $disk.Size) * 100 -lt 10) { "ALERT: Low Disk Space on C:" } else { "OK: Disk space sufficient" }', defaultIntervalValue: 1, defaultIntervalUnit: 'hours', sendEmailOnAlert: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'mon-1', name: 'CPU Usage Monitor', description: 'Alerts if CPU usage is high.', scriptType: 'PowerShell', scriptContent: 'if ((Get-Counter "\\Processor(_Total)\\% Processor Time").CounterSamples[0].CookedValue -gt 80) { "ALERT: CPU Usage High" } else { "OK: CPU Usage Normal" }', defaultIntervalValue: 5, defaultIntervalUnit: 'minutes', sendEmailOnAlert: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 1).toISOString() },
+  { id: 'mon-2', name: 'Disk Space Monitor (C:)', description: 'Checks free disk space on C:. Alerts if < 10% free.', scriptType: 'PowerShell', scriptContent: '$disk = Get-PSDrive C; if (($disk.Free / $disk.Size) * 100 -lt 10) { "ALERT: Low Disk Space on C:" } else { "OK: Disk space sufficient on C:" }', defaultIntervalValue: 1, defaultIntervalUnit: 'hours', sendEmailOnAlert: false, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date().toISOString() },
+  { 
+    id: 'mon-3', 
+    name: 'Print Spooler Service Monitor', 
+    description: 'Checks if the Print Spooler service is running.', 
+    scriptType: 'PowerShell', 
+    scriptContent: '$serviceName = "Spooler"\nif ((Get-Service -Name $serviceName -ErrorAction SilentlyContinue).Status -eq "Running") { \n    "OK: Service $serviceName is running." \n} else { \n    "ALERT: Service $serviceName is NOT running." \n}', 
+    defaultIntervalValue: 15, 
+    defaultIntervalUnit: 'minutes', 
+    sendEmailOnAlert: true, 
+    createdAt: new Date().toISOString(), 
+    updatedAt: new Date().toISOString() 
+  },
+  { 
+    id: 'mon-4', 
+    name: 'Google DNS Ping Monitor', 
+    description: 'Pings Google DNS (8.8.8.8) to check external connectivity.', 
+    scriptType: 'CMD', 
+    scriptContent: 'ping -n 1 8.8.8.8 | find "TTL=" > nul\nif errorlevel 1 (\n    echo ALERT: 8.8.8.8 is NOT reachable.\n) else (\n    echo OK: 8.8.8.8 is reachable.\n)', 
+    defaultIntervalValue: 30, 
+    defaultIntervalUnit: 'minutes', 
+    sendEmailOnAlert: false, 
+    createdAt: new Date().toISOString(), 
+    updatedAt: new Date().toISOString() 
+  },
+  { 
+    id: 'mon-5', 
+    name: 'Pending Reboot Check', 
+    description: 'Checks if the system has a pending reboot state.', 
+    scriptType: 'PowerShell', 
+    scriptContent: '$RebootRequired = $false\n# Component-Based Servicing kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending") { $RebootRequired = $true }\n# Windows Update kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired") { $RebootRequired = $true }\n\nif ($RebootRequired) { \n    "ALERT: System requires a reboot." \n} else { \n    "OK: No pending reboot found." \n}', 
+    defaultIntervalValue: 4, 
+    defaultIntervalUnit: 'hours', 
+    sendEmailOnAlert: true, 
+    createdAt: new Date().toISOString(), 
+    updatedAt: new Date().toISOString() 
+  },
 ];
+
 
 export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { id: 'log-1', monitorId: 'mon-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', timestamp: new Date(Date.now() - 60000 * 5).toISOString(), status: 'OK', message: 'OK: CPU Usage Normal', notified: false },
@@ -330,7 +367,7 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
     id: `mlog-${Date.now()}`,
     computerName: computer?.name || logData.computerId,
     timestamp: new Date().toISOString(),
-    notified: logData.status === 'ALERT' ? Math.random() > 0.5 : false,
+    notified: logData.status === 'ALERT' ? mockSmtpSettings.fromEmail && mockSmtpSettings.defaultToEmail : false,
   };
   mockMonitorExecutionLogs = [newLog, ...mockMonitorExecutionLogs];
   if (mockMonitorExecutionLogs.length > 200) { 
@@ -479,3 +516,6 @@ const simulateMonitorChecks = () => {
 if (typeof window !== 'undefined') { // Ensure this runs only in browser-like environment for mock
     // setInterval(simulateMonitorChecks, 30000); // Check every 30 seconds
 }
+
+
+    
