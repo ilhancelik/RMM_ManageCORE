@@ -15,7 +15,7 @@ import {
 import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2, Search, Save } from 'lucide-react';
+import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2, Search, Save, ListPlus } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -56,7 +56,7 @@ export default function GroupDetailsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false); // Used for all save operations on this page
+  const [isSaving, setIsSaving] = useState(false); 
   
   const [isManageProceduresModalOpen, setIsManageProceduresModalOpen] = useState(false);
   const [currentAssociatedProcedures, setCurrentAssociatedProcedures] = useState<AssociatedProcedureConfig[]>([]);
@@ -65,6 +65,10 @@ export default function GroupDetailsPage() {
   const [isManageMonitorsModalOpen, setIsManageMonitorsModalOpen] = useState(false);
   const [currentAssociatedMonitors, setCurrentAssociatedMonitors] = useState<AssociatedMonitorConfig[]>([]);
   const [monitorSearchTerm, setMonitorSearchTerm] = useState('');
+  
+  const [isManageComputersModalOpen, setIsManageComputersModalOpen] = useState(false);
+  const [computerSearchTerm, setComputerSearchTerm] = useState('');
+
 
   const loadGroupDetails = useCallback(() => {
     if (!id) return;
@@ -133,21 +137,19 @@ export default function GroupDetailsPage() {
         const payload = {
             name: editName,
             description: editDescription,
-            computerIds: editSelectedComputerIds,
-            // Keep existing associations unless explicitly changed by their dialogs
+            computerIds: editSelectedComputerIds, // This state is updated by the computer membership dialog
             associatedProcedures: group.associatedProcedures, 
             associatedMonitors: group.associatedMonitors,
         };
         const updatedGroup = updateComputerGroup(group.id, payload);
         if (updatedGroup) {
-            setGroup(updatedGroup); // Update local state with the full updated group
+            setGroup(updatedGroup); 
             setEditName(updatedGroup.name);
             setEditDescription(updatedGroup.description);
             setEditSelectedComputerIds([...updatedGroup.computerIds]);
             
-            // Trigger procedures for newly added members
             updatedGroup.computerIds.forEach(compId => {
-                if (!oldComputerIds.has(compId)) { // If computer is newly added
+                if (!oldComputerIds.has(compId)) { 
                     triggerAutomatedProceduresForNewMember(compId, updatedGroup.id);
                 }
             });
@@ -161,7 +163,7 @@ export default function GroupDetailsPage() {
     }
   };
 
-  const handleComputerMembershipChange = (computerId: string, checked: boolean) => {
+  const handleComputerMembershipChangeInDialog = (computerId: string, checked: boolean) => {
     setEditSelectedComputerIds(prev => {
         if (checked) {
             return [...prev, computerId];
@@ -170,40 +172,198 @@ export default function GroupDetailsPage() {
         }
     });
   };
+  
+  const handleSaveComputerMembership = () => {
+    // `editSelectedComputerIds` is already updated by `handleComputerMembershipChangeInDialog`
+    // The main "Save All Changes" button will persist this.
+    setIsManageComputersModalOpen(false);
+    setComputerSearchTerm('');
+    toast({ title: "Membership Updated", description: "Computer selections updated. Click 'Save All Changes' to persist." });
+  };
 
-  const filteredProceduresForDialog = useMemo(() => { /* ... (no change) ... */ return allProcedures; }, [allProcedures, procedureSearchTerm]);
-  const filteredMonitorsForDialog = useMemo(() => { /* ... (no change) ... */ return allMonitors; }, [allMonitors, monitorSearchTerm]);
-  const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => { /* ... (no change) ... */ setCurrentAssociatedProcedures(prev => prev); };
-  const handleRunOnNewMemberChange = (procedureId: string, runOnNewMember: boolean) => { /* ... (no change) ... */ setCurrentAssociatedProcedures(prev => prev); };
-  const handleProcedureScheduleChange = (procedureId: string, field: keyof ScheduleConfig | 'type', value: any) => { /* ... (no change) ... */ setCurrentAssociatedProcedures(prev => prev);};
-  const handleMoveProcedure = (currentIndex: number, direction: 'up' | 'down') => { /* ... (no change) ... */ setCurrentAssociatedProcedures(prev => prev);};
-  const handleSaveAssociatedProcedures = () => { /* ... (no change, but now updates group state directly) ... */ 
-    if (!group) return; setIsSaving(true);
+  const filteredComputersForMembershipDialog = useMemo(() => {
+    if (!computerSearchTerm.trim()) {
+      return allComputersForMembership;
+    }
+    const lowerSearchTerm = computerSearchTerm.toLowerCase();
+    return allComputersForMembership.filter(computer =>
+      computer.name.toLowerCase().includes(lowerSearchTerm) ||
+      (computer.os && computer.os.toLowerCase().includes(lowerSearchTerm)) ||
+      (computer.ipAddress && computer.ipAddress.toLowerCase().includes(lowerSearchTerm)) ||
+      computer.id.toLowerCase().includes(lowerSearchTerm)
+    );
+  }, [allComputersForMembership, computerSearchTerm]);
+
+
+  const filteredProceduresForDialog = useMemo(() => {
+    if (!procedureSearchTerm.trim()) {
+        return allProcedures;
+    }
+    const lowerSearch = procedureSearchTerm.toLowerCase();
+    return allProcedures.filter(p => p.name.toLowerCase().includes(lowerSearch) || p.description.toLowerCase().includes(lowerSearch));
+  }, [allProcedures, procedureSearchTerm]);
+
+  const filteredMonitorsForDialog = useMemo(() => {
+    if (!monitorSearchTerm.trim()) {
+        return allMonitors;
+    }
+    const lowerSearch = monitorSearchTerm.toLowerCase();
+    return allMonitors.filter(m => m.name.toLowerCase().includes(lowerSearch) || m.description.toLowerCase().includes(lowerSearch));
+  }, [allMonitors, monitorSearchTerm]);
+
+  const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => { 
+    setCurrentAssociatedProcedures(prev => {
+        if (isAssociated) {
+            if (!prev.find(p => p.procedureId === procedureId)) {
+                return [...prev, { procedureId, runOnNewMember: false, schedule: { type: 'disabled'} }];
+            }
+        } else {
+            return prev.filter(p => p.procedureId !== procedureId);
+        }
+        return prev;
+    });
+  };
+
+  const handleRunOnNewMemberChange = (procedureId: string, runOnNewMember: boolean) => { 
+      setCurrentAssociatedProcedures(prev => 
+        prev.map(p => p.procedureId === procedureId ? { ...p, runOnNewMember } : p)
+      );
+  };
+  
+  const handleProcedureScheduleChange = (procedureId: string, field: keyof ScheduleConfig | 'type', value: any) => {
+    setCurrentAssociatedProcedures(prev =>
+      prev.map(p => {
+        if (p.procedureId === procedureId) {
+          let newSchedule = { ...(p.schedule || { type: 'disabled' as const }) };
+          if (field === 'type') {
+            newSchedule.type = value;
+            if (value === 'disabled') {
+              delete newSchedule.intervalValue;
+              delete newSchedule.intervalUnit;
+            } else if (value === 'interval' && (!newSchedule.intervalValue || !newSchedule.intervalUnit)) {
+              newSchedule.intervalValue = 24; 
+              newSchedule.intervalUnit = 'hours';
+            }
+          } else if (field === 'intervalValue') {
+            newSchedule.intervalValue = value ? parseInt(value, 10) : undefined;
+          } else if (field === 'intervalUnit') {
+            newSchedule.intervalUnit = value;
+          }
+          return { ...p, schedule: newSchedule };
+        }
+        return p;
+      })
+    );
+  };
+  
+  const handleMoveProcedure = (currentIndex: number, direction: 'up' | 'down') => {
+    setCurrentAssociatedProcedures(prev => {
+        const newArray = [...prev];
+        const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        if (targetIndex < 0 || targetIndex >= newArray.length) return prev; // Bounds check
+        [newArray[currentIndex], newArray[targetIndex]] = [newArray[targetIndex], newArray[currentIndex]]; // Swap
+        return newArray;
+    });
+  };
+
+  const handleSaveAssociatedProcedures = () => { 
+    if (!group) return; 
+    setIsSaving(true);
     try {
       const updatedGroupData = updateComputerGroup(group.id, { associatedProcedures: currentAssociatedProcedures });
-      if (updatedGroupData) setGroup(updatedGroupData); // Update main group state
+      if (updatedGroupData) setGroup(prevGroup => ({...prevGroup!, associatedProcedures: updatedGroupData.associatedProcedures })); 
       setIsManageProceduresModalOpen(false); setProcedureSearchTerm('');
       toast({ title: "Success", description: "Associated procedures updated (Mock)." });
-    } catch (err) { /* ... */ } finally { setTimeout(() => setIsSaving(false), 500); }
+    } catch (err) { 
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated procedures (Mock).';
+      toast({ title: "Error Saving Procedures", description: errorMessage, variant: "destructive" });
+    } finally { setTimeout(() => setIsSaving(false), 500); }
   };
-  const openManageProceduresModal = () => { /* ... (no change) ... */ if (!group) return; setCurrentAssociatedProcedures((group.associatedProcedures || []).map(ap=>({...ap, schedule: ap.schedule || {type: 'disabled'}}))); setIsManageProceduresModalOpen(true); };
-  const handleMonitorAssociationChange = (monitorId: string, isAssociated: boolean) => { /* ... (no change) ... */ setCurrentAssociatedMonitors(prev => prev);};
-  const handleMonitorScheduleChange = (monitorId: string, field: keyof ScheduleConfig | 'type', value: any) => { /* ... (no change) ... */ setCurrentAssociatedMonitors(prev => prev);};
-  const handleSaveAssociatedMonitors = () => { /* ... (no change, but now updates group state directly) ... */ 
-    if (!group) return; setIsSaving(true);
+
+  const openManageProceduresModal = () => { 
+      if (!group) return; 
+      setCurrentAssociatedProcedures((group.associatedProcedures || []).map(ap=>({...ap, schedule: ap.schedule || {type: 'disabled'}}))); 
+      setIsManageProceduresModalOpen(true); 
+  };
+  
+  const handleMonitorAssociationChange = (monitorId: string, isAssociated: boolean) => { 
+    setCurrentAssociatedMonitors(prev => {
+        const monitorDetails = allMonitors.find(m => m.id === monitorId);
+        if (isAssociated) {
+            if (!prev.find(m => m.monitorId === monitorId)) {
+                return [...prev, { 
+                    monitorId, 
+                    schedule: { 
+                        type: 'interval', 
+                        intervalValue: monitorDetails?.defaultIntervalValue || 15, 
+                        intervalUnit: monitorDetails?.defaultIntervalUnit || 'minutes' 
+                    } 
+                }];
+            }
+        } else {
+            return prev.filter(m => m.monitorId !== monitorId);
+        }
+        return prev;
+    });
+  };
+
+  const handleMonitorScheduleChange = (monitorId: string, field: keyof ScheduleConfig | 'type', value: any) => {
+    setCurrentAssociatedMonitors(prev =>
+      prev.map(m => {
+        if (m.monitorId === monitorId) {
+          let newSchedule = { ...(m.schedule || { type: 'interval' as const, intervalValue: 15, intervalUnit: 'minutes' as const }) };
+          const monitorDetails = allMonitors.find(mon => mon.id === monitorId);
+
+          if (field === 'type') {
+            newSchedule.type = value;
+            if (value === 'disabled') {
+              delete newSchedule.intervalValue;
+              delete newSchedule.intervalUnit;
+            } else if (value === 'interval' && (!newSchedule.intervalValue || !newSchedule.intervalUnit)) {
+              newSchedule.intervalValue = monitorDetails?.defaultIntervalValue || 15;
+              newSchedule.intervalUnit = monitorDetails?.defaultIntervalUnit || 'minutes';
+            }
+          } else if (field === 'intervalValue') {
+            newSchedule.intervalValue = value ? parseInt(value, 10) : undefined;
+          } else if (field === 'intervalUnit') {
+            newSchedule.intervalUnit = value;
+          }
+          return { ...m, schedule: newSchedule };
+        }
+        return m;
+      })
+    );
+  };
+  
+  const handleSaveAssociatedMonitors = () => { 
+    if (!group) return; 
+    setIsSaving(true);
     try {
       const updatedGroupData = updateComputerGroup(group.id, { associatedMonitors: currentAssociatedMonitors });
-      if (updatedGroupData) setGroup(updatedGroupData); // Update main group state
+      if (updatedGroupData) setGroup(prevGroup => ({...prevGroup!, associatedMonitors: updatedGroupData.associatedMonitors}));
       setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');
       toast({ title: "Success", description: "Associated monitors updated (Mock)." });
-    } catch (err) { /* ... */ } finally { setTimeout(() => setIsSaving(false), 500); }
+    } catch (err) { 
+       const errorMessage = err instanceof Error ? err.message : 'Failed to save associated monitors (Mock).';
+       toast({ title: "Error Saving Monitors", description: errorMessage, variant: "destructive" });
+    } finally { setTimeout(() => setIsSaving(false), 500); }
   };
-  const openManageMonitorsModal = () => { /* ... (no change) ... */ if (!group) return; const initialMonitors = (group.associatedMonitors || []).map(am => {const md = allMonitors.find(m => m.id === am.monitorId); return {...am, schedule: am.schedule || { type: 'interval', intervalValue: md?.defaultIntervalValue || 5, intervalUnit: md?.defaultIntervalUnit || 'minutes'}}}); setCurrentAssociatedMonitors(initialMonitors); setIsManageMonitorsModalOpen(true);};
+  
+  const openManageMonitorsModal = () => { 
+    if (!group) return; 
+    const initialMonitors = (group.associatedMonitors || []).map(am => {
+        const md = allMonitors.find(m => m.id === am.monitorId); 
+        return {...am, schedule: am.schedule || { type: 'interval', intervalValue: md?.defaultIntervalValue || 15, intervalUnit: md?.defaultIntervalUnit || 'minutes'}}
+    }); 
+    setCurrentAssociatedMonitors(initialMonitors); 
+    setIsManageMonitorsModalOpen(true);
+  };
+
   const getProcedureNameFromMock = (procedureId: string): string => getProcedureById(procedureId)?.name || 'Unknown Procedure';
   const getMonitorDetailsFromMock = (monitorId: string): Monitor | undefined => getMonitorById(monitorId);
 
 
-  if (isLoading) { /* ... (no change to skeleton) ... */ 
+  if (isLoading) { 
     return (
         <div className="container mx-auto py-2">
             <Skeleton className="h-10 w-40 mb-6" />
@@ -222,8 +382,12 @@ export default function GroupDetailsPage() {
     );
   }
 
-  if (error) { /* ... (no change to error display) ... */ }
-  if (!group) { /* ... (no change to group not found display) ... */ }
+  if (error) { 
+    return <div className="container mx-auto py-10 text-center text-destructive">{error} <Button onClick={() => router.back()} variant="link">Go Back</Button></div>;
+   }
+  if (!group) { 
+    return <div className="container mx-auto py-10 text-center">Group not found. <Button onClick={() => router.back()} variant="link">Go Back</Button></div>;
+   }
 
   return (
     <div className="container mx-auto py-2">
@@ -255,25 +419,80 @@ export default function GroupDetailsPage() {
                         <Label htmlFor="editGroupDescription">Description</Label>
                         <Textarea id="editGroupDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} disabled={isSaving} rows={3}/>
                     </div>
-                    <div>
-                        <Label className="font-medium">Member Computers ({editSelectedComputerIds.length})</Label>
-                        <ScrollArea className="h-60 w-full rounded-md border p-2 mt-1 bg-muted/20">
-                            {allComputersForMembership.length === 0 && <p className="text-sm text-muted-foreground p-2">No computers available.</p>}
-                            {allComputersForMembership.map(computer => (
-                                <div key={`comp-member-${computer.id}`} className="flex items-center space-x-2 p-1.5 hover:bg-muted/50 rounded-md">
-                                    <Checkbox
-                                        id={`comp-check-${computer.id}`}
-                                        checked={editSelectedComputerIds.includes(computer.id)}
-                                        onCheckedChange={(checked) => handleComputerMembershipChange(computer.id, !!checked)}
-                                        disabled={isSaving}
+                </CardContent>
+            </Card>
+             <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
+                        <CardTitle>Member Computers ({editSelectedComputerIds.length})</CardTitle>
+                        <Dialog open={isManageComputersModalOpen} onOpenChange={(isOpen) => { setIsManageComputersModalOpen(isOpen); if (!isOpen) setComputerSearchTerm(''); }}>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" size="sm" disabled={isSaving || isLoading}>
+                                    <Settings className="mr-2 h-4 w-4" /> Manage Members
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-[625px]">
+                                <DialogHeader>
+                                    <DialogTitle>Manage Member Computers for {group.name}</DialogTitle>
+                                    <DialogDescription>Select computers to include in this group. (Mock Data)</DialogDescription>
+                                </DialogHeader>
+                                <div className="py-2 relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground peer-focus:text-primary" />
+                                    <Input 
+                                        type="search"
+                                        placeholder="Search computers by name, OS, IP..."
+                                        value={computerSearchTerm}
+                                        onChange={(e) => setComputerSearchTerm(e.target.value)}
+                                        className="pl-8 peer mb-3"
                                     />
-                                    <Label htmlFor={`comp-check-${computer.id}`} className="font-normal cursor-pointer flex-1">
-                                        {computer.name} <span className="text-xs text-muted-foreground">({computer.os} - {computer.status})</span>
-                                    </Label>
                                 </div>
-                            ))}
-                        </ScrollArea>
+                                <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
+                                    <div className="space-y-2 py-1">
+                                        {filteredComputersForMembershipDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allComputersForMembership.length === 0 ? 'No computers available.' : 'No computers match your search.'}</p>}
+                                        {filteredComputersForMembershipDialog.map(computer => (
+                                            <div key={`comp-member-dialog-${computer.id}`} className="flex items-center space-x-3 p-2 hover:bg-muted/20 rounded-md">
+                                                <Checkbox
+                                                    id={`comp-check-dialog-${computer.id}`}
+                                                    checked={editSelectedComputerIds.includes(computer.id)}
+                                                    onCheckedChange={(checked) => handleComputerMembershipChangeInDialog(computer.id, !!checked)}
+                                                    disabled={isSaving}
+                                                />
+                                                <Label htmlFor={`comp-check-dialog-${computer.id}`} className="font-normal cursor-pointer flex-1">
+                                                    {computer.name} <span className="text-xs text-muted-foreground">({computer.os} - {computer.status})</span>
+                                                </Label>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                                <DialogFooter>
+                                    <Button variant="outline" onClick={() => { setIsManageComputersModalOpen(false); setComputerSearchTerm(''); }} disabled={isSaving}>Cancel</Button>
+                                    <Button onClick={handleSaveComputerMembership} disabled={isSaving}>
+                                        {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Save Membership
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </div>
+                    <CardDescription>Computers currently part of this group. Click "Manage Members" to change.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {editSelectedComputerIds.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No computers currently in this group.</p>
+                    ) : (
+                        <ScrollArea className="h-40">
+                            <ul className="space-y-1">
+                                {editSelectedComputerIds.map(compId => {
+                                    const computer = allComputersForMembership.find(c => c.id === compId);
+                                    return (
+                                        <li key={`display-member-${compId}`} className="text-sm p-1.5 border-b border-border/50 last:border-b-0">
+                                            {computer ? `${computer.name} (${computer.os} - ${computer.status})` : `Unknown Computer (ID: ${compId})`}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </ScrollArea>
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -282,7 +501,7 @@ export default function GroupDetailsPage() {
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
-                        <CardTitle>Associated Procedures</CardTitle>
+                         <CardTitle className="flex items-center gap-2"><ListChecks className="h-5 w-5 text-primary" />Associated Procedures</CardTitle>
                         <Dialog open={isManageProceduresModalOpen} onOpenChange={(isOpen) => { setIsManageProceduresModalOpen(isOpen); if (!isOpen) setProcedureSearchTerm('');}}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm" onClick={openManageProceduresModal} disabled={isSaving || isLoading}>
@@ -306,7 +525,6 @@ export default function GroupDetailsPage() {
                                 </div>
                                 <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {/* ... (Rest of the procedure dialog content, no changes from previous version) ... */}
                                     {filteredProceduresForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allProcedures.length === 0 ? 'No procedures available.' : 'No procedures match your search.'}</p>}
                                     {filteredProceduresForDialog.map(proc => {
                                         const assocIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
@@ -430,31 +648,32 @@ export default function GroupDetailsPage() {
                      <CardDescription>Procedures linked to this group, their automation settings, schedule, and order.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {/* ... (Display of associated procedures, no changes from previous version) ... */}
                      {(!group.associatedProcedures || group.associatedProcedures.length === 0) ? (
                         <p className="text-sm text-muted-foreground">No procedures associated with this group yet.</p>
                     ) : (
-                        <ul className="space-y-3">
-                            {group.associatedProcedures.map((assocProc, index) => {
-                                const procedureName = getProcedureNameFromMock(assocProc.procedureId);
-                                if (!procedureName  || procedureName === 'Unknown Procedure') return <li key={`proc-display-unknown-${index}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Procedure (ID: {assocProc.procedureId}) - May have been deleted.</li>;
-                                return (
-                                    <li key={`proc-display-${assocProc.procedureId}`} className="text-sm p-3 border rounded-md space-y-1">
-                                        <div className="font-medium">{index + 1}. {procedureName}</div>
-                                        {assocProc.runOnNewMember && (<div className="flex items-center text-xs text-green-600"><ListChecks className="mr-1 h-3 w-3" /> Runs on new members</div>)}
-                                        {assocProc.schedule && assocProc.schedule.type === 'interval' && (
-                                            <div className="flex items-center text-xs text-blue-600">
-                                                <Clock className="mr-1 h-3 w-3" />
-                                                Runs every {assocProc.schedule.intervalValue || 'N/A'} {assocProc.schedule.intervalUnit || ''}
-                                            </div>
-                                        )}
-                                        {(!assocProc.schedule || assocProc.schedule.type === 'disabled') && !assocProc.runOnNewMember && (
-                                             <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> No active automation</div>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                        <ScrollArea className="h-40">
+                            <ul className="space-y-3">
+                                {group.associatedProcedures.map((assocProc, index) => {
+                                    const procedureName = getProcedureNameFromMock(assocProc.procedureId);
+                                    if (!procedureName  || procedureName === 'Unknown Procedure') return <li key={`proc-display-unknown-${index}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Procedure (ID: {assocProc.procedureId}) - May have been deleted.</li>;
+                                    return (
+                                        <li key={`proc-display-${assocProc.procedureId}`} className="text-sm p-3 border rounded-md space-y-1">
+                                            <div className="font-medium">{index + 1}. {procedureName}</div>
+                                            {assocProc.runOnNewMember && (<div className="flex items-center text-xs text-green-600"><ListPlus className="mr-1 h-3 w-3" /> Runs on new members</div>)}
+                                            {assocProc.schedule && assocProc.schedule.type === 'interval' && (
+                                                <div className="flex items-center text-xs text-blue-600">
+                                                    <Clock className="mr-1 h-3 w-3" />
+                                                    Runs every {assocProc.schedule.intervalValue || 'N/A'} {assocProc.schedule.intervalUnit || ''}
+                                                </div>
+                                            )}
+                                            {(!assocProc.schedule || assocProc.schedule.type === 'disabled') && !assocProc.runOnNewMember && (
+                                                <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> No active automation</div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </ScrollArea>
                     )}
                 </CardContent>
             </Card>
@@ -486,7 +705,6 @@ export default function GroupDetailsPage() {
                                 </div>
                                 <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {/* ... (Rest of the monitor dialog content, no changes from previous version) ... */}
                                      {filteredMonitorsForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allMonitors.length === 0 ? 'No monitors available.' : 'No monitors match your search.'}</p>}
                                     {filteredMonitorsForDialog.map(mon => { 
                                         const isAssociated = currentAssociatedMonitors.some(am => am.monitorId === mon.id);
@@ -576,30 +794,31 @@ export default function GroupDetailsPage() {
                      <CardDescription>Monitors linked to this group and their group-specific schedules.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {/* ... (Display of associated monitors, no changes from previous version) ... */}
                     {(!group.associatedMonitors || group.associatedMonitors.length === 0) ? (
                         <p className="text-sm text-muted-foreground">No monitors associated with this group yet.</p>
                     ) : (
-                        <ul className="space-y-3">
-                            {group.associatedMonitors.map((assocMon) => {
-                                const monitor = getMonitorDetailsFromMock(assocMon.monitorId); 
-                                if (!monitor || monitor.name === 'Unknown Monitor') return <li key={`mon-display-unknown-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Monitor (ID: {assocMon.monitorId}) - May have been deleted.</li>;
-                                return (
-                                    <li key={`mon-display-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1">
-                                        <div className="font-medium">{monitor.name} {monitor.sendEmailOnAlert && <span className="text-xs text-blue-500">(Email Alert Active)</span>}</div>
-                                        {assocMon.schedule && assocMon.schedule.type === 'interval' && (
-                                            <div className="flex items-center text-xs text-blue-600">
-                                                <Clock className="mr-1 h-3 w-3" />
-                                                Runs for this group every {assocMon.schedule.intervalValue || 'N/A'} {assocMon.schedule.intervalUnit || ''}
-                                            </div>
-                                        )}
-                                         {assocMon.schedule && assocMon.schedule.type === 'disabled' && (
-                                            <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> Disabled for this group</div>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                         <ScrollArea className="h-40">
+                            <ul className="space-y-3">
+                                {group.associatedMonitors.map((assocMon) => {
+                                    const monitor = getMonitorDetailsFromMock(assocMon.monitorId); 
+                                    if (!monitor || monitor.name === 'Unknown Monitor') return <li key={`mon-display-unknown-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Monitor (ID: {assocMon.monitorId}) - May have been deleted.</li>;
+                                    return (
+                                        <li key={`mon-display-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1">
+                                            <div className="font-medium">{monitor.name} {monitor.sendEmailOnAlert && <span className="text-xs text-blue-500">(Email Alert Active)</span>}</div>
+                                            {assocMon.schedule && assocMon.schedule.type === 'interval' && (
+                                                <div className="flex items-center text-xs text-blue-600">
+                                                    <Clock className="mr-1 h-3 w-3" />
+                                                    Runs for this group every {assocMon.schedule.intervalValue || 'N/A'} {assocMon.schedule.intervalUnit || ''}
+                                                </div>
+                                            )}
+                                            {assocMon.schedule && assocMon.schedule.type === 'disabled' && (
+                                                <div className="flex items-center text-xs text-gray-500"><XCircle className="mr-1 h-3 w-3" /> Disabled for this group</div>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </ScrollArea>
                     )}
                 </CardContent>
             </Card>
