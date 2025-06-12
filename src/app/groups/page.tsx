@@ -32,20 +32,18 @@ export default function GroupsPage() {
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [currentGroup, setCurrentGroup] = useState<ComputerGroup | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  const [groupName, setGroupName] = useState('');
-  const [groupDescription, setGroupDescription] = useState('');
-  const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
+  // State for the "Create Group" dialog
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [newGroupSelectedComputerIds, setNewGroupSelectedComputerIds] = useState<string[]>([]);
 
   const loadInitialData = useCallback(() => {
     setIsLoading(true);
     setIsLoadingComputers(true);
     setError(null);
-    // Simulate delay for mock data
     setTimeout(() => {
       try {
         setGroups(getGroups());
@@ -65,66 +63,48 @@ export default function GroupsPage() {
     loadInitialData();
   }, [loadInitialData]);
 
-  const resetForm = () => {
-    setGroupName('');
-    setGroupDescription('');
-    setSelectedComputerIds([]);
-    setCurrentGroup(null);
-    setIsEditMode(false);
+  const resetCreateForm = () => {
+    setNewGroupName('');
+    setNewGroupDescription('');
+    setNewGroupSelectedComputerIds([]);
   };
 
   const handleOpenCreateModal = () => {
-    resetForm();
-    setIsModalOpen(true);
+    resetCreateForm();
+    setIsCreateModalOpen(true);
   };
 
-  const handleOpenEditModal = (group: ComputerGroup) => {
-    setCurrentGroup(group);
-    setGroupName(group.name);
-    setGroupDescription(group.description);
-    setSelectedComputerIds([...group.computerIds]);
-    setIsEditMode(true);
-    setIsModalOpen(true);
-  };
-
-  const handleSubmit = () => {
-    if (!groupName.trim()) {
+  const handleCreateGroupSubmit = () => {
+    if (!newGroupName.trim()) {
         toast({title: "Validation Error", description: "Group name is required.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
     try {
       const groupPayload = {
-        name: groupName,
-        description: groupDescription,
-        computerIds: selectedComputerIds,
-        // For mock data, associatedProcedures and monitors would be part of the group object if editing
-        associatedProcedures: (isEditMode && currentGroup?.associatedProcedures) ? currentGroup.associatedProcedures : [],
-        associatedMonitors: (isEditMode && currentGroup?.associatedMonitors) ? currentGroup.associatedMonitors : [],
+        name: newGroupName,
+        description: newGroupDescription,
+        computerIds: newGroupSelectedComputerIds,
+        associatedProcedures: [], // New groups start with no associated procedures/monitors
+        associatedMonitors: [],
       };
 
-      if (isEditMode && currentGroup) {
-        updateComputerGroup(currentGroup.id, groupPayload);
-        toast({title: "Success", description: `Group "${groupName}" updated (Mock).`});
-      } else {
-        const newGroup = addComputerGroup(groupPayload);
-        // Simulate triggering automated procedures for new members for mock data
-        newGroup.computerIds.forEach(compId => {
-            triggerAutomatedProceduresForNewMember(compId, newGroup.id);
-        });
-        toast({title: "Success", description: `Group "${groupName}" created (Mock).`});
-      }
+      const newGroup = addComputerGroup(groupPayload);
+      newGroup.computerIds.forEach(compId => {
+          triggerAutomatedProceduresForNewMember(compId, newGroup.id);
+      });
+      toast({title: "Success", description: `Group "${newGroupName}" created (Mock).`});
       
-      setTimeout(() => { // Simulate API delay
-        resetForm();
-        setIsModalOpen(false);
-        loadInitialData(); // Refresh list
+      setTimeout(() => {
+        resetCreateForm();
+        setIsCreateModalOpen(false);
+        loadInitialData(); 
         setIsSubmitting(false);
       }, 500);
 
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
-        toast({title: isEditMode ? "Error Updating Group" : "Error Creating Group", description: errorMessage, variant: "destructive"});
+        toast({title: "Error Creating Group", description: errorMessage, variant: "destructive"});
         setIsSubmitting(false);
     }
   };
@@ -133,12 +113,14 @@ export default function GroupsPage() {
      if (!window.confirm(`Are you sure you want to delete group "${groupNameText}"? This action cannot be undone.`)) {
         return;
     }
+    // Note: We might want a separate loading state for delete if it's slow
+    // For now, reusing isSubmitting, but consider its implications if create is also possible.
     setIsSubmitting(true); 
     try {
         deleteComputerGroup(groupId);
         toast({title: "Success", description: `Group "${groupNameText}" deleted (Mock).`});
-        setTimeout(() => { // Simulate API delay
-          loadInitialData(); // Refresh list
+        setTimeout(() => {
+          loadInitialData(); 
           setIsSubmitting(false);
         }, 500);
     } catch (err) {
@@ -148,21 +130,21 @@ export default function GroupsPage() {
     }
   };
 
-  const handleComputerSelectionInDialog = (computerId: string) => {
-    setSelectedComputerIds(prev => 
+  const handleComputerSelectionInCreateDialog = (computerId: string) => {
+    setNewGroupSelectedComputerIds(prev => 
       prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
     );
   };
 
-  const GroupFormFields = (
+  const CreateGroupFormFields = (
     <div className="grid gap-4 py-4">
       <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="groupName" className="text-right">Name</Label>
-        <Input id="groupName" value={groupName} onChange={(e) => setGroupName(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
+        <Label htmlFor="newGroupName" className="text-right">Name</Label>
+        <Input id="newGroupName" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="groupDescription" className="text-right">Description</Label>
-        <Textarea id="groupDescription" value={groupDescription} onChange={(e) => setGroupDescription(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
+        <Label htmlFor="newGroupDescription" className="text-right">Description</Label>
+        <Textarea id="newGroupDescription" value={newGroupDescription} onChange={(e) => setNewGroupDescription(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
       </div>
       <div className="grid grid-cols-4 items-start gap-4 pt-2">
           <Label className="text-right col-span-1 pt-2">Computers</Label>
@@ -175,12 +157,12 @@ export default function GroupsPage() {
                 allComputers.map(computer => (
                     <div key={computer.id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded">
                         <Checkbox 
-                            id={`comp-groupform-${computer.id}`} 
-                            checked={selectedComputerIds.includes(computer.id)}
-                            onCheckedChange={() => handleComputerSelectionInDialog(computer.id)}
+                            id={`comp-creategroup-${computer.id}`} 
+                            checked={newGroupSelectedComputerIds.includes(computer.id)}
+                            onCheckedChange={() => handleComputerSelectionInCreateDialog(computer.id)}
                             disabled={isSubmitting}
                         />
-                        <Label htmlFor={`comp-groupform-${computer.id}`} className="font-normal flex-1 cursor-pointer">{computer.name} <span className="text-xs text-muted-foreground">({computer.os})</span></Label>
+                        <Label htmlFor={`comp-creategroup-${computer.id}`} className="font-normal flex-1 cursor-pointer">{computer.name} <span className="text-xs text-muted-foreground">({computer.os})</span></Label>
                     </div>
                 ))
               )}
@@ -218,18 +200,18 @@ export default function GroupsPage() {
         </Button>
       </div>
 
-      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) setIsModalOpen(isOpen); if(!isOpen) resetForm();}}>
+      <Dialog open={isCreateModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) setIsCreateModalOpen(isOpen); if(!isOpen) resetCreateForm();}}>
           <DialogContent className="sm:max-w-[525px]">
               <DialogHeader>
-                  <DialogTitle>{isEditMode ? 'Edit Group' : 'Create New Group'}</DialogTitle>
-                  <DialogDescription>{isEditMode ? 'Update group details and members.' : 'Organize your computers into logical groups (Mock Data).'}</DialogDescription>
+                  <DialogTitle>Create New Group</DialogTitle>
+                  <DialogDescription>Organize your computers into logical groups (Mock Data).</DialogDescription>
               </DialogHeader>
-              {GroupFormFields}
+              {CreateGroupFormFields}
               <DialogFooter>
-                  <Button variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); }} disabled={isSubmitting}>Cancel</Button>
-                  <Button onClick={handleSubmit} disabled={isSubmitting || isLoadingComputers}>
+                  <Button variant="outline" onClick={() => { setIsCreateModalOpen(false); resetCreateForm(); }} disabled={isSubmitting}>Cancel</Button>
+                  <Button onClick={handleCreateGroupSubmit} disabled={isSubmitting || isLoadingComputers}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isSubmitting ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create Group')}
+                    {isSubmitting ? 'Creating...' : 'Create Group'}
                   </Button>
               </DialogFooter>
           </DialogContent>
@@ -280,14 +262,11 @@ export default function GroupsPage() {
                 </p>
               </CardContent>
               <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                 <Button variant="ghost" size="sm" asChild>
+                 <Button variant="outline" size="sm" asChild>
                     <Link href={`/groups/${group.id}`}>
-                        <Eye className="mr-2 h-4 w-4" /> View
+                        <Edit className="mr-2 h-4 w-4" /> Edit
                     </Link>
                  </Button>
-                <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(group)} disabled={isSubmitting || isLoadingComputers}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                </Button>
                 <Button variant="destructive" size="sm" onClick={() => handleDeleteGroup(group.id, group.name)} disabled={isSubmitting}>
                   <Trash2 className="mr-2 h-4 w-4" /> Delete
                 </Button>
@@ -299,3 +278,5 @@ export default function GroupsPage() {
     </div>
   );
 }
+
+    
