@@ -6,13 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+// import {
+//   Select,
+//   SelectContent,
+//   SelectItem,
+//   SelectTrigger,
+//   SelectValue,
+// } from "@/components/ui/select"; Removed as per Combobox implementation
 import { 
   Dialog, 
   DialogContent, 
@@ -43,6 +43,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils'; // Added missing import
 
 const ALL_GROUPS_VALUE = "all-groups";
 
@@ -163,14 +164,23 @@ export default function ComputersPage() {
   };
 
   const handleRunProcedureOnSelected = () => {
-    if (!selectedProcedureId || selectedComputerIds.length === 0) {
+    if (!selectedProcedureId) { // No need to check selectedComputerIds.length === 0 here as button is disabled
       toast({
         title: "Error",
-        description: "Please select a procedure and at least one online computer.",
+        description: "Please select a procedure.",
         variant: "destructive"
       });
       return;
     }
+    if (selectedComputerIds.length === 0) {
+      toast({
+        title: "Info",
+        description: "No computers selected to run the procedure on.",
+        variant: "default"
+      });
+      return;
+    }
+
 
     const procedureToRun = allProcedures.find(p => p.id === selectedProcedureId);
     if (!procedureToRun) {
@@ -180,7 +190,7 @@ export default function ComputersPage() {
     
     const onlineSelectedComputers = computers.filter(c => selectedComputerIds.includes(c.id) && c.status === 'Online');
     if(onlineSelectedComputers.length === 0){
-        toast({ title: "Info", description: "No online computers selected for execution.", variant: "default"});
+        toast({ title: "Info", description: "No online computers among the selected ones for execution.", variant: "default"});
         return;
     }
 
@@ -222,11 +232,12 @@ export default function ComputersPage() {
           <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
             <div className="flex items-center gap-1">
                 <ListFilter className="h-5 w-5 text-muted-foreground" />
-                <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
+                <Label htmlFor="group-filter-trigger" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
             </div>
-             <Popover open={openGroupFilterPopover} onOpenChange={setOpenGroupFilterPopover}>
+             <Popover open={openGroupFilterPopover} onOpenChange={(isOpen) => {setOpenGroupFilterPopover(isOpen); if(!isOpen) setGroupFilterSearchTerm('');}}>
               <PopoverTrigger asChild>
                 <Button
+                  id="group-filter-trigger"
                   variant="outline"
                   role="combobox"
                   aria-expanded={openGroupFilterPopover}
@@ -315,13 +326,13 @@ export default function ComputersPage() {
           setIsRunProcedureModalOpen(isOpen);
           if (!isOpen) {
             setProcedureSearchTerm(''); 
-            setOpenProcedureDialogPopover(false); // Close popover when dialog closes
+            setOpenProcedureDialogPopover(false); 
           }
         }}>
           <DialogTrigger asChild>
             <Button 
               variant="outline" 
-              disabled={isExecutingProcedure || selectedComputerIds.length === 0}
+              disabled={isExecutingProcedure}
             >
               <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
             </Button>
@@ -396,7 +407,7 @@ export default function ComputersPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); setOpenProcedureDialogPopover(false);}} disabled={isExecutingProcedure}>Cancel</Button>
-              <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProceduresOrGroups || isExecutingProcedure}>
+              <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProceduresOrGroups || isExecutingProcedure || selectedComputerIds.length === 0}>
                 {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
                 {isExecutingProcedure ? 'Queueing...' : 'Run Procedure'}
               </Button>
@@ -455,3 +466,4 @@ export default function ComputersPage() {
     </div>
   );
 }
+
