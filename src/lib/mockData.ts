@@ -1,10 +1,8 @@
 
-
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig } from '@/types';
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 
-// --- Mock Data Arrays ---
 export let mockComputers: Computer[] = [
   { id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'] },
   { id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5', lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'] },
@@ -99,7 +97,6 @@ export let mockMonitors: Monitor[] = [
   }
 ];
 
-
 export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
   { id: 'log-1', monitorId: 'mon-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', timestamp: new Date(Date.now() - 60000 * 5).toISOString(), status: 'OK', message: 'OK: CPU Usage Normal', notified: false },
   { id: 'log-2', monitorId: 'mon-1', computerId: 'comp-2', computerName: 'Server-Prod-Main', timestamp: new Date(Date.now() - 60000 * 10).toISOString(), status: 'ALERT', message: 'ALERT: CPU Usage High - 92%', notified: true },
@@ -122,13 +119,21 @@ export let mockSmtpSettings: SMTPSettings = {
 };
 
 export let mockAiSettings: AiSettings = {
-  scriptGenerationEnabled: true,
+  globalGenerationEnabled: true,
+  providerConfigs: [
+    {
+      id: 'default-google-ai',
+      name: 'Default Google AI',
+      providerType: 'googleAI',
+      apiKey: '', // Empty string means Genkit will try to use env var
+      isEnabled: true,
+      isDefault: true,
+    }
+  ],
 };
-
 
 // --- Helper Functions for Mock Data ---
 
-// Computers
 export const getComputers = (): Computer[] => {
   return mockComputers.map(c => {
     if (c.status === 'Online') {
@@ -189,10 +194,9 @@ export const deleteComputer = (id: string): boolean => {
     return mockComputers.length < initialLength;
 }
 
-
-// Groups
 export const getGroups = (): ComputerGroup[] => mockComputerGroups.sort((a,b) => a.name.localeCompare(b.name));
 export const getGroupById = (id: string): ComputerGroup | undefined => mockComputerGroups.find(g => g.id === id);
+
 export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): ComputerGroup => {
   const newGroup: ComputerGroup = {
     ...groupData,
@@ -206,50 +210,45 @@ export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): Computer
     if (comp && !comp.groupIds?.includes(newGroup.id)) {
       updateComputer(compId, { groupIds: [...(comp.groupIds || []), newGroup.id] });
     }
-    // Trigger automated procedures for new members
     triggerAutomatedProceduresForNewMember(compId, newGroup.id);
   });
   return newGroup;
 };
+
 export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGroup, 'id'>>): ComputerGroup | undefined => {
   let updatedGroup: ComputerGroup | undefined;
-  const oldGroup = JSON.parse(JSON.stringify(getGroupById(id))); // Deep copy for comparison
+  const oldGroupIndex = mockComputerGroups.findIndex(g => g.id === id);
+  if (oldGroupIndex === -1) return undefined;
 
-  mockComputerGroups = mockComputerGroups.map(g => {
-    if (g.id === id) {
-      updatedGroup = { ...g, ...updates };
-      return updatedGroup;
+  const oldGroup = { ...mockComputerGroups[oldGroupIndex] }; // Shallow copy for old state
+  
+  updatedGroup = { ...oldGroup, ...updates };
+  mockComputerGroups[oldGroupIndex] = updatedGroup;
+
+  const oldComputerIdsSet = new Set(oldGroup.computerIds);
+  const newComputerIdsSet = new Set(updatedGroup.computerIds);
+
+  oldGroup.computerIds.forEach(compId => {
+    if (!newComputerIdsSet.has(compId)) {
+      const comp = getComputerById(compId);
+      if (comp) {
+        updateComputer(compId, { groupIds: (comp.groupIds || []).filter(gid => gid !== id) });
+      }
     }
-    return g;
   });
 
-  if (oldGroup && updatedGroup) {
-    const oldComputerIdsSet = new Set(oldGroup.computerIds);
-    const newComputerIdsSet = new Set(updatedGroup.computerIds);
-
-    // Update computers removed from the group
-    oldGroup.computerIds.forEach(compId => {
-      if (!newComputerIdsSet.has(compId)) {
-        const comp = getComputerById(compId);
-        if (comp) {
-          updateComputer(compId, { groupIds: (comp.groupIds || []).filter(gid => gid !== id) });
-        }
+  updatedGroup.computerIds.forEach(compId => {
+    if (!oldComputerIdsSet.has(compId)) {
+      const comp = getComputerById(compId);
+      if (comp && !(comp.groupIds || []).includes(id)) {
+        updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
+        triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id);
       }
-    });
-
-    // Update computers added to the group and trigger procedures
-    updatedGroup.computerIds.forEach(compId => {
-      if (!oldComputerIdsSet.has(compId)) {
-        const comp = getComputerById(compId);
-        if (comp && !(comp.groupIds || []).includes(id)) {
-          updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
-          triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id); 
-        }
-      }
-    });
-  }
+    }
+  });
   return updatedGroup;
 };
+
 export const deleteComputerGroup = (id: string): boolean => {
   const initialLength = mockComputerGroups.length;
   mockComputerGroups = mockComputerGroups.filter(g => g.id !== id);
@@ -260,7 +259,6 @@ export const deleteComputerGroup = (id: string): boolean => {
   return mockComputerGroups.length < initialLength;
 };
 
-// Procedures
 export const getProcedures = (): Procedure[] => mockProcedures.sort((a,b) => a.name.localeCompare(b.name));
 export const getProcedureById = (id: string): Procedure | undefined => mockProcedures.find(p => p.id === id);
 export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>): Procedure => {
@@ -295,7 +293,6 @@ export const deleteProcedureFromMock = (id: string): boolean => {
   return mockProcedures.length < initialLength;
 };
 
-// Procedure Executions
 export const getExecutions = (filters?: { procedureId?: string; computerId?: string }): ProcedureExecution[] => {
   let results = mockProcedureExecutions;
   if (filters?.procedureId) {
@@ -357,8 +354,6 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
     return executions;
 }
 
-
-// Monitors
 export const getMonitors = (): Monitor[] => mockMonitors.sort((a,b) => a.name.localeCompare(b.name));
 export const getMonitorById = (id: string): Monitor | undefined => mockMonitors.find(m => m.id === id);
 export const addMonitorToMock = (monitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>): Monitor => {
@@ -393,7 +388,6 @@ export const deleteMonitorFromMock = (id: string): boolean => {
   return mockMonitors.length < initialLength;
 };
 
-// Monitor Execution Logs
 export const getMonitorLogs = (): MonitorExecutionLog[] => mockMonitorExecutionLogs.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'computerName'>): MonitorExecutionLog => {
   const computer = getComputerById(logData.computerId);
@@ -411,7 +405,6 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
   return newLog;
 };
 
-// Custom Commands
 export const getCommandHistory = (): CustomCommand[] => {
   mockCustomCommands.forEach(cmd => {
     if (cmd.status === 'Sent' && Math.random() < 0.2) { 
@@ -479,20 +472,62 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
   }
 };
 
-// SMTP Settings
 export const getSmtpSettings = (): SMTPSettings => mockSmtpSettings;
 export const saveSmtpSettings = (settings: SMTPSettings): SMTPSettings => {
   mockSmtpSettings = { ...settings };
   return mockSmtpSettings;
 };
 
-// AI Settings
 export const getAiSettings = (): AiSettings => mockAiSettings;
 export const saveAiSettings = (settings: AiSettings): AiSettings => {
-  mockAiSettings = { ...settings };
+  let updatedSettings = { ...settings };
+  let providerConfigs = [...updatedSettings.providerConfigs];
+
+  const defaultProviderIndex = providerConfigs.findIndex(p => p.isDefault);
+  const enabledProviders = providerConfigs.filter(p => p.isEnabled);
+
+  if (defaultProviderIndex === -1 && enabledProviders.length > 0) {
+    // No default, set the first enabled one as default
+    const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
+    if (firstEnabledIndex !== -1) {
+      providerConfigs[firstEnabledIndex].isDefault = true;
+    }
+  } else if (defaultProviderIndex !== -1 && !providerConfigs[defaultProviderIndex].isEnabled) {
+    // Default is disabled, try to set another enabled one as default
+    providerConfigs[defaultProviderIndex].isDefault = false;
+    if (enabledProviders.length > 0) {
+      const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
+       if (firstEnabledIndex !== -1) {
+         providerConfigs[firstEnabledIndex].isDefault = true;
+       }
+    }
+  }
+  
+  // Ensure only one default
+  let defaultFound = false;
+  providerConfigs = providerConfigs.map(p => {
+      if (p.isDefault) {
+          if (defaultFound || !p.isEnabled) {
+              return { ...p, isDefault: false };
+          }
+          defaultFound = true;
+      }
+      return p;
+  });
+  
+  // If still no default and there are enabled providers, set the first enabled one.
+  if (!defaultFound && enabledProviders.length > 0) {
+      const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
+      if (firstEnabledIndex !== -1) {
+         providerConfigs[firstEnabledIndex].isDefault = true;
+      }
+  }
+
+
+  updatedSettings.providerConfigs = providerConfigs;
+  mockAiSettings = updatedSettings;
   return mockAiSettings;
 };
-
 
 export const triggerAutomatedProceduresForNewMember = (computerId: string, groupId: string) => {
     const group = getGroupById(groupId);
@@ -517,42 +552,7 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
         });
     }
 };
-// Simulate some monitor logs being added periodically
-const simulateMonitorChecks = () => {
-  mockComputers.forEach(computer => {
-    if (computer.status !== 'Online') return;
-
-    mockComputerGroups.forEach(group => {
-      if (group.computerIds.includes(computer.id) && group.associatedMonitors) {
-        group.associatedMonitors.forEach(assocMon => {
-          const monitor = getMonitorById(assocMon.monitorId);
-          if (monitor && assocMon.schedule?.type === 'interval') {
-            const rand = Math.random();
-            let status: MonitorExecutionLog['status'] = 'OK';
-            let message = `Mock OK: ${monitor.name} check passed for ${computer.name}.`;
-            if (rand < 0.05) { 
-              status = 'Error';
-              message = `Mock Error: ${monitor.name} script failed on ${computer.name}.`;
-            } else if (rand < 0.15) { 
-              status = 'ALERT';
-              message = `Mock ALERT: ${monitor.name} detected issue on ${computer.name}.`;
-            }
-            addMonitorLog({
-              monitorId: monitor.id,
-              computerId: computer.id,
-              status,
-              message,
-              notified: status === 'ALERT' ? mockSmtpSettings.fromEmail && mockSmtpSettings.defaultToEmail : false,
-            });
-          }
-        });
-      }
-    });
-  });
-};
 
 if (typeof window !== 'undefined') { 
     // setInterval(simulateMonitorChecks, 30000); 
 }
-
-    

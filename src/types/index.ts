@@ -1,5 +1,4 @@
 
-
 export interface Computer {
   id: string;
   name: string;
@@ -23,13 +22,11 @@ export interface AssociatedProcedureConfig {
   procedureId: string;
   runOnNewMember: boolean;
   schedule?: ScheduleConfig;
-  // Order is implicit by its position in the array.
 }
 
 export interface AssociatedMonitorConfig {
   monitorId: string;
-  schedule: ScheduleConfig; // Group-specific schedule for the monitor
-  // sendEmailOnAlert is a property of the Monitor itself, not overridden per group for now.
+  schedule: ScheduleConfig; 
 }
 
 export interface ComputerGroup {
@@ -49,32 +46,32 @@ export interface Procedure {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
-  createdAt: string; // ISO date string
-  updatedAt: string; // ISO date string
+  createdAt: string; 
+  updatedAt: string; 
 }
 
 export interface ProcedureExecution {
   id: string;
   procedureId: string;
   computerId: string;
-  computerName?: string; // For display convenience
+  computerName?: string; 
   status: 'Pending' | 'Running' | 'Success' | 'Failed' | 'Cancelled';
-  startTime?: string; // ISO date string
-  endTime?: string; // ISO date string
+  startTime?: string; 
+  endTime?: string; 
   logs: string;
   output?: string;
 }
 
 export interface CustomCommand {
     id:string;
-    computerId: string; // Will also be used for group if targetType is 'group'
-    targetType?: 'computer' | 'group'; // To distinguish target
-    targetId: string; // computerId or groupId
+    computerId: string; 
+    targetType?: 'computer' | 'group'; 
+    targetId: string; 
     command: string;
     scriptType: ScriptType;
     status: 'Pending' | 'Sent' | 'Success' | 'Failed';
     output?: string;
-    executedAt?: string; // ISO date string
+    executedAt?: string; 
 }
 
 export interface Monitor {
@@ -82,37 +79,45 @@ export interface Monitor {
   name: string;
   description: string;
   scriptType: ScriptType;
-  scriptContent: string; // Script that outputs OK or ALERT (or specific values)
-  defaultIntervalValue: number; // e.g., 5
-  defaultIntervalUnit: 'minutes' | 'hours' | 'days'; // e.g., 'minutes'
+  scriptContent: string; 
+  defaultIntervalValue: number; 
+  defaultIntervalUnit: 'minutes' | 'hours' | 'days'; 
   sendEmailOnAlert: boolean;
-  createdAt: string; // ISO date string
-  updatedAt: string; // ISO date string
+  createdAt: string; 
+  updatedAt: string; 
 }
 
 export interface MonitorExecutionLog {
   id: string;
   monitorId: string;
-  computerId: string; // The computer this log pertains to (if group-associated)
+  computerId: string; 
   computerName?: string;
-  timestamp: string; // ISO date string
-  status: 'OK' | 'ALERT' | 'Error' | 'Running'; // Error if script fails, Running during check
-  message: string; // Output from the script or status message
-  notified?: boolean; // True if an email alert was sent (simulated)
+  timestamp: string; 
+  status: 'OK' | 'ALERT' | 'Error' | 'Running'; 
+  message: string; 
+  notified?: boolean; 
 }
 
 export interface SMTPSettings {
   server: string;
   port: number;
-  username?: string; // Optional
-  password?: string; // Optional
-  secure: boolean; // TLS/SSL
-  fromEmail: string; // Email address to send from
-  defaultToEmail: string; // Default recipient for alerts
+  username?: string; 
+  password?: string; 
+  secure: boolean; 
+  fromEmail: string; 
+  defaultToEmail: string; 
+}
+
+export interface AiProviderConfig {
+  id: string;
+  name: string;
+  providerType: 'googleAI'; // For now, only Google AI, can be expanded later
+  apiKey?: string; // Optional, if not provided, Genkit might use env vars
+  isEnabled: boolean;
+  isDefault: boolean;
 }
 
 export interface AiSettings {
-  scriptGenerationEnabled: boolean;
-  // apiKey?: string; // For future use if needed
-  // defaultModel?: string; // For future use if needed
+  globalGenerationEnabled: boolean;
+  providerConfigs: AiProviderConfig[];
 }
