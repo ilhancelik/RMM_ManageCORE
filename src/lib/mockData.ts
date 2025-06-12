@@ -1,7 +1,7 @@
 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig } from '@/types';
 
-export const scriptTypes: ScriptType[] = ['CMD', 'Regedit', 'PowerShell', 'Python'];
+export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 
 // --- Mock Data Arrays ---
 export let mockComputers: Computer[] = [
@@ -15,7 +15,7 @@ export let mockComputers: Computer[] = [
 export let mockProcedures: Procedure[] = [
   { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
   { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 'proc-3', name: 'Apply Security Registry Fix', description: 'Applies a common security registry fix.', scriptType: 'Regedit', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
+  { id: 'proc-3', name: 'Apply Security Registry Fix', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
 ];
 
 const defaultProcedureSchedule: ScheduleConfig = { type: 'disabled' };
@@ -62,14 +62,38 @@ export let mockSmtpSettings: SMTPSettings = {
 // --- Helper Functions for Mock Data ---
 
 // Computers
-export const getComputers = (): Computer[] => mockComputers;
-export const getComputerById = (id: string): Computer | undefined => mockComputers.find(c => c.id === id);
+export const getComputers = (): Computer[] => {
+  // Simulate some dynamic behavior for usage stats for online computers
+  return mockComputers.map(c => {
+    if (c.status === 'Online') {
+      return {
+        ...c,
+        cpuUsage: Math.floor(Math.random() * 70) + 5, // 5-75%
+        ramUsage: Math.floor(Math.random() * 60) + 20, // 20-80%
+        diskUsage: c.diskUsage || (Math.floor(Math.random() * 50) + 10), // 10-60%
+        lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600000)).toISOString() // Update lastSeen slightly for online ones
+      };
+    }
+    return c;
+  }).sort((a, b) => a.name.localeCompare(b.name));
+};
+export const getComputerById = (id: string): Computer | undefined => {
+    const computer = mockComputers.find(c => c.id === id);
+    if (computer && computer.status === 'Online') {
+      return {
+        ...computer,
+        cpuUsage: Math.floor(Math.random() * 70) + 5,
+        ramUsage: Math.floor(Math.random() * 60) + 20,
+      };
+    }
+    return computer;
+};
 export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer => {
   const newComputer: Computer = {
     ...computerData,
     id: `comp-${Date.now()}`,
     lastSeen: new Date().toISOString(),
-    groupIds: [], // Initially no groups
+    groupIds: [],
   };
   mockComputers = [...mockComputers, newComputer];
   return newComputer;
@@ -78,7 +102,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() };
+      updatedComputer = { ...c, ...updates }; // Removed updatedAt as it's not in type
       return updatedComputer;
     }
     return c;
@@ -88,17 +112,20 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
 export const deleteComputer = (id: string): boolean => {
     const initialLength = mockComputers.length;
     mockComputers = mockComputers.filter(c => c.id !== id);
-    // Also remove from groups
     mockComputerGroups = mockComputerGroups.map(g => ({
         ...g,
         computerIds: g.computerIds.filter(compId => compId !== id)
     }));
+    mockProcedureExecutions = mockProcedureExecutions.filter(exec => exec.computerId !== id);
+    mockMonitorExecutionLogs = mockMonitorExecutionLogs.filter(log => log.computerId !== id);
+    mockCustomCommands = mockCustomCommands.filter(cmd => cmd.targetType === 'computer' && cmd.targetId !==id);
+
     return mockComputers.length < initialLength;
 }
 
 
 // Groups
-export const getGroups = (): ComputerGroup[] => mockComputerGroups;
+export const getGroups = (): ComputerGroup[] => mockComputerGroups.sort((a,b) => a.name.localeCompare(b.name));
 export const getGroupById = (id: string): ComputerGroup | undefined => mockComputerGroups.find(g => g.id === id);
 export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): ComputerGroup => {
   const newGroup: ComputerGroup = {
@@ -108,7 +135,6 @@ export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): Computer
     associatedMonitors: groupData.associatedMonitors || [],
   };
   mockComputerGroups = [...mockComputerGroups, newGroup];
-  // Update computers with this new group if they are part of it
   newGroup.computerIds.forEach(compId => {
     const comp = getComputerById(compId);
     if (comp && !comp.groupIds?.includes(newGroup.id)) {
@@ -130,11 +156,9 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
   });
 
   if (oldGroup && updatedGroup) {
-    // Update computer group memberships
     const oldComputerIds = new Set(oldGroup.computerIds);
     const newComputerIds = new Set(updatedGroup.computerIds);
 
-    // Removed from group
     oldGroup.computerIds.forEach(compId => {
       if (!newComputerIds.has(compId)) {
         const comp = getComputerById(compId);
@@ -143,7 +167,6 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
         }
       }
     });
-    // Added to group
     updatedGroup.computerIds.forEach(compId => {
       if (!oldComputerIds.has(compId)) {
         const comp = getComputerById(compId);
@@ -158,7 +181,6 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
 export const deleteComputerGroup = (id: string): boolean => {
   const initialLength = mockComputerGroups.length;
   mockComputerGroups = mockComputerGroups.filter(g => g.id !== id);
-  // Remove this group from all computers
   mockComputers = mockComputers.map(c => ({
     ...c,
     groupIds: c.groupIds?.filter(gid => gid !== id)
@@ -167,7 +189,7 @@ export const deleteComputerGroup = (id: string): boolean => {
 };
 
 // Procedures
-export const getProcedures = (): Procedure[] => mockProcedures;
+export const getProcedures = (): Procedure[] => mockProcedures.sort((a,b) => a.name.localeCompare(b.name));
 export const getProcedureById = (id: string): Procedure | undefined => mockProcedures.find(p => p.id === id);
 export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>): Procedure => {
   const newProcedure: Procedure = {
@@ -193,11 +215,11 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
 export const deleteProcedureFromMock = (id: string): boolean => {
   const initialLength = mockProcedures.length;
   mockProcedures = mockProcedures.filter(p => p.id !== id);
-  // Also remove from group associations
   mockComputerGroups = mockComputerGroups.map(g => ({
     ...g,
     associatedProcedures: g.associatedProcedures?.filter(ap => ap.procedureId !== id)
   }));
+  mockProcedureExecutions = mockProcedureExecutions.filter(exec => exec.procedureId !== id);
   return mockProcedures.length < initialLength;
 };
 
@@ -212,6 +234,13 @@ export const getExecutions = (filters?: { procedureId?: string; computerId?: str
   }
   return results.sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
 };
+
+export const getProcedureExecutionsForProcedure = (procedureId: string): ProcedureExecution[] => {
+  return mockProcedureExecutions
+    .filter(e => e.procedureId === procedureId)
+    .sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
+}
+
 export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'id' | 'computerName'>): ProcedureExecution => {
   const computer = getComputerById(executionData.computerId);
   const newExecution: ProcedureExecution = {
@@ -223,7 +252,6 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
   };
   mockProcedureExecutions = [newExecution, ...mockProcedureExecutions];
 
-  // Simulate execution completion for some
   if (newExecution.status === 'Pending') {
     setTimeout(() => {
         const finalStatus = Math.random() > 0.3 ? 'Success' : 'Failed';
@@ -232,7 +260,7 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
         newExecution.logs += `\nExecution finished with status: ${finalStatus}`;
         newExecution.output = finalStatus === 'Success' ? 'Mock output: Operation completed.' : 'Mock output: Operation failed.';
         mockProcedureExecutions = mockProcedureExecutions.map(e => e.id === newExecution.id ? newExecution : e);
-    }, 3000 + Math.random() * 3000);
+    }, 1500 + Math.random() * 2500);
   }
   return newExecution;
 };
@@ -259,7 +287,7 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
 
 
 // Monitors
-export const getMonitors = (): Monitor[] => mockMonitors;
+export const getMonitors = (): Monitor[] => mockMonitors.sort((a,b) => a.name.localeCompare(b.name));
 export const getMonitorById = (id: string): Monitor | undefined => mockMonitors.find(m => m.id === id);
 export const addMonitorToMock = (monitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>): Monitor => {
   const newMonitor: Monitor = {
@@ -285,11 +313,11 @@ export const updateMonitorInMock = (id: string, updates: Partial<Omit<Monitor, '
 export const deleteMonitorFromMock = (id: string): boolean => {
   const initialLength = mockMonitors.length;
   mockMonitors = mockMonitors.filter(m => m.id !== id);
-  // Also remove from group associations
   mockComputerGroups = mockComputerGroups.map(g => ({
     ...g,
     associatedMonitors: g.associatedMonitors?.filter(am => am.monitorId !== id)
   }));
+  mockMonitorExecutionLogs = mockMonitorExecutionLogs.filter(log => log.monitorId !== id);
   return mockMonitors.length < initialLength;
 };
 
@@ -302,17 +330,26 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
     id: `mlog-${Date.now()}`,
     computerName: computer?.name || logData.computerId,
     timestamp: new Date().toISOString(),
-    notified: logData.status === 'ALERT' ? Math.random() > 0.5 : false, // Simulate notification
+    notified: logData.status === 'ALERT' ? Math.random() > 0.5 : false,
   };
   mockMonitorExecutionLogs = [newLog, ...mockMonitorExecutionLogs];
-  if (mockMonitorExecutionLogs.length > 100) { // Keep logs manageable
-    mockMonitorExecutionLogs.pop();
+  if (mockMonitorExecutionLogs.length > 200) { 
+    mockMonitorExecutionLogs = mockMonitorExecutionLogs.slice(0, 200);
   }
   return newLog;
 };
 
 // Custom Commands
-export const getCommandHistory = (): CustomCommand[] => mockCustomCommands.sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
+export const getCommandHistory = (): CustomCommand[] => {
+  // Simulate some commands finishing
+  mockCustomCommands.forEach(cmd => {
+    if (cmd.status === 'Sent' && Math.random() < 0.2) { // 20% chance to "complete"
+      cmd.status = Math.random() < 0.7 ? 'Success' : 'Failed';
+      cmd.output = cmd.status === 'Success' ? `Mock Success: ${cmd.command}` : `Mock Fail: ${cmd.command}`;
+    }
+  });
+  return mockCustomCommands.sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
+}
 export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'executedAt' | 'status' | 'output'> & { targetId: string; targetType: 'computer' | 'group'} ): CustomCommand | CustomCommand[] => {
   const baseCommand: Omit<CustomCommand, 'id' | 'computerId'> = {
     ...commandData,
@@ -331,41 +368,44 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId, // For group commands, computerId indicates the member
-                targetId: group.id, // targetId remains the group id
+                computerId: compId, 
+                targetId: group.id, 
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
             commandsSent.push(newCommand);
-            // Simulate command execution
-            setTimeout(() => {
-                newCommand.status = Math.random() > 0.3 ? 'Success' : 'Failed';
-                newCommand.output = `Mock output for ${newCommand.command} on ${computer.name}`;
-                mockCustomCommands = mockCustomCommands.map(c => c.id === newCommand.id ? newCommand : c);
-            }, 2000 + Math.random() * 2000);
         }
     });
+     if (commandsSent.length === 0 && group.computerIds.length > 0) {
+        // This case means group had members, but none were online.
+        // We might still want to log a "Sent" command to the group itself, without specific computerId.
+         const groupSendCommand: CustomCommand = {
+            ...baseCommand,
+            id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            computerId: group.id, // Use group ID as placeholder if no online members
+            targetId: group.id,
+            targetType: 'group',
+            status: 'Sent', // Still "Sent" to group, but individual executions might not happen
+            output: "Command sent to group, but no online members found to execute immediately."
+        };
+        mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
+        return [groupSendCommand]; // Return the group-level command
+    }
     return commandsSent;
 
-  } else { // targetType === 'computer'
+  } else { 
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
-    if (computer.status !== 'Online') throw new Error('Computer is offline');
+    if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
 
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId, // For single computer, computerId and targetId are same
+        computerId: commandData.targetId, 
         targetId: commandData.targetId,
         targetType: 'computer'
     };
     mockCustomCommands = [newCommand, ...mockCustomCommands];
-    // Simulate command execution
-    setTimeout(() => {
-        newCommand.status = Math.random() > 0.3 ? 'Success' : 'Failed';
-        newCommand.output = `Mock output for ${newCommand.command}`;
-        mockCustomCommands = mockCustomCommands.map(c => c.id === newCommand.id ? newCommand : c);
-    }, 2000 + Math.random() * 2000);
     return newCommand;
   }
 };
@@ -377,7 +417,6 @@ export const saveSmtpSettings = (settings: SMTPSettings): SMTPSettings => {
   return mockSmtpSettings;
 };
 
-// Helper to simulate triggering procedures when a computer is added to a group
 export const triggerAutomatedProceduresForNewMember = (computerId: string, groupId: string) => {
     const group = getGroupById(groupId);
     const computer = getComputerById(computerId);
@@ -385,7 +424,7 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
         group.associatedProcedures.forEach(assocProc => {
             if (assocProc.runOnNewMember) {
                 const procedure = getProcedureById(assocProc.procedureId);
-                if (procedure) {
+                if (procedure && computer.status === 'Online') {
                     console.log(`AUTOMOCK: Triggering procedure "${procedure.name}" for new member "${computer.name}" in group "${group.name}"`);
                     addProcedureExecution({
                         procedureId: procedure.id,
@@ -394,8 +433,49 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
                         logs: `Automatically triggered: "${procedure.name}" for new member "${computer.name}" in group "${group.name}".`,
                         startTime: new Date().toISOString(),
                     });
+                } else if (procedure && computer.status !== 'Online') {
+                     console.log(`AUTOMOCK: Skipped procedure "${procedure.name}" for new offline member "${computer.name}" in group "${group.name}"`);
                 }
             }
         });
     }
 };
+// Simulate some monitor logs being added periodically
+const simulateMonitorChecks = () => {
+  mockComputers.forEach(computer => {
+    if (computer.status !== 'Online') return;
+
+    mockComputerGroups.forEach(group => {
+      if (group.computerIds.includes(computer.id) && group.associatedMonitors) {
+        group.associatedMonitors.forEach(assocMon => {
+          const monitor = getMonitorById(assocMon.monitorId);
+          if (monitor && assocMon.schedule?.type === 'interval') {
+            // Basic simulation: ~20% chance of alert, 10% chance of error
+            const rand = Math.random();
+            let status: MonitorExecutionLog['status'] = 'OK';
+            let message = `Mock OK: ${monitor.name} check passed for ${computer.name}.`;
+            if (rand < 0.05) { // 5% Error
+              status = 'Error';
+              message = `Mock Error: ${monitor.name} script failed on ${computer.name}.`;
+            } else if (rand < 0.15) { // 10% Alert (5% to 15%)
+              status = 'ALERT';
+              message = `Mock ALERT: ${monitor.name} detected issue on ${computer.name}.`;
+            }
+            addMonitorLog({
+              monitorId: monitor.id,
+              computerId: computer.id,
+              status,
+              message,
+              notified: status === 'ALERT' ? mockSmtpSettings.fromEmail && mockSmtpSettings.defaultToEmail : false,
+            });
+          }
+        });
+      }
+    });
+  });
+};
+
+// Start a simple interval to simulate monitor checks - for demo purposes only
+if (typeof window !== 'undefined') { // Ensure this runs only in browser-like environment for mock
+    // setInterval(simulateMonitorChecks, 30000); // Check every 30 seconds
+}

@@ -40,7 +40,7 @@ export interface ComputerGroup {
   associatedMonitors?: AssociatedMonitorConfig[];
 }
 
-export type ScriptType = 'CMD' | 'Regedit' | 'PowerShell' | 'Python';
+export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
 
 export interface Procedure {
   id: string;
@@ -109,4 +109,3 @@ export interface SMTPSettings {
   fromEmail: string; // Email address to send from
   defaultToEmail: string; // Default recipient for alerts
 }
-
