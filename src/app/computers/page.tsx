@@ -217,15 +217,14 @@ export default function ComputersPage() {
                     disabled={isLoadingProceduresOrGroups || groups.length === 0}
                  />
                 <Select 
-                    key={`group-filter-select-${groupFilterSearchTerm}`}
                     value={selectedGroupId} 
                     onValueChange={setSelectedGroupId} 
-                    disabled={isLoadingProceduresOrGroups || groups.length === 0}
+                    disabled={isLoadingProceduresOrGroups || (groups.length === 0 && !groupFilterSearchTerm) || (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) }
                 >
                 <SelectTrigger id="groupFilter" className="w-full">
-                    <SelectValue placeholder={filteredGroupsForFilterSelect.length === 0 && groupFilterSearchTerm ? "No groups match search" : "Select a group"} />
+                    <SelectValue placeholder={filteredGroupsForFilterSelect.length === 0 && groupFilterSearchTerm ? "No groups match search" : (groups.length === 0 ? "No groups available" : "Select a group")} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent key={`group-filter-content-${groupFilterSearchTerm}`}>
                     <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
                     {filteredGroupsForFilterSelect.map(group => (
                     <SelectItem key={group.id} value={group.id}>
@@ -283,15 +282,14 @@ export default function ComputersPage() {
                 <div>
                     <Label htmlFor="select-procedure">Procedure</Label>
                     <Select 
-                        key={`dialog-procedure-select-${procedureSearchTerm}`}
                         value={selectedProcedureId} 
                         onValueChange={setSelectedProcedureId} 
-                        disabled={isLoadingProceduresOrGroups}
+                        disabled={isLoadingProceduresOrGroups || (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm)}
                     >
                     <SelectTrigger id="select-procedure">
                         <SelectValue placeholder={isLoadingProceduresOrGroups ? "Loading procedures..." : (filteredProceduresForDialog.length === 0 && procedureSearchTerm ? "No procedures match search" : "Select a procedure to run")} />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent key={`dialog-procedure-content-${procedureSearchTerm}`}>
                         {isLoadingProceduresOrGroups ? (
                             <div className="p-2 text-sm text-muted-foreground flex items-center justify-center">
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading...

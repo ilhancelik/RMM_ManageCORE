@@ -333,15 +333,14 @@ export default function CommandsPage() {
                 />
               </div>
               <Select 
-                key={`target-computer-select-${targetComputerSearchTerm}`}
                 value={selectedComputerId} 
                 onValueChange={setSelectedComputerId} 
-                disabled={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0}
+                disabled={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 && !!targetComputerSearchTerm}
               >
                 <SelectTrigger id="targetComputer">
-                  <SelectValue placeholder={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 ? "No online computers match search" : "Select an online computer"} />
+                  <SelectValue placeholder={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 ? (targetComputerSearchTerm ? "No online computers match search" : "No online computers available") : "Select an online computer"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent key={`target-computer-content-${targetComputerSearchTerm}`}>
                   {filteredComputersForSelect.filter(c => c.status === 'Online').map(computer => (
                     <SelectItem key={computer.id} value={computer.id}>
                       {computer.name} ({computer.ipAddress})
@@ -373,15 +372,14 @@ export default function CommandsPage() {
                 />
               </div>
               <Select 
-                key={`target-group-select-${targetGroupSearchTerm}`}
                 value={selectedGroupId} 
                 onValueChange={setSelectedGroupId} 
-                disabled={filteredGroupsForSelect.length === 0}
+                disabled={filteredGroupsForSelect.length === 0 && !!targetGroupSearchTerm}
               >
                 <SelectTrigger id="targetGroup">
-                  <SelectValue placeholder={filteredGroupsForSelect.length === 0 ? "No groups match search" : "Select a group"} />
+                  <SelectValue placeholder={filteredGroupsForSelect.length === 0 ? (targetGroupSearchTerm ? "No groups match search" : "No groups available") : "Select a group"} />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent key={`target-group-content-${targetGroupSearchTerm}`}>
                   {filteredGroupsForSelect.map(group => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name} ({group.computerIds.length} computer(s))
@@ -452,15 +450,14 @@ export default function CommandsPage() {
                         />
                     </div>
                     <Select 
-                        key={`select-procedure-${procedureSelectSearchTerm}`}
                         value={selectedProcedureIdForExecution} 
                         onValueChange={setSelectedProcedureIdForExecution} 
-                        disabled={filteredProceduresForSelect.length === 0}
+                        disabled={filteredProceduresForSelect.length === 0 && !!procedureSelectSearchTerm}
                     >
                         <SelectTrigger id="selectProcedure">
-                        <SelectValue placeholder={filteredProceduresForSelect.length === 0 ? "No procedures match search" : "Select a procedure"} />
+                        <SelectValue placeholder={filteredProceduresForSelect.length === 0 ? (procedureSelectSearchTerm ? "No procedures match search" : "No procedures available") : "Select a procedure"} />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent key={`select-procedure-content-${procedureSelectSearchTerm}`}>
                         {filteredProceduresForSelect.map(proc => (
                             <SelectItem key={proc.id} value={proc.id}>
                             {proc.name} ({proc.scriptType})
