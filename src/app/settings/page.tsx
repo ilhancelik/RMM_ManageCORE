@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { fetchSmtpSettings, saveSmtpSettingsToApi, type SMTPSettings } from '@/lib/apiClient';
+import { getSmtpSettings, saveSmtpSettings, type SMTPSettings } from '@/lib/mockData';
 import { Mail, Save, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -29,29 +29,27 @@ export default function SettingsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const loadSettings = useCallback(async () => {
+  const loadMockSettings = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    try {
-      const loadedSettings = await fetchSmtpSettings();
-      if (loadedSettings) {
-        setSettings(loadedSettings);
-      } else {
-        // If API returns null (e.g. no settings configured yet), keep initial state or defaults
-        setSettings(initialSettingsState); 
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        const loadedSettings = getSmtpSettings();
+        setSettings(loadedSettings || initialSettingsState);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load SMTP settings from mock.';
+        setError(errorMessage);
+        toast({ title: "Error Loading Settings (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load SMTP settings.';
-      setError(errorMessage);
-      toast({ title: "Error Loading Settings", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
+    }, 300);
   }, [toast]);
 
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    loadMockSettings();
+  }, [loadMockSettings]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -68,7 +66,7 @@ export default function SettingsPage() {
   };
 
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
@@ -78,21 +76,21 @@ export default function SettingsPage() {
          setIsSubmitting(false);
          return;
       }
-      await saveSmtpSettingsToApi(settings);
+      saveSmtpSettings(settings);
       toast({
         title: 'Success!',
-        description: 'SMTP settings have been saved to the API.',
+        description: 'SMTP settings have been saved to mock data.',
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving settings.';
-      setError(errorMessage); // Display error near form if needed
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving settings (Mock).';
+      setError(errorMessage);
       toast({
-        title: 'Error saving settings',
+        title: 'Error saving settings (Mock)',
         description: errorMessage,
         variant: 'destructive',
       });
     } finally {
-      setIsSubmitting(false);
+      setTimeout(() => setIsSubmitting(false), 500); // Simulate API delay
     }
   };
 
@@ -135,14 +133,14 @@ export default function SettingsPage() {
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>SMTP Configuration</CardTitle>
-          <CardDescription>Configure SMTP server settings for sending email notifications from monitors. (Fetched from API)</CardDescription>
+          <CardDescription>Configure SMTP server settings for sending email notifications from monitors (Mock Data).</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>}
             <div>
               <Label htmlFor="server">SMTP Server</Label>
-              <Input id="server" name="server" value={settings.server} onChange={handleChange} placeholder="e.g., smtp.gmail.com" required disabled={isSubmitting} />
+              <Input id="server" name="server" value={settings.server} onChange={handleChange} placeholder="e.g., smtp.example.com" required disabled={isSubmitting} />
             </div>
             <div>
               <Label htmlFor="port">Port</Label>

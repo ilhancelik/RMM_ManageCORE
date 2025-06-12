@@ -22,8 +22,8 @@ import {
   DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
-import { fetchComputers, fetchProcedures, fetchGroups, executeProcedure } from '@/lib/apiClient'; 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution } from '@/types';
+import { getComputers, getProcedures, getGroups, executeMockProcedure } from '@/lib/mockData'; 
+import type { Computer, ComputerGroup, Procedure } from '@/types';
 import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
@@ -44,7 +44,7 @@ export default function ComputersPage() {
   
   const [groups, setGroups] = useState<ComputerGroup[]>([]); 
   const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
-  const [isLoadingProcedures, setIsLoadingProcedures] = useState(false);
+  const [isLoadingProceduresOrGroups, setIsLoadingProceduresOrGroups] = useState(false);
 
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
@@ -54,34 +54,29 @@ export default function ComputersPage() {
   const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
 
 
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(() => {
     setIsLoadingComputers(true);
     setComputerError(null);
-    setIsLoadingProcedures(true); 
-    try {
-      const [fetchedComputers, fetchedApiGroups, fetchedApiProcedures] = await Promise.all([
-        fetchComputers(),
-        fetchGroups(), 
-        fetchProcedures() 
-      ]);
-      setComputers(fetchedComputers);
-      setGroups(fetchedApiGroups);
-      setAllProcedures(fetchedApiProcedures);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load initial data.';
-      setComputerError(errorMessage); 
-      toast({
-        title: "Error Loading Data",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      setComputers([]);
-      setGroups([]);
-      setAllProcedures([]);
-    } finally {
-      setIsLoadingComputers(false);
-      setIsLoadingProcedures(false);
-    }
+    setIsLoadingProceduresOrGroups(true); 
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        setComputers(getComputers());
+        setGroups(getGroups());
+        setAllProcedures(getProcedures());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load initial data from mocks.';
+        setComputerError(errorMessage); 
+        toast({
+          title: "Error Loading Data (Mock)",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingComputers(false);
+        setIsLoadingProceduresOrGroups(false);
+      }
+    }, 300);
   }, [toast]);
 
   useEffect(() => {
@@ -130,7 +125,7 @@ export default function ComputersPage() {
     }
   };
 
-  const handleRunProcedureOnSelected = async () => {
+  const handleRunProcedureOnSelected = () => {
     if (!selectedProcedureId || selectedComputerIds.length === 0) {
       toast({
         title: "Error",
@@ -154,9 +149,10 @@ export default function ComputersPage() {
 
     setIsExecutingProcedure(true);
     try {
-      await executeProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
+      // Call mock execution function
+      executeMockProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
       toast({
-        title: "Procedures Execution Queued",
+        title: "Procedures Execution Queued (Mock)",
         description: `"${procedureToRun.name}" has been queued for execution on ${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.`
       });
       setIsRunProcedureModalOpen(false);
@@ -164,10 +160,11 @@ export default function ComputersPage() {
       setSelectedProcedureId('');
       setProcedureSearchTerm(''); 
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to queue procedure execution.';
+        const errorMessage = err instanceof Error ? err.message : 'Failed to queue procedure execution (Mock).';
         toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive"});
     } finally {
-        setIsExecutingProcedure(false);
+        // Simulate delay for mock execution
+        setTimeout(() => setIsExecutingProcedure(false), 1000);
     }
   };
 
@@ -251,16 +248,16 @@ export default function ComputersPage() {
                   value={procedureSearchTerm}
                   onChange={(e) => setProcedureSearchTerm(e.target.value)}
                   className="mb-2"
-                  disabled={isLoadingProcedures}
+                  disabled={isLoadingProceduresOrGroups}
                 />
                 <div>
                     <Label htmlFor="select-procedure">Procedure</Label>
-                    <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId} disabled={isLoadingProcedures}>
+                    <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId} disabled={isLoadingProceduresOrGroups}>
                     <SelectTrigger id="select-procedure">
-                        <SelectValue placeholder={isLoadingProcedures ? "Loading procedures..." : "Select a procedure to run"} />
+                        <SelectValue placeholder={isLoadingProceduresOrGroups ? "Loading procedures..." : "Select a procedure to run"} />
                     </SelectTrigger>
                     <SelectContent>
-                        {isLoadingProcedures ? (
+                        {isLoadingProceduresOrGroups ? (
                             <div className="p-2 text-sm text-muted-foreground flex items-center justify-center">
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading...
                             </div>
@@ -281,7 +278,7 @@ export default function ComputersPage() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }} disabled={isExecutingProcedure}>Cancel</Button>
-                <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProcedures || isExecutingProcedure}>
+                <Button onClick={handleRunProcedureOnSelected} disabled={!selectedProcedureId || isLoadingProceduresOrGroups || isExecutingProcedure}>
                   {isExecutingProcedure && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
                   {isExecutingProcedure ? 'Queueing...' : 'Run Procedure'}
                 </Button>
@@ -300,9 +297,8 @@ export default function ComputersPage() {
           <CardDescription>
             {selectedGroupId !== ALL_GROUPS_VALUE
               ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
-              : 'View and manage all connected computers.'}
+              : 'View and manage all connected computers (Mock Data).'}
             {filteredComputers.length === 0 && searchTerm && !isLoadingComputers && ' No computers match your search.'}
-             {!isLoadingComputers && computers.length > 0 && selectedGroupId !== ALL_GROUPS_VALUE && groups.length === 0 && ' (Group data not loaded or available from API)'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -332,14 +328,13 @@ export default function ComputersPage() {
             <p className="text-center text-muted-foreground py-8">
               {searchTerm && `No computers found matching "${searchTerm}".`}
               {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && `No computers found in the selected group.`}
-              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? `No computers found. Ensure your API at ${process.env.NEXT_PUBLIC_API_BASE_URL}/computers is running and returning data.` : `No computers found.`)}
+              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? `No computers found in mock data.` : `No computers found.`)}
             </p>
           )}
         </CardContent>
          {!isLoadingComputers && !computerError && filteredComputers.length > 0 && (
           <CardFooter className="text-sm text-muted-foreground">
             Showing {filteredComputers.length} of {computers.length} computers.
-            {computers.length > 0 && <span className="ml-2 text-xs text-blue-500">(Metrics are fetched from API)</span>}
           </CardFooter>
         )}
       </Card>

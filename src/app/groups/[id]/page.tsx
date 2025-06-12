@@ -3,21 +3,22 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { 
-    fetchGroupById, 
-    updateGroup, 
-    fetchProcedures, 
-    fetchAllComputers,
-    fetchMonitors // Added import
-} from '@/lib/apiClient'; 
+    getGroupById, 
+    updateComputerGroup, 
+    getProcedures, 
+    getComputers as getAllComputers, // Renamed to avoid conflict if any local `computers` state
+    getMonitors,
+    getProcedureById,
+    getMonitorById
+} from '@/lib/mockData'; 
 import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig } from '@/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Edit, Trash2, PlusCircle, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2 } from 'lucide-react';
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import Link from 'next/link';
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Dialog,
@@ -33,7 +34,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
-// Removed getMonitorById from mockData, will use allMonitors state
 
 const intervalUnits: ScheduleConfig['intervalUnit'][] = ['minutes', 'hours', 'days'];
 
@@ -47,7 +47,7 @@ export default function GroupDetailsPage() {
   const [allComputers, setAllComputers] = useState<Computer[]>([]); 
   const [memberComputers, setMemberComputers] = useState<Computer[]>([]);
   const [allProcedures, setAllProcedures] = useState<Procedure[]>([]); 
-  const [allMonitors, setAllMonitors] = useState<Monitor[]>([]); // State for all monitors
+  const [allMonitors, setAllMonitors] = useState<Monitor[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,62 +60,62 @@ export default function GroupDetailsPage() {
   const [currentAssociatedMonitors, setCurrentAssociatedMonitors] = useState<AssociatedMonitorConfig[]>([]);
 
 
-  const loadGroupDetails = useCallback(async () => {
+  const loadGroupDetails = useCallback(() => {
     if (!id) return;
     setIsLoading(true);
     setError(null);
-    try {
-      const [fetchedGroup, fetchedProcedures, fetchedComputers, fetchedMonitors] = await Promise.all([
-        fetchGroupById(id),
-        fetchProcedures(), 
-        fetchAllComputers(),
-        fetchMonitors() // Fetch all monitors
-      ]);
-      
-      setGroup(fetchedGroup);
-      setAllProcedures(fetchedProcedures);
-      setAllComputers(fetchedComputers);
-      setAllMonitors(fetchedMonitors); // Set all monitors state
-
-      if (fetchedGroup) {
-        const computersInGroup = fetchedComputers.filter(c => fetchedGroup.computerIds.includes(c.id));
-        setMemberComputers(computersInGroup);
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        const fetchedGroup = getGroupById(id);
+        const fetchedProcedures = getProcedures();
+        const fetchedComputers = getAllComputers();
+        const fetchedMonitors = getMonitors();
         
-        const initialProcedures = (fetchedGroup.associatedProcedures || []).map(ap => ({
-          ...ap,
-          schedule: ap.schedule || { type: 'disabled' as const } 
-        }));
-        setCurrentAssociatedProcedures(initialProcedures);
+        setGroup(fetchedGroup || null);
+        setAllProcedures(fetchedProcedures);
+        setAllComputers(fetchedComputers);
+        setAllMonitors(fetchedMonitors);
 
-        const initialMonitors = (fetchedGroup.associatedMonitors || []).map(am => {
-            const monitorDetails = fetchedMonitors.find(m => m.id === am.monitorId);
-            return {
-                ...am,
-                schedule: am.schedule || { 
-                    type: 'interval' as const, 
-                    intervalValue: monitorDetails?.defaultIntervalValue || 5, 
-                    intervalUnit: monitorDetails?.defaultIntervalUnit || 'minutes' 
-                }
-            };
-        });
-        setCurrentAssociatedMonitors(initialMonitors);
-      } else {
-        setError('Group not found.');
+        if (fetchedGroup) {
+          const computersInGroup = fetchedComputers.filter(c => fetchedGroup.computerIds.includes(c.id));
+          setMemberComputers(computersInGroup);
+          
+          const initialProcedures = (fetchedGroup.associatedProcedures || []).map(ap => ({
+            ...ap,
+            schedule: ap.schedule || { type: 'disabled' as const } 
+          }));
+          setCurrentAssociatedProcedures(initialProcedures);
+
+          const initialMonitors = (fetchedGroup.associatedMonitors || []).map(am => {
+              const monitorDetails = fetchedMonitors.find(m => m.id === am.monitorId);
+              return {
+                  ...am,
+                  schedule: am.schedule || { 
+                      type: 'interval' as const, 
+                      intervalValue: monitorDetails?.defaultIntervalValue || 5, 
+                      intervalUnit: monitorDetails?.defaultIntervalUnit || 'minutes' 
+                  }
+              };
+          });
+          setCurrentAssociatedMonitors(initialMonitors);
+        } else {
+          setError('Group not found in mock data.');
+        }
+      } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load group details from mock.';
+          setError(errorMessage);
+          toast({ title: "Error Loading Group (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load group details.';
-        setError(errorMessage);
-        toast({ title: "Error Loading Group", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-    }
+    }, 300);
   }, [id, toast]);
 
   useEffect(() => {
     loadGroupDetails();
   }, [loadGroupDetails]);
 
-  // Procedure Association Handlers
   const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => {
     setCurrentAssociatedProcedures(prev => {
       if (isAssociated) {
@@ -175,22 +175,21 @@ export default function GroupDetailsPage() {
     });
   };
 
-  const handleSaveAssociatedProcedures = async () => {
+  const handleSaveAssociatedProcedures = () => {
     if (!group) return;
     setIsSaving(true);
     try {
-      const payload: Partial<Omit<ComputerGroup, 'id'>> = {
-        associatedProcedures: currentAssociatedProcedures,
-      };
-      const updatedGroupFromApi = await updateGroup(group.id, payload);
-      setGroup(prev => prev ? { ...prev, associatedProcedures: updatedGroupFromApi.associatedProcedures } : null); 
+      const updatedGroup = updateComputerGroup(group.id, { associatedProcedures: currentAssociatedProcedures });
+      if (updatedGroup) {
+        setGroup(updatedGroup); 
+      }
       setIsManageProceduresModalOpen(false);
-      toast({ title: "Success", description: "Associated procedures updated." });
+      toast({ title: "Success", description: "Associated procedures updated (Mock)." });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated procedures.';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated procedures (Mock).';
       toast({ title: "Error", description: errorMessage, variant: "destructive"});
     } finally {
-      setIsSaving(false);
+      setTimeout(() => setIsSaving(false), 500); // Simulate API delay
     }
   };
 
@@ -204,7 +203,6 @@ export default function GroupDetailsPage() {
     setIsManageProceduresModalOpen(true);
   };
 
-  // Monitor Association Handlers
   const handleMonitorAssociationChange = (monitorId: string, isAssociated: boolean) => {
     setCurrentAssociatedMonitors(prev => {
       if (isAssociated) {
@@ -257,22 +255,21 @@ export default function GroupDetailsPage() {
     );
   };
   
-  const handleSaveAssociatedMonitors = async () => {
+  const handleSaveAssociatedMonitors = () => {
     if (!group) return;
     setIsSaving(true);
     try {
-      const payload: Partial<Omit<ComputerGroup, 'id'>> = {
-        associatedMonitors: currentAssociatedMonitors
-      };
-      const updatedGroupFromApi = await updateGroup(group.id, payload);
-      setGroup(prev => prev ? { ...prev, associatedMonitors: updatedGroupFromApi.associatedMonitors } : null);
+      const updatedGroup = updateComputerGroup(group.id, { associatedMonitors: currentAssociatedMonitors });
+      if (updatedGroup) {
+        setGroup(updatedGroup);
+      }
       setIsManageMonitorsModalOpen(false);
-      toast({ title: "Success", description: "Associated monitors updated." });
+      toast({ title: "Success", description: "Associated monitors updated (Mock)." });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated monitors.';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated monitors (Mock).';
       toast({ title: "Error", description: errorMessage, variant: "destructive"});
     } finally {
-      setIsSaving(false);
+      setTimeout(() => setIsSaving(false), 500); // Simulate API delay
     }
   };
 
@@ -293,12 +290,12 @@ export default function GroupDetailsPage() {
     setIsManageMonitorsModalOpen(true);
   };
 
-  const getProcedureNameFromApi = (procedureId: string): string => {
-    return allProcedures.find(p => p.id === procedureId)?.name || 'Unknown Procedure';
+  const getProcedureNameFromMock = (procedureId: string): string => {
+    return getProcedureById(procedureId)?.name || 'Unknown Procedure';
   };
   
-  const getMonitorDetailsFromApi = (monitorId: string): Monitor | undefined => {
-    return allMonitors.find(m => m.id === monitorId);
+  const getMonitorDetailsFromMock = (monitorId: string): Monitor | undefined => {
+    return getMonitorById(monitorId);
   }
 
 
@@ -348,7 +345,7 @@ export default function GroupDetailsPage() {
                         <Users className="h-8 w-8 text-primary" />
                         <CardTitle className="text-3xl font-bold">{group.name}</CardTitle>
                     </div>
-                    <CardDescription>{group.description}</CardDescription>
+                    <CardDescription>{group.description} (Mock Data)</CardDescription>
                     </div>
                 </div>
                 </CardHeader>
@@ -363,7 +360,7 @@ export default function GroupDetailsPage() {
                 <CardHeader>
                     <CardTitle>Computers in this Group</CardTitle>
                     <CardDescription>
-                        The following computers are members of the "{group.name}" group. (Computer data from API)
+                        The following computers are members of the "{group.name}" group. (Mock Data)
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -377,7 +374,6 @@ export default function GroupDetailsPage() {
         </div>
 
         <div className="lg:col-span-1 space-y-6">
-            {/* Associated Procedures Card */}
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -391,11 +387,11 @@ export default function GroupDetailsPage() {
                             <DialogContent className="sm:max-w-[725px]">
                                 <DialogHeader>
                                 <DialogTitle>Manage Associated Procedures for {group.name}</DialogTitle>
-                                <DialogDescription>Select procedures, configure their behavior, schedule, and order.</DialogDescription>
+                                <DialogDescription>Select procedures, configure their behavior, schedule, and order (Mock Data).</DialogDescription>
                                 </DialogHeader>
                                 <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {allProcedures.length === 0 && <p className="text-muted-foreground p-2">No procedures available to associate. Create procedures first.</p>}
+                                    {allProcedures.length === 0 && <p className="text-muted-foreground p-2">No procedures available to associate.</p>}
                                     {allProcedures.map(proc => {
                                         const assocIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
                                         const isAssociated = assocIndex !== -1;
@@ -491,8 +487,8 @@ export default function GroupDetailsPage() {
                                     {currentAssociatedProcedures.length > 0 && allProcedures.length > 0 && <Separator className="my-4"/> }
                                     {allProcedures.length > 0 && <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Execution Order</Label>}
                                     {currentAssociatedProcedures.map((assocProc, index) => {
-                                        const procedureName = getProcedureNameFromApi(assocProc.procedureId);
-                                        if (!procedureName) return null;
+                                        const procedureName = getProcedureNameFromMock(assocProc.procedureId);
+                                        if (!procedureName || procedureName === 'Unknown Procedure') return null;
                                         return (
                                             <div key={`order-proc-${assocProc.procedureId}`} className="flex items-center justify-between p-2 border rounded-md mb-2">
                                                 <span className="text-sm">{index + 1}. {procedureName}</span>
@@ -523,8 +519,8 @@ export default function GroupDetailsPage() {
                     ) : (
                         <ul className="space-y-3">
                             {group.associatedProcedures.map((assocProc, index) => {
-                                const procedureName = getProcedureNameFromApi(assocProc.procedureId);
-                                if (!procedureName) return <li key={`proc-display-unknown-${index}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Procedure (ID: {assocProc.procedureId}) - May have been deleted.</li>;
+                                const procedureName = getProcedureNameFromMock(assocProc.procedureId);
+                                if (!procedureName  || procedureName === 'Unknown Procedure') return <li key={`proc-display-unknown-${index}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Procedure (ID: {assocProc.procedureId}) - May have been deleted.</li>;
                                 return (
                                     <li key={`proc-display-${assocProc.procedureId}`} className="text-sm p-3 border rounded-md space-y-1">
                                         <div className="font-medium">{index + 1}. {procedureName}</div>
@@ -546,7 +542,6 @@ export default function GroupDetailsPage() {
                 </CardContent>
             </Card>
 
-            {/* Associated Monitors Card */}
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -560,11 +555,11 @@ export default function GroupDetailsPage() {
                             <DialogContent className="sm:max-w-[725px]">
                                 <DialogHeader>
                                 <DialogTitle>Manage Associated Monitors for {group.name}</DialogTitle>
-                                <DialogDescription>Select monitors and configure their schedule for this group.</DialogDescription>
+                                <DialogDescription>Select monitors and configure their schedule for this group (Mock Data).</DialogDescription>
                                 </DialogHeader>
                                 <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {allMonitors.length === 0 && <p className="text-muted-foreground p-2">No monitors available to associate. Create monitors first.</p>}
+                                    {allMonitors.length === 0 && <p className="text-muted-foreground p-2">No monitors available to associate.</p>}
                                     {allMonitors.map(mon => { 
                                         const isAssociated = currentAssociatedMonitors.some(am => am.monitorId === mon.id);
                                         const config = currentAssociatedMonitors.find(am => am.monitorId === mon.id);
@@ -658,8 +653,8 @@ export default function GroupDetailsPage() {
                     ) : (
                         <ul className="space-y-3">
                             {group.associatedMonitors.map((assocMon) => {
-                                const monitor = getMonitorDetailsFromApi(assocMon.monitorId); 
-                                if (!monitor) return <li key={`mon-display-unknown-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Monitor (ID: {assocMon.monitorId}) - May have been deleted.</li>;
+                                const monitor = getMonitorDetailsFromMock(assocMon.monitorId); 
+                                if (!monitor || monitor.name === 'Unknown Monitor') return <li key={`mon-display-unknown-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Monitor (ID: {assocMon.monitorId}) - May have been deleted.</li>;
                                 return (
                                     <li key={`mon-display-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1">
                                         <div className="font-medium">{monitor.name} {monitor.sendEmailOnAlert && <span className="text-xs text-blue-500">(Email Alert Active)</span>}</div>

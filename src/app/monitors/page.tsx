@@ -2,8 +2,7 @@
 "use client";
 
 import type { Monitor, ScriptType } from '@/types';
-import { scriptTypes } from '@/lib/mockData'; // scriptTypes can remain static
-import { fetchMonitors, createMonitor, updateMonitorApi, deleteMonitorFromApi } from '@/lib/apiClient';
+import { scriptTypes, getMonitors, addMonitorToMock, updateMonitorInMock, deleteMonitorFromMock } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, Activity, Loader2 } from 'lucide-react';
@@ -53,25 +52,26 @@ export default function MonitorsPage() {
   const [monitorIntervalUnit, setMonitorIntervalUnit] = useState<Monitor['defaultIntervalUnit']>('minutes');
   const [monitorSendEmail, setMonitorSendEmail] = useState(true);
 
-  const loadMonitors = useCallback(async () => {
+  const loadMockMonitors = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    try {
-      const fetchedMonitors = await fetchMonitors();
-      setMonitors(fetchedMonitors);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load monitors.';
-      setError(errorMessage);
-      toast({ title: "Error Loading Monitors", description: errorMessage, variant: "destructive" });
-      setMonitors([]);
-    } finally {
-      setIsLoading(false);
-    }
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        setMonitors(getMonitors());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load monitors from mock.';
+        setError(errorMessage);
+        toast({ title: "Error Loading Monitors (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
   }, [toast]);
 
   useEffect(() => {
-    loadMonitors();
-  }, [loadMonitors]);
+    loadMockMonitors();
+  }, [loadMockMonitors]);
   
   const resetForm = () => {
     setMonitorName('');
@@ -106,62 +106,60 @@ export default function MonitorsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!monitorName.trim() || !monitorScriptContent.trim() || monitorIntervalValue <= 0) {
       toast({ title: "Error", description: "Name, script content, and a valid interval are required.", variant: "destructive"});
       return;
     }
     setIsSubmitting(true);
     try {
+      const monitorData = {
+        name: monitorName,
+        description: monitorDescription,
+        scriptType: monitorScriptType,
+        scriptContent: monitorScriptContent,
+        defaultIntervalValue: monitorIntervalValue,
+        defaultIntervalUnit: monitorIntervalUnit,
+        sendEmailOnAlert: monitorSendEmail,
+      };
+
       if (isEditMode && currentMonitor) {
-        const updatedMonitorData: Partial<Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>> = {
-          name: monitorName,
-          description: monitorDescription,
-          scriptType: monitorScriptType,
-          scriptContent: monitorScriptContent,
-          defaultIntervalValue: monitorIntervalValue,
-          defaultIntervalUnit: monitorIntervalUnit,
-          sendEmailOnAlert: monitorSendEmail,
-        };
-        await updateMonitorApi(currentMonitor.id, updatedMonitorData);
-        toast({title: "Success", description: `Monitor "${monitorName}" updated.`});
+        updateMonitorInMock(currentMonitor.id, monitorData);
+        toast({title: "Success", description: `Monitor "${monitorName}" updated (Mock).`});
       } else {
-        const newMonitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'> = {
-          name: monitorName,
-          description: monitorDescription,
-          scriptType: monitorScriptType,
-          scriptContent: monitorScriptContent,
-          defaultIntervalValue: monitorIntervalValue,
-          defaultIntervalUnit: monitorIntervalUnit,
-          sendEmailOnAlert: monitorSendEmail,
-        };
-        await createMonitor(newMonitorData);
-        toast({title: "Success", description: `Monitor "${monitorName}" created.`});
+        addMonitorToMock(monitorData);
+        toast({title: "Success", description: `Monitor "${monitorName}" created (Mock).`});
       }
-      resetForm();
-      setIsModalOpen(false);
-      loadMonitors(); // Refresh list
+      
+      setTimeout(() => { // Simulate API delay
+        resetForm();
+        setIsModalOpen(false);
+        loadMockMonitors(); // Refresh list
+        setIsSubmitting(false);
+      }, 500);
+
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: isEditMode ? "Error Updating Monitor" : "Error Creating Monitor", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (monitorId: string, monitorNameText: string) => {
+  const handleDelete = (monitorId: string, monitorNameText: string) => {
     if (!window.confirm(`Are you sure you want to delete monitor "${monitorNameText}"? This action cannot be undone.`)) {
         return;
     }
     setIsSubmitting(true);
     try {
-        await deleteMonitorFromApi(monitorId);
-        toast({title: "Success", description: `Monitor "${monitorNameText}" deleted.`});
-        loadMonitors(); // Refresh list
+        deleteMonitorFromMock(monitorId);
+        toast({title: "Success", description: `Monitor "${monitorNameText}" deleted (Mock).`});
+        setTimeout(() => { // Simulate API delay
+          loadMockMonitors(); // Refresh list
+          setIsSubmitting(false);
+        }, 500);
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: "Error Deleting Monitor", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
@@ -246,7 +244,7 @@ export default function MonitorsPage() {
     return (
       <div className="container mx-auto py-10 text-center text-destructive">
         <p>{error}</p>
-        <Button onClick={loadMonitors} variant="outline" className="mt-4">Retry</Button>
+        <Button onClick={loadMockMonitors} variant="outline" className="mt-4">Retry</Button>
       </div>
     );
   }
@@ -260,12 +258,12 @@ export default function MonitorsPage() {
         </Button>
       </div>
       
-      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) setIsModalOpen(isOpen); }}>
+      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if(!isSubmitting) { setIsModalOpen(isOpen); if(!isOpen) resetForm(); } }}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Monitor' : 'Create New Monitor'}</DialogTitle>
             <DialogDescription>
-              {isEditMode ? 'Update the details of your existing monitor.' : 'Define a new script to monitor system status or events.'}
+              {isEditMode ? 'Update the details of your existing monitor.' : 'Define a new script to monitor system status or events (Mock Data).'}
             </DialogDescription>
           </DialogHeader>
           {MonitorFormFields}

@@ -2,12 +2,12 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { fetchComputerById, fetchExecutions, fetchProcedures } from '@/lib/apiClient'; 
+import { getComputerById, getExecutions, getProcedures, getProcedureById } from '@/lib/mockData'; 
 import type { Computer, Procedure, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Cpu, HardDrive, MemoryStick, Play, Terminal, ListChecks, Edit, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -28,38 +28,38 @@ export default function ComputerDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]);
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
-  const [allProcedures, setAllProcedures] = useState<Procedure[]>([]); // To map procedureId to name
+  // No need for allProcedures state if we fetch by ID directly
 
-  const loadComputerDetails = useCallback(async () => {
+  const loadComputerDetails = useCallback(() => {
     if (!id) return;
     setIsLoading(true);
     setError(null);
-    try {
-      const fetchedComputer = await fetchComputerById(id);
-      setComputer(fetchedComputer);
-      if (fetchedComputer) {
-        // Fetch procedures to map names
-        const procs = await fetchProcedures();
-        setAllProcedures(procs);
-        // Fetch executions for this computer
-        setIsLoadingExecutions(true);
-        const executions = await fetchExecutions({ computerId: id });
-        setRelatedExecutions(executions); // API should return sorted and filtered (e.g., last 30 days)
-      } else {
-        setError('Computer not found.');
+    setIsLoadingExecutions(true);
+
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        const fetchedComputer = getComputerById(id);
+        setComputer(fetchedComputer || null);
+        if (fetchedComputer) {
+          const executions = getExecutions({ computerId: id });
+          setRelatedExecutions(executions);
+        } else {
+          setError('Computer not found in mock data.');
+        }
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load computer details from mock.';
+        setError(errorMessage);
+        toast({
+          title: "Error Loading Computer Data (Mock)",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+        setIsLoadingExecutions(false);
       }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load computer details.';
-      setError(errorMessage);
-      toast({
-        title: "Error Loading Computer Data",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-      setIsLoadingExecutions(false);
-    }
+    }, 300);
   }, [id, toast]);
 
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function ComputerDetailsPage() {
   };
   
   const getProcedureName = (procedureId: string): string => {
-    return allProcedures.find(p => p.id === procedureId)?.name || 'Unknown Procedure';
+    return getProcedureById(procedureId)?.name || 'Unknown Procedure';
   };
 
   return (
@@ -133,16 +133,16 @@ export default function ComputerDetailsPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-3xl font-bold">{computer.name}</CardTitle>
-              <CardDescription>Details for {computer.name} (Data from API)</CardDescription>
+              <CardDescription>Details for {computer.name} (Mock Data)</CardDescription>
             </div>
             <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={() => router.push(`/commands?computerId=${computer.id}`)} disabled={computer.status !== 'Online'}>
                     <Terminal className="mr-2 h-4 w-4" /> Run Command
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled>
                     <Edit className="mr-2 h-4 w-4" /> Edit
                 </Button>
-                 <Button variant="destructive" size="sm">
+                 <Button variant="destructive" size="sm" disabled>
                     <Trash2 className="mr-2 h-4 w-4" /> Delete
                 </Button>
             </div>
@@ -199,7 +199,7 @@ export default function ComputerDetailsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity (Procedure Executions from API)</CardTitle>
+          <CardTitle>Recent Activity (Procedure Executions - Mock)</CardTitle>
           <CardDescription>Procedures executed on this computer.</CardDescription>
         </CardHeader>
         <CardContent>

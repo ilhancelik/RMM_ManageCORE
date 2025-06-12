@@ -9,9 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addComputerToApi } from '@/lib/apiClient'; // Import the API function
+import { addComputer } from '@/lib/mockData'; // Import the mock function
 import type { Computer } from '@/types';
-import { ArrowLeft, Save } from 'lucide-react';
+import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 
 export default function NewComputerPage() {
   const router = useRouter();
@@ -35,16 +35,20 @@ export default function NewComputerPage() {
 
     setIsSubmitting(true);
     try {
-      // Call the API to add the computer
-      await addComputerToApi({ name, os, ipAddress, status });
+      // Call the mock function to add the computer
+      addComputer({ name, os, ipAddress, status });
       toast({
         title: 'Success!',
-        description: `Computer "${name}" has been submitted to the API.`,
+        description: `Computer "${name}" has been added to mock data.`,
       });
-      router.push('/computers'); // Navigate back to the computers list
+      // Simulate API call delay
+      setTimeout(() => {
+        router.push('/computers'); // Navigate back to the computers list
+        setIsSubmitting(false);
+      }, 500);
     } catch (error) {
       toast({
-        title: 'Error adding computer',
+        title: 'Error adding computer (Mock)',
         description: error instanceof Error ? error.message : 'An unknown error occurred.',
         variant: 'destructive',
       });
@@ -60,8 +64,8 @@ export default function NewComputerPage() {
 
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
-          <CardTitle>Add New Computer (via API)</CardTitle>
-          <CardDescription>Enter the details for the new computer. This will be sent to your API.</CardDescription>
+          <CardTitle>Add New Computer (Mock Data)</CardTitle>
+          <CardDescription>Enter the details for the new computer. This will be added to local mock data.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -111,7 +115,7 @@ export default function NewComputerPage() {
           </CardContent>
           <CardFooter>
             <Button type="submit" disabled={isSubmitting}>
-              <Save className="mr-2 h-4 w-4" />
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" /> }
               {isSubmitting ? 'Adding...' : 'Add Computer'}
             </Button>
           </CardFooter>

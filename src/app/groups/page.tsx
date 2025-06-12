@@ -2,7 +2,7 @@
 "use client";
 
 import type { Computer, ComputerGroup } from '@/types';
-import { fetchGroups, createGroup, updateGroup as updateGroupApi, deleteGroup as deleteGroupApi, fetchAllComputers } from '@/lib/apiClient';
+import { getGroups, addComputerGroup, updateComputerGroup, deleteComputerGroup, getComputers, triggerAutomatedProceduresForNewMember } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Edit, Trash2, Users, Eye, Loader2 } from 'lucide-react';
@@ -41,27 +41,24 @@ export default function GroupsPage() {
   const [groupDescription, setGroupDescription] = useState('');
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
 
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(() => {
     setIsLoading(true);
     setIsLoadingComputers(true);
     setError(null);
-    try {
-      const [fetchedGroups, fetchedApiComputers] = await Promise.all([
-        fetchGroups(),
-        fetchAllComputers()
-      ]);
-      setGroups(fetchedGroups);
-      setAllComputers(fetchedApiComputers);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load group data.';
-      setError(errorMessage);
-      toast({ title: "Error Loading Data", description: errorMessage, variant: "destructive" });
-      setGroups([]);
-      setAllComputers([]);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingComputers(false);
-    }
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        setGroups(getGroups());
+        setAllComputers(getComputers());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load group data from mocks.';
+        setError(errorMessage);
+        toast({ title: "Error Loading Data (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+        setIsLoadingComputers(false);
+      }
+    }, 300);
   }, [toast]);
 
   useEffect(() => {
@@ -90,64 +87,63 @@ export default function GroupsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!groupName.trim()) {
         toast({title: "Validation Error", description: "Group name is required.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
     try {
+      const groupPayload = {
+        name: groupName,
+        description: groupDescription,
+        computerIds: selectedComputerIds,
+        // For mock data, associatedProcedures and monitors would be part of the group object if editing
+        associatedProcedures: (isEditMode && currentGroup?.associatedProcedures) ? currentGroup.associatedProcedures : [],
+        associatedMonitors: (isEditMode && currentGroup?.associatedMonitors) ? currentGroup.associatedMonitors : [],
+      };
+
       if (isEditMode && currentGroup) {
-        const groupDataToUpdate: Partial<Omit<ComputerGroup, 'id' | 'associatedProcedures' | 'associatedMonitors'>> = {
-          name: groupName,
-          description: groupDescription,
-          computerIds: selectedComputerIds,
-        };
-        // Retain existing associatedProcedures and associatedMonitors if not explicitly managed here
-        // The group detail page is responsible for updating those.
-        // This ensures we don't unintentionally wipe them.
-        const payload = {
-            ...groupDataToUpdate,
-            associatedProcedures: currentGroup.associatedProcedures || [],
-            associatedMonitors: currentGroup.associatedMonitors || []
-        }
-        await updateGroupApi(currentGroup.id, payload);
-        toast({title: "Success", description: `Group "${groupName}" updated.`});
+        updateComputerGroup(currentGroup.id, groupPayload);
+        toast({title: "Success", description: `Group "${groupName}" updated (Mock).`});
       } else {
-        const newGroupData: Omit<ComputerGroup, 'id' | 'associatedProcedures' | 'associatedMonitors'> = {
-          name: groupName,
-          description: groupDescription,
-          computerIds: selectedComputerIds,
-        };
-        // New groups created via this page won't have associated procedures/monitors by default.
-        // Those are managed on the group detail page.
-        await createGroup(newGroupData);
-        toast({title: "Success", description: `Group "${groupName}" created.`});
+        const newGroup = addComputerGroup(groupPayload);
+        // Simulate triggering automated procedures for new members for mock data
+        newGroup.computerIds.forEach(compId => {
+            triggerAutomatedProceduresForNewMember(compId, newGroup.id);
+        });
+        toast({title: "Success", description: `Group "${groupName}" created (Mock).`});
       }
-      resetForm();
-      setIsModalOpen(false);
-      loadInitialData(); // Refresh list
+      
+      setTimeout(() => { // Simulate API delay
+        resetForm();
+        setIsModalOpen(false);
+        loadInitialData(); // Refresh list
+        setIsSubmitting(false);
+      }, 500);
+
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: isEditMode ? "Error Updating Group" : "Error Creating Group", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
   
-  const handleDeleteGroup = async (groupId: string, groupNameText: string) => {
+  const handleDeleteGroup = (groupId: string, groupNameText: string) => {
      if (!window.confirm(`Are you sure you want to delete group "${groupNameText}"? This action cannot be undone.`)) {
         return;
     }
-    setIsSubmitting(true); // Disable buttons during delete on specific card could be better.
+    setIsSubmitting(true); 
     try {
-        await deleteGroupApi(groupId);
-        toast({title: "Success", description: `Group "${groupNameText}" deleted.`});
-        loadInitialData(); // Refresh list
+        deleteComputerGroup(groupId);
+        toast({title: "Success", description: `Group "${groupNameText}" deleted (Mock).`});
+        setTimeout(() => { // Simulate API delay
+          loadInitialData(); // Refresh list
+          setIsSubmitting(false);
+        }, 500);
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: "Error Deleting Group", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
@@ -226,7 +222,7 @@ export default function GroupsPage() {
           <DialogContent className="sm:max-w-[525px]">
               <DialogHeader>
                   <DialogTitle>{isEditMode ? 'Edit Group' : 'Create New Group'}</DialogTitle>
-                  <DialogDescription>{isEditMode ? 'Update group details and members.' : 'Organize your computers into logical groups.'}</DialogDescription>
+                  <DialogDescription>{isEditMode ? 'Update group details and members.' : 'Organize your computers into logical groups (Mock Data).'}</DialogDescription>
               </DialogHeader>
               {GroupFormFields}
               <DialogFooter>
@@ -269,7 +265,7 @@ export default function GroupsPage() {
                 </p>
                 <ScrollArea className="max-h-20">
                   <ul className="text-xs text-muted-foreground list-disc list-inside">
-                    {group.computerIds.slice(0,10).map(id => { // Show more computers if space allows
+                    {group.computerIds.slice(0,10).map(id => { 
                       const computer = allComputers.find(c => c.id === id);
                       return <li key={id} className="truncate">{computer ? computer.name : `ID: ${id.substring(0,8)}...`}</li>;
                     })}
@@ -303,5 +299,3 @@ export default function GroupsPage() {
     </div>
   );
 }
-
-    

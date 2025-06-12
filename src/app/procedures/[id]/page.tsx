@@ -3,10 +3,9 @@
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useTransition, useCallback } from 'react';
-import { mockComputers, scriptTypes } from '@/lib/mockData'; // mockComputers remains for selection UI simulation
+import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure } from '@/lib/mockData';
 import type { Procedure, Computer, ProcedureExecution, ScriptType } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
-import { fetchProcedureById, updateProcedure, fetchExecutions, executeProcedure, fetchComputers as fetchAllComputersForSelection } from '@/lib/apiClient';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,8 +22,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-
-// const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000; // No longer needed here for filtering mock
 
 export default function ProcedureDetailPage() {
   const router = useRouter();
@@ -45,7 +42,7 @@ export default function ProcedureDetailPage() {
   const [editScriptType, setEditScriptType] = useState<ScriptType>('CMD');
   const [editScriptContent, setEditScriptContent] = useState('');
 
-  const [targetComputers, setTargetComputers] = useState<Computer[]>([]); // For selection
+  const [allComputers, setAllComputers] = useState<Computer[]>([]);
   const [isLoadingTargetComputers, setIsLoadingTargetComputers] = useState(true);
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [executions, setExecutions] = useState<ProcedureExecution[]>([]); 
@@ -61,90 +58,81 @@ export default function ProcedureDetailPage() {
   const [copiedImprovedScript, setCopiedImprovedScript] = useState(false);
   const [copiedExplanation, setCopiedExplanation] = useState(false);
 
-  const loadProcedureAndExecutions = useCallback(async () => {
+  const loadProcedureAndRelatedData = useCallback(() => {
     if (!id) return;
     setIsLoading(true);
     setIsLoadingExecutions(true);
+    setIsLoadingTargetComputers(true);
     setError(null);
-    try {
-      const fetchedProcedure = await fetchProcedureById(id);
-      setProcedure(fetchedProcedure);
-      if (fetchedProcedure) {
-        setEditName(fetchedProcedure.name);
-        setEditDescription(fetchedProcedure.description);
-        setEditScriptType(fetchedProcedure.scriptType);
-        setEditScriptContent(fetchedProcedure.scriptContent);
-        
-        const fetchedExecs = await fetchExecutions({ procedureId: id });
-        setExecutions(fetchedExecs);
-      } else {
-        setError('Procedure not found.');
+
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        const fetchedProcedure = getProcedureById(id);
+        setProcedure(fetchedProcedure || null);
+
+        if (fetchedProcedure) {
+          setEditName(fetchedProcedure.name);
+          setEditDescription(fetchedProcedure.description);
+          setEditScriptType(fetchedProcedure.scriptType);
+          setEditScriptContent(fetchedProcedure.scriptContent);
+          
+          setExecutions(getExecutions({ procedureId: id }));
+          setAllComputers(getComputers().filter(c => c.status === 'Online'));
+        } else {
+          setError('Procedure not found in mock data.');
+        }
+      } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to load procedure details from mock.';
+          setError(errorMessage);
+          toast({ title: "Error Loading Data (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+        setIsLoadingExecutions(false);
+        setIsLoadingTargetComputers(false);
       }
-    } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load procedure details or executions.';
-        setError(errorMessage);
-        toast({ title: "Error Loading Data", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoading(false);
-      setIsLoadingExecutions(false);
-    }
+    }, 300);
   }, [id, toast]);
 
-  const loadTargetComputers = useCallback(async () => {
-    setIsLoadingTargetComputers(true);
-    try {
-      const computers = await fetchAllComputersForSelection(); // Using the renamed function
-      setTargetComputers(computers.filter(c => c.status === 'Online')); // Only show online for selection
-    } catch (err) {
-      toast({ title: "Error Loading Computers", description: err instanceof Error ? err.message : "Could not load computers for selection.", variant: "destructive" });
-      setTargetComputers([]);
-    } finally {
-      setIsLoadingTargetComputers(false);
-    }
-  }, [toast]);
-
-
   useEffect(() => {
-    loadProcedureAndExecutions();
-    loadTargetComputers(); // Load computers for selection when component mounts or id changes
-  }, [loadProcedureAndExecutions, loadTargetComputers]);
+    loadProcedureAndRelatedData();
+  }, [loadProcedureAndRelatedData]);
 
-  const refreshExecutions = useCallback(async () => {
+  const refreshExecutions = useCallback(() => {
     if (!procedure) return;
     setIsLoadingExecutions(true);
-    try {
-      const fetchedExecs = await fetchExecutions({ procedureId: procedure.id });
-      setExecutions(fetchedExecs);
-    } catch (err) {
-      toast({ title: "Error Refreshing Executions", description: err instanceof Error ? err.message : "Could not refresh execution history.", variant: "destructive" });
-    } finally {
-      setIsLoadingExecutions(false);
-    }
+    setTimeout(() => { // Simulate delay
+        setExecutions(getExecutions({ procedureId: procedure.id }));
+        setIsLoadingExecutions(false);
+        toast({ title: "Execution history refreshed (Mock)"});
+    }, 300);
   }, [procedure, toast]);
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!procedure) return;
     setIsSaving(true);
     try {
-      const updatedData: Partial<Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>> = {
+      const updatedData = {
         name: editName,
         description: editDescription,
         scriptType: editScriptType,
         scriptContent: editScriptContent,
       };
-      const updatedProc = await updateProcedure(procedure.id, updatedData);
-      setProcedure(updatedProc); 
-      setEditName(updatedProc.name);
-      setEditDescription(updatedProc.description);
-      setEditScriptType(updatedProc.scriptType);
-      setEditScriptContent(updatedProc.scriptContent);
+      const updatedProc = updateProcedureInMock(procedure.id, updatedData);
+      if (updatedProc) {
+        setProcedure(updatedProc); 
+        setEditName(updatedProc.name);
+        setEditDescription(updatedProc.description);
+        setEditScriptType(updatedProc.scriptType);
+        setEditScriptContent(updatedProc.scriptContent);
+      }
       setIsEditing(false);
-      toast({ title: "Procedure Saved", description: `${updatedProc.name} has been updated.` });
+      toast({ title: "Procedure Saved (Mock)", description: `${updatedProc?.name || ''} has been updated.` });
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving (Mock).';
         toast({ title: "Error Saving Procedure", description: errorMessage, variant: "destructive" });
     } finally {
-        setIsSaving(false);
+        setTimeout(() => setIsSaving(false), 500); // Simulate API delay
     }
   };
   
@@ -158,24 +146,23 @@ export default function ProcedureDetailPage() {
     setIsEditing(false);
   }
 
-  const handleExecuteProcedure = async () => {
+  const handleExecuteProcedure = () => {
     if (!procedure || selectedComputerIds.length === 0) {
         toast({ title: "Execution Error", description: "Please select at least one computer.", variant: "destructive"});
         return;
     }
     setIsExecuting(true);
     try {
-      await executeProcedure(procedure.id, selectedComputerIds);
-      toast({ title: "Procedure Execution Queued", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s). Status will update in history.`});
-      setSelectedComputerIds([]); // Clear selection
-      // Wait a bit for API to process then refresh history
-      setTimeout(() => {
+      executeMockProcedure(procedure.id, selectedComputerIds);
+      toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
+      setSelectedComputerIds([]); 
+      setTimeout(() => { // Simulate API delay and refresh
         refreshExecutions();
+        setIsExecuting(false);
       }, 2000); 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
       toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive" });
-    } finally {
       setIsExecuting(false);
     }
   };
@@ -273,7 +260,7 @@ export default function ProcedureDetailPage() {
         <Button onClick={() => router.push('/procedures')} variant="outline" className="mt-4">
             Back to Procedures
         </Button>
-        <Button onClick={loadProcedureAndExecutions} variant="link" className="mt-2">Retry</Button>
+        <Button onClick={loadProcedureAndRelatedData} variant="link" className="mt-2">Retry</Button>
       </div>
     );
   }
@@ -301,7 +288,7 @@ export default function ProcedureDetailPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-3xl font-bold">{isEditing ? editName : procedure.name}</CardTitle>
-              <CardDescription>{isEditing ? editDescription : procedure.description}</CardDescription>
+              <CardDescription>{isEditing ? editDescription : procedure.description} (Mock Data)</CardDescription>
             </div>
             {!isEditing && (
               <Button variant="outline" onClick={() => setIsEditing(true)} disabled={isSaving}>
@@ -404,11 +391,11 @@ export default function ProcedureDetailPage() {
               <CardContent>
                 {isLoadingTargetComputers ? (
                   <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
-                ) : targetComputers.length === 0 ? (
+                ) : allComputers.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No online computers available for selection.</p>
                 ) : (
                   <ScrollArea className="h-72 border rounded-md p-2">
-                    {targetComputers.map(computer => (
+                    {allComputers.map(computer => (
                       <div key={computer.id} className="flex items-center space-x-2 p-1">
                         <Checkbox
                           id={`comp-exec-${computer.id}`}
@@ -436,7 +423,7 @@ export default function ProcedureDetailPage() {
               <CardHeader className="flex flex-row justify-between items-center">
                 <div>
                   <CardTitle>Execution History</CardTitle>
-                  <CardDescription>Status of past and current executions for this procedure (from API).</CardDescription>
+                  <CardDescription>Status of past and current executions for this procedure (Mock Data).</CardDescription>
                 </div>
                 <Button variant="outline" size="sm" onClick={refreshExecutions} disabled={isLoadingExecutions}>
                   {isLoadingExecutions ? <Loader2 className="h-4 w-4 animate-spin"/> : "Refresh"}
@@ -501,7 +488,7 @@ export default function ProcedureDetailPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div>
-                <Label htmlFor="aiInputLogs">Execution Logs (Optional, from last 30 days API data)</Label>
+                <Label htmlFor="aiInputLogs">Execution Logs (Optional, from mock data)</Label>
                 <Textarea
                   id="aiInputLogs"
                   value={aiInputLogs}
@@ -512,7 +499,7 @@ export default function ProcedureDetailPage() {
                 />
                  <Button variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => {
                     const recentLogs = executions.slice(0, 5).map(e => `Execution ID: ${e.id}\nComputer: ${e.computerName || e.computerId}\nStatus: ${e.status}\nStart: ${e.startTime}\nEnd: ${e.endTime}\nLogs:\n${e.logs}\nOutput: ${e.output || 'N/A'}\n---`).join('\n\n');
-                    setAiInputLogs(recentLogs || "No recent execution logs found from API for this procedure.");
+                    setAiInputLogs(recentLogs || "No recent execution logs found from mock data for this procedure.");
                     if (recentLogs) toast({title: "Loaded recent logs", description: "Up to 5 most recent execution logs loaded."});
                  }}>
                     Load recent execution logs

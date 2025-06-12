@@ -2,11 +2,10 @@
 "use client";
 
 import type { Computer, ScriptType, CustomCommand, ComputerGroup } from '@/types';
-import { scriptTypes } from '@/lib/mockData'; // scriptTypes is static and can remain
-import { fetchComputers, fetchGroups, sendCustomCommand, fetchCommandHistory } from '@/lib/apiClient';
+import { scriptTypes, getComputers, getGroups, addCustomCommand, getCommandHistory, getComputerById, getGroupById } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, TerminalSquare, ListChecks, Loader2 } from 'lucide-react';
+import { Send, ListChecks, Loader2 } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -26,7 +25,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type TargetType = "computer" | "group";
-const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_IN_MS = 30 * 24 * 60 * 60 * 1000; // For filtering display if needed
 
 export default function CommandsPage() {
   const { toast } = useToast();
@@ -51,39 +50,33 @@ export default function CommandsPage() {
 
   const [isSendingCommand, setIsSendingCommand] = useState(false);
 
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(() => {
     setIsLoadingHistory(true);
     setIsLoadingComputers(true);
     setIsLoadingGroups(true);
     setHistoryError(null);
 
-    try {
-      const [fetchedHistory, fetchedComputers, fetchedGroups] = await Promise.all([
-        fetchCommandHistory(),
-        fetchComputers(),
-        fetchGroups()
-      ]);
-      
-      // Filter history for last 30 days client-side if API doesn't do it
-      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-      const recentCommands = fetchedHistory.filter(cmd => {
-          const cmdTime = new Date(cmd.executedAt || 0).getTime();
-          return cmdTime >= thirtyDaysAgo;
-      }).sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
-      setCommandHistory(recentCommands);
-      
-      setAllComputers(fetchedComputers);
-      setAllGroups(fetchedGroups);
+    setTimeout(() => { // Simulate API delay
+        try {
+            const fetchedHistory = getCommandHistory();
+            const fetchedComputers = getComputers();
+            const fetchedGroups = getGroups();
+            
+            // Mock data is already sorted by mockData helper
+            setCommandHistory(fetchedHistory); 
+            setAllComputers(fetchedComputers);
+            setAllGroups(fetchedGroups);
 
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to load data for commands page.";
-      setHistoryError(errorMessage); // General error for now
-      toast({ title: "Error Loading Data", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoadingHistory(false);
-      setIsLoadingComputers(false);
-      setIsLoadingGroups(false);
-    }
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to load data for commands page (Mock).";
+            setHistoryError(errorMessage); 
+            toast({ title: "Error Loading Data (Mock)", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsLoadingHistory(false);
+            setIsLoadingComputers(false);
+            setIsLoadingGroups(false);
+        }
+    }, 500);
   }, [toast]);
 
   useEffect(() => {
@@ -99,27 +92,24 @@ export default function CommandsPage() {
     }
   }, [searchParams, allComputers]);
 
-  const refreshCommandHistory = useCallback(async () => {
+  const refreshCommandHistory = useCallback(() => {
     setIsLoadingHistory(true);
     setHistoryError(null);
-    try {
-      const fetchedHistory = await fetchCommandHistory();
-      const thirtyDaysAgo = Date.now() - THIRTY_DAYS_IN_MS;
-      const recentCommands = fetchedHistory.filter(cmd => {
-          const cmdTime = new Date(cmd.executedAt || new Date().toISOString()).getTime(); 
-          return cmdTime >= thirtyDaysAgo;
-      }).sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
-      setCommandHistory(recentCommands);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to refresh command history.";
-      setHistoryError(errorMessage);
-      toast({ title: "Error Refreshing History", description: errorMessage, variant: "destructive" });
-    } finally {
-      setIsLoadingHistory(false);
-    }
+    setTimeout(() => { // Simulate API delay
+        try {
+            const fetchedHistory = getCommandHistory();
+            setCommandHistory(fetchedHistory);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Failed to refresh command history (Mock).";
+            setHistoryError(errorMessage);
+            toast({ title: "Error Refreshing History (Mock)", description: errorMessage, variant: "destructive" });
+        } finally {
+            setIsLoadingHistory(false);
+        }
+    }, 300);
   }, [toast]);
 
-  const handleSendCommand = async () => {
+  const handleSendCommand = () => {
     let targetIdValue: string;
     let targetName: string | undefined;
     
@@ -129,21 +119,19 @@ export default function CommandsPage() {
         return;
       }
       targetIdValue = selectedComputerId;
-      targetName = allComputers.find(c => c.id === selectedComputerId)?.name;
+      targetName = getComputerById(selectedComputerId)?.name;
     } else { // targetType === "group"
       if (!selectedGroupId) {
         toast({ title: "Error", description: "Please select a target group.", variant: "destructive" });
         return;
       }
       targetIdValue = selectedGroupId;
-      targetName = allGroups.find(g => g.id === selectedGroupId)?.name;
-      const group = allGroups.find(g => g.id === selectedGroupId);
+      targetName = getGroupById(selectedGroupId)?.name;
+      const group = getGroupById(selectedGroupId);
       if (group) {
-        const onlineComputersInGroup = allComputers.filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
+        const onlineComputersInGroup = getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
         if (onlineComputersInGroup.length === 0) {
-            toast({ title: "Info", description: `No online computers in group "${targetName}". Command not sent to group members.`, variant: "default" });
-            // Depending on API, it might still log a "command sent to group" entry.
-            // Or you might prevent sending entirely here. Let's assume API handles group expansion.
+            toast({ title: "Info", description: `No online computers in group "${targetName}". Command not sent to group members (Mock).`, variant: "default" });
         }
       }
     }
@@ -155,22 +143,22 @@ export default function CommandsPage() {
     
     setIsSendingCommand(true);
     try {
-      await sendCustomCommand({
+      addCustomCommand({
         targetId: targetIdValue,
         targetType: targetType,
         command: commandContent,
         scriptType: commandScriptType,
       });
-      toast({ title: "Command Sent", description: `Custom command sent to ${targetType} "${targetName}". Check history for status.` });
+      toast({ title: "Command Sent (Mock)", description: `Custom command sent to ${targetType} "${targetName}". Check history for status.` });
       setCommandContent(''); 
-      // Refresh history after a short delay to allow API to process
+      // Refresh history after a short delay to allow mock data to process
       setTimeout(() => {
         refreshCommandHistory();
+        setIsSendingCommand(false);
       }, 1500);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Failed to send command.";
+      const errorMessage = error instanceof Error ? error.message : "Failed to send command (Mock).";
       toast({ title: "Error Sending Command", description: errorMessage, variant: "destructive" });
-    } finally {
       setIsSendingCommand(false);
     }
   };
@@ -179,23 +167,24 @@ export default function CommandsPage() {
     switch (status) {
       case 'Success': return 'bg-green-500 hover:bg-green-600';
       case 'Failed': return 'bg-red-500 hover:bg-red-600';
-      case 'Sent': return 'bg-blue-500 hover:bg-blue-600'; // Or any color for 'Sent' if different from 'Pending'
-      case 'Pending': return 'bg-yellow-500 hover:bg-yellow-600'; // Or any color for 'Pending'
+      case 'Sent': return 'bg-blue-500 hover:bg-blue-600';
+      case 'Pending': return 'bg-yellow-500 hover:bg-yellow-600';
       default: return 'secondary';
     }
   };
   
   const getTargetName = (command: CustomCommand): string => {
     if (command.targetType === 'group') {
-      const group = allGroups.find(g => g.id === command.targetId);
+      const group = allGroups.find(g => g.id === command.targetId); // targetId is groupId for group commands
       let name = group ? `Group: ${group.name}` : `Group ID: ${command.targetId}`;
-      if (command.computerId) { // If API specifies which computer in the group it ran on
+      // For mock data, command.computerId specifies the member it ran on if it's a group command log
+      if (command.computerId && command.computerId !== command.targetId) { 
         const computer = allComputers.find(c => c.id === command.computerId);
         name += computer ? ` (on ${computer.name})` : ` (on Comp ID: ${command.computerId})`;
       }
       return name;
     } else { // computer
-      const computer = allComputers.find(c => c.id === command.targetId);
+      const computer = allComputers.find(c => c.id === command.targetId); // targetId is computerId for single commands
       return computer ? computer.name : `Computer ID: ${command.targetId}`;
     }
   };
@@ -210,7 +199,7 @@ export default function CommandsPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Execute Custom Command</CardTitle>
-          <CardDescription>Send a single command or script to a specific computer or an entire group. (Uses API)</CardDescription>
+          <CardDescription>Send a single command or script to a specific computer or an entire group (Mock Data).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -310,7 +299,7 @@ export default function CommandsPage() {
       <Card>
         <CardHeader className="flex flex-row justify-between items-center">
             <div>
-                <CardTitle>Command History (Last 30 Days - from API)</CardTitle>
+                <CardTitle>Command History (Mock Data)</CardTitle>
                 <CardDescription>Recent custom commands executed.</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={refreshCommandHistory} disabled={isLoadingHistory}>
@@ -329,7 +318,7 @@ export default function CommandsPage() {
            ): commandHistory.length === 0 ? (
              <div className="text-center py-8 text-muted-foreground">
                 <ListChecks className="mx-auto h-10 w-10 mb-2" />
-                No commands found in the last 30 days.
+                No commands found in mock data.
             </div>
            ) : (
             <ScrollArea className="h-96">

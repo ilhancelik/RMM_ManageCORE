@@ -2,11 +2,10 @@
 "use client";
 
 import type { Procedure, ScriptType } from '@/types';
-import { scriptTypes } from '@/lib/mockData'; // scriptTypes can remain from mockData as it's static
-import { fetchProcedures, createProcedure, updateProcedure, deleteProcedure } from '@/lib/apiClient';
+import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock } from '@/lib/mockData'; 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Play, FileCode, Eye, ListFilter, Loader2 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -15,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,25 +47,32 @@ export default function ProceduresPage() {
   const [procedureScriptType, setProcedureScriptType] = useState<ScriptType>('CMD');
   const [procedureScriptContent, setProcedureScriptContent] = useState('');
 
-  const loadProcedures = useCallback(async () => {
+  const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
+
+
+  const loadMockProcedures = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    try {
-      const fetchedProcedures = await fetchProcedures();
-      setProcedures(fetchedProcedures);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load procedures.';
-      setError(errorMessage);
-      toast({ title: "Error Loading Procedures", description: errorMessage, variant: "destructive" });
-      setProcedures([]);
-    } finally {
-      setIsLoading(false);
-    }
+    // Simulate delay for mock data
+    setTimeout(() => {
+      try {
+        setProcedures(getProcedures());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load procedures from mock.';
+        setError(errorMessage);
+        toast({ title: "Error Loading Procedures (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
   }, [toast]);
 
   useEffect(() => {
-    loadProcedures();
-  }, [loadProcedures]);
+    loadMockProcedures();
+  }, [loadMockProcedures]);
+  
+  const filteredProcedures = procedures.filter(proc => filterType === 'All' || proc.scriptType === filterType);
+
 
   const resetForm = () => {
     setProcedureName('');
@@ -96,58 +101,56 @@ export default function ProceduresPage() {
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!procedureName.trim() || !procedureScriptContent.trim()) {
         toast({ title: "Validation Error", description: "Procedure Name and Script Content are required.", variant: "destructive"});
         return;
     }
     setIsSubmitting(true);
     try {
+      const procData = {
+        name: procedureName,
+        description: procedureDescription,
+        scriptType: procedureScriptType,
+        scriptContent: procedureScriptContent,
+      };
       if (isEditMode && currentProcedure) {
-        const updatedData = {
-          name: procedureName,
-          description: procedureDescription,
-          scriptType: procedureScriptType,
-          scriptContent: procedureScriptContent,
-          // updatedAt will be set by the API
-        };
-        await updateProcedure(currentProcedure.id, updatedData);
-        toast({title: "Success", description: `Procedure "${procedureName}" updated.`});
+        updateProcedureInMock(currentProcedure.id, procData);
+        toast({title: "Success", description: `Procedure "${procedureName}" updated (Mock).`});
       } else {
-        const newProcedureData = {
-          name: procedureName,
-          description: procedureDescription,
-          scriptType: procedureScriptType,
-          scriptContent: procedureScriptContent,
-          // createdAt and updatedAt will be set by the API
-        };
-        await createProcedure(newProcedureData);
-        toast({title: "Success", description: `Procedure "${procedureName}" created.`});
+        addProcedure(procData);
+        toast({title: "Success", description: `Procedure "${procedureName}" created (Mock).`});
       }
-      resetForm();
-      setIsModalOpen(false);
-      loadProcedures(); // Refresh the list
+      
+      setTimeout(() => { // Simulate API delay
+        resetForm();
+        setIsModalOpen(false);
+        loadMockProcedures(); // Refresh the list
+        setIsSubmitting(false);
+      }, 500);
+
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: isEditMode ? "Error Updating Procedure" : "Error Creating Procedure", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (procedureId: string, procedureNameText: string) => {
+  const handleDelete = (procedureId: string, procedureNameText: string) => {
     if (!window.confirm(`Are you sure you want to delete procedure "${procedureNameText}"? This action cannot be undone.`)) {
         return;
     }
-    setIsSubmitting(true); // Disable buttons during delete
+    setIsSubmitting(true);
     try {
-        await deleteProcedure(procedureId);
-        toast({title: "Success", description: `Procedure "${procedureNameText}" deleted.`});
-        loadProcedures(); // Refresh the list
+        deleteProcedureFromMock(procedureId);
+        toast({title: "Success", description: `Procedure "${procedureNameText}" deleted (Mock).`});
+        setTimeout(() => { // Simulate API delay
+          loadMockProcedures(); // Refresh the list
+          setIsSubmitting(false);
+        }, 500);
     } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: "Error Deleting Procedure", description: errorMessage, variant: "destructive"});
-    } finally {
         setIsSubmitting(false);
     }
   };
@@ -228,7 +231,7 @@ export default function ProceduresPage() {
     return (
       <div className="container mx-auto py-10 text-center text-destructive">
         <p>{error}</p>
-        <Button onClick={loadProcedures} variant="outline" className="mt-4">Retry</Button>
+        <Button onClick={loadMockProcedures} variant="outline" className="mt-4">Retry</Button>
       </div>
     );
   }
@@ -241,30 +244,30 @@ export default function ProceduresPage() {
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline">
-                        <ListFilter className="mr-2 h-4 w-4" /> Filter
+                        <ListFilter className="mr-2 h-4 w-4" /> Filter ({filterType})
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setFilterType('All')}>All</DropdownMenuItem>
                     {scriptTypes.map(type => (
-                        <DropdownMenuItem key={type} onSelect={() => { /* TODO: Implement client-side filter or API filter param */ }}>{type}</DropdownMenuItem>
+                        <DropdownMenuItem key={type} onSelect={() => setFilterType(type)}>{type}</DropdownMenuItem>
                     ))}
-                     <DropdownMenuItem onSelect={() => { /* TODO: Implement filter */ }}>All</DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={handleOpenCreateModal}>
+            <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Create Procedure
             </Button>
         </div>
       </div>
       
-      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if (!isSubmitting) setIsModalOpen(isOpen); }}>
+      <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if (!isSubmitting) setIsModalOpen(isOpen); if (!isOpen) resetForm(); }}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit Procedure' : 'Create New Procedure'}</DialogTitle>
             <DialogDescription>
-              {isEditMode ? 'Update the details of your existing procedure.' : 'Define a new script or set of commands to run on managed computers.'}
+              {isEditMode ? 'Update the details of your existing procedure.' : 'Define a new script or set of commands to run on managed computers (Mock Data).'}
             </DialogDescription>
           </DialogHeader>
           {ProcedureFormFields}
@@ -278,22 +281,26 @@ export default function ProceduresPage() {
         </DialogContent>
       </Dialog>
 
-      {procedures.length === 0 && !isLoading ? (
+      {filteredProcedures.length === 0 && !isLoading ? (
          <Card className="text-center py-10">
             <CardHeader>
                 <FileCode className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>No Procedures Yet</CardTitle>
-                <CardDescription>Create procedures to automate tasks on your computers. Use the button above to get started.</CardDescription>
+                <CardTitle>{filterType === 'All' ? 'No Procedures Yet' : `No ${filterType} Procedures`}</CardTitle>
+                <CardDescription>
+                    {filterType === 'All' 
+                     ? 'Create procedures to automate tasks on your computers. Use the button above to get started.'
+                     : `No procedures found for type "${filterType}". Try a different filter or create one.`}
+                </CardDescription>
             </CardHeader>
              <CardContent>
-                 <Button onClick={handleOpenCreateModal}>
+                 <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Procedure
                 </Button>
             </CardContent>
         </Card>
       ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {procedures.map((procedure) => (
+          {filteredProcedures.map((procedure) => (
             <Card key={procedure.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex justify-between items-start">
@@ -316,10 +323,10 @@ export default function ProceduresPage() {
                         <Eye className="mr-2 h-4 w-4" /> View
                     </Link>
                  </Button>
-                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(procedure)}>
+                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(procedure)} disabled={isSubmitting}>
                     <Edit className="mr-2 h-4 w-4" /> Edit
                  </Button>
-                 <Button variant="destructive" size="sm" onClick={() => handleDelete(procedure.id, procedure.name)}>
+                 <Button variant="destructive" size="sm" onClick={() => handleDelete(procedure.id, procedure.name)} disabled={isSubmitting}>
                     <Trash2 className="mr-2 h-4 w-4" /> Delete
                  </Button>
               </CardFooter>

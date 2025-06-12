@@ -3,9 +3,9 @@
 
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { fetchComputers, fetchExecutions, fetchMonitorLogs } from '@/lib/apiClient'; 
+import { getComputers, getExecutions, getMonitorLogs } from '@/lib/mockData'; 
 import type { Computer, ProcedureExecution, MonitorExecutionLog } from '@/types'; 
-import { BarChart, CircleDollarSign, Cpu, HardDrive, MemoryStick, Activity, ListChecks, PieChart, AlertTriangle, Loader2 } from 'lucide-react';
+import { Cpu, HardDrive, MemoryStick, Activity, ListChecks, PieChart, AlertTriangle, Loader2 } from 'lucide-react';
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts'; 
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const [monitorLogsError, setMonitorLogsError] = useState<string | null>(null);
 
 
-  const loadDashboardData = useCallback(async () => {
+  const loadDashboardData = useCallback(() => {
     setIsLoadingComputers(true);
     setComputerError(null);
     setIsLoadingExecutions(true);
@@ -38,32 +38,29 @@ export default function DashboardPage() {
     setIsLoadingMonitorLogs(true);
     setMonitorLogsError(null);
 
-    try {
-      const [fetchedComputers, fetchedExecutions, fetchedMonitorLogsResult] = await Promise.all([
-        fetchComputers(),
-        fetchExecutions(), // Fetch all recent executions
-        fetchMonitorLogs()
-      ]);
-      setComputers(fetchedComputers);
-      setProcedureExecutions(fetchedExecutions);
-      setMonitorLogs(fetchedMonitorLogsResult);
-
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data.';
-      if (!computers.length && !computerError) setComputerError(errorMessage);
-      if (!procedureExecutions.length && !executionsError) setExecutionsError(errorMessage);
-      if (!monitorLogs.length && !monitorLogsError) setMonitorLogsError(errorMessage);
-      
-      toast({
-        title: "Error Loading Dashboard Data",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingComputers(false);
-      setIsLoadingExecutions(false);
-      setIsLoadingMonitorLogs(false);
-    }
+    // Simulate data fetching delay for mock data
+    setTimeout(() => {
+      try {
+        setComputers(getComputers());
+        setProcedureExecutions(getExecutions());
+        setMonitorLogs(getMonitorLogs());
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data from mocks.';
+        if (!computers.length && !computerError) setComputerError(errorMessage);
+        if (!procedureExecutions.length && !executionsError) setExecutionsError(errorMessage);
+        if (!monitorLogs.length && !monitorLogsError) setMonitorLogsError(errorMessage);
+        
+        toast({
+          title: "Error Loading Dashboard Data (Mock)",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingComputers(false);
+        setIsLoadingExecutions(false);
+        setIsLoadingMonitorLogs(false);
+      }
+    }, 500); // 0.5 second delay
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toast]); 
 
@@ -130,7 +127,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalComputers}</div>
-            <p className="text-xs text-muted-foreground">Managed devices from API</p>
+            <p className="text-xs text-muted-foreground">Managed devices (Mock Data)</p>
           </CardContent>
         </Card>
         <Card>
@@ -170,7 +167,7 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-6">
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ListChecks /> Procedure Status (API)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><ListChecks /> Procedure Status (Mock)</CardTitle>
             <CardDescription>Overall success/failure of procedure executions.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] flex items-center justify-center">
@@ -198,7 +195,7 @@ export default function DashboardPage() {
         </Card>
         <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><AlertTriangle /> Monitor Alerts (Last 30 Days - API)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><AlertTriangle /> Monitor Alerts (Last 30 Days - Mock)</CardTitle>
             <CardDescription>Total critical alerts from monitors.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] flex flex-col items-center justify-center">
@@ -217,14 +214,14 @@ export default function DashboardPage() {
                     <p className="text-muted-foreground mt-2">
                         {recentMonitorAlertsCount > 0 ? 'Alerts Requiring Attention' : 'No Critical Alerts'}
                     </p>
-                    {monitorLogs.length === 0 && !monitorLogsError && <p className="text-xs text-muted-foreground mt-4">No monitor log data found from API.</p>}
+                    {monitorLogs.length === 0 && !monitorLogsError && <p className="text-xs text-muted-foreground mt-4">No monitor log data found from mock data.</p>}
                 </>
             )}
           </CardContent>
         </Card>
          <Card className="lg:col-span-1">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Activity /> System Health (API)</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Activity /> System Health (Mock)</CardTitle>
              <CardDescription>Average resource usage across online systems.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] space-y-4 pt-6">
@@ -264,7 +261,7 @@ export default function DashboardPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>All Managed Computers (from API)</CardTitle>
+          <CardTitle>All Managed Computers (Mock Data)</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoadingComputers ? (
@@ -282,7 +279,7 @@ export default function DashboardPage() {
           ) : computers.length > 0 ? (
             <ComputerTable computers={computers} />
           ) : (
-            <p className="text-center text-muted-foreground py-8">No computers found. Ensure your API at {process.env.NEXT_PUBLIC_API_BASE_URL}/computers is running and returning data.</p>
+            <p className="text-center text-muted-foreground py-8">No computers found in mock data.</p>
           )}
         </CardContent>
       </Card>
