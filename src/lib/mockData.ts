@@ -125,7 +125,7 @@ export let mockAiSettings: AiSettings = {
       id: 'default-google-ai',
       name: 'Default Google AI',
       providerType: 'googleAI',
-      apiKey: '', // Empty string means Genkit will try to use env var
+      apiKey: '', 
       isEnabled: true,
       isDefault: true,
     }
@@ -220,7 +220,7 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
   const oldGroupIndex = mockComputerGroups.findIndex(g => g.id === id);
   if (oldGroupIndex === -1) return undefined;
 
-  const oldGroup = { ...mockComputerGroups[oldGroupIndex] }; // Shallow copy for old state
+  const oldGroup = { ...mockComputerGroups[oldGroupIndex] }; 
   
   updatedGroup = { ...oldGroup, ...updates };
   mockComputerGroups[oldGroupIndex] = updatedGroup;
@@ -242,6 +242,9 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
       const comp = getComputerById(compId);
       if (comp && !(comp.groupIds || []).includes(id)) {
         updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
+      }
+      // Trigger for genuinely new members to this group context
+      if (comp && !oldGroup.computerIds.includes(compId)) {
         triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id);
       }
     }
@@ -478,56 +481,87 @@ export const saveSmtpSettings = (settings: SMTPSettings): SMTPSettings => {
   return mockSmtpSettings;
 };
 
-export const getAiSettings = (): AiSettings => mockAiSettings;
-export const saveAiSettings = (settings: AiSettings): AiSettings => {
-  let updatedSettings = { ...settings };
-  let providerConfigs = [...updatedSettings.providerConfigs];
-
-  const defaultProviderIndex = providerConfigs.findIndex(p => p.isDefault);
-  const enabledProviders = providerConfigs.filter(p => p.isEnabled);
-
-  if (defaultProviderIndex === -1 && enabledProviders.length > 0) {
-    // No default, set the first enabled one as default
-    const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
-    if (firstEnabledIndex !== -1) {
-      providerConfigs[firstEnabledIndex].isDefault = true;
-    }
-  } else if (defaultProviderIndex !== -1 && !providerConfigs[defaultProviderIndex].isEnabled) {
-    // Default is disabled, try to set another enabled one as default
-    providerConfigs[defaultProviderIndex].isDefault = false;
-    if (enabledProviders.length > 0) {
-      const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
-       if (firstEnabledIndex !== -1) {
-         providerConfigs[firstEnabledIndex].isDefault = true;
-       }
+export const getAiSettings = (): AiSettings => {
+  // Ensure mockAiSettings is initialized properly before returning
+  if (!mockAiSettings.providerConfigs) {
+    mockAiSettings.providerConfigs = [];
+  }
+  // Basic validation: if there's no default provider, try to set one.
+  const hasDefault = mockAiSettings.providerConfigs.some(p => p.isDefault && p.isEnabled);
+  if (!hasDefault) {
+    const firstEnabled = mockAiSettings.providerConfigs.find(p => p.isEnabled);
+    if (firstEnabled) {
+      firstEnabled.isDefault = true;
+    } else if (mockAiSettings.providerConfigs.length > 0) {
+      // If no provider is enabled, but providers exist, make the first one default and enable it.
+      // This ensures there's always a "best effort" default if configs exist.
+      // mockAiSettings.providerConfigs[0].isDefault = true;
+      // mockAiSettings.providerConfigs[0].isEnabled = true; 
+      // Commented out: Let saveAiSettings handle this enforcement more explicitly.
     }
   }
-  
-  // Ensure only one default
-  let defaultFound = false;
-  providerConfigs = providerConfigs.map(p => {
-      if (p.isDefault) {
-          if (defaultFound || !p.isEnabled) {
-              return { ...p, isDefault: false };
-          }
-          defaultFound = true;
-      }
-      return p;
-  });
-  
-  // If still no default and there are enabled providers, set the first enabled one.
-  if (!defaultFound && enabledProviders.length > 0) {
-      const firstEnabledIndex = providerConfigs.findIndex(p => p.id === enabledProviders[0].id);
-      if (firstEnabledIndex !== -1) {
-         providerConfigs[firstEnabledIndex].isDefault = true;
-      }
-  }
-
-
-  updatedSettings.providerConfigs = providerConfigs;
-  mockAiSettings = updatedSettings;
   return mockAiSettings;
 };
+
+export const saveAiSettings = (settings: AiSettings): AiSettings => {
+  let newProviderConfigs = [...(settings.providerConfigs || [])];
+  let defaultProviderId: string | null = null;
+
+  // Pass 1: Identify the provider intended to be default by the user (if any)
+  // and ensure it's marked as enabled. Clear isDefault from others.
+  let explicitlySetDefaultExists = false;
+  newProviderConfigs.forEach(p => {
+    if (p.isDefault) {
+      if (!explicitlySetDefaultExists) {
+        defaultProviderId = p.id;
+        p.isEnabled = true; // A provider marked as default MUST be enabled.
+        explicitlySetDefaultExists = true;
+      } else {
+        p.isDefault = false; // Only one default allowed.
+      }
+    }
+  });
+
+  // Pass 2: If no provider was explicitly set as default (or the one set was invalid),
+  // find the first *enabled* provider and make it default.
+  if (!defaultProviderId) {
+    const firstEnabledProvider = newProviderConfigs.find(p => p.isEnabled);
+    if (firstEnabledProvider) {
+      firstEnabledProvider.isDefault = true;
+      defaultProviderId = firstEnabledProvider.id;
+       // Ensure it's also marked as enabled (though it should be by find condition)
+      firstEnabledProvider.isEnabled = true; 
+    }
+  }
+  
+  // Pass 3: If still no default provider (e.g., all are disabled or list is empty),
+  // and if there are providers, make the very first one default and enable it.
+  // This ensures there's a default if any configs exist at all.
+   if (!defaultProviderId && newProviderConfigs.length > 0) {
+    newProviderConfigs[0].isDefault = true;
+    newProviderConfigs[0].isEnabled = true;
+    defaultProviderId = newProviderConfigs[0].id;
+  }
+
+
+  // Final pass to ensure only the true default has isDefault = true
+  // and is enabled.
+  if (defaultProviderId) {
+    newProviderConfigs = newProviderConfigs.map(p => ({
+      ...p,
+      isDefault: p.id === defaultProviderId,
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, // Default is always enabled
+    }));
+  }
+
+
+  mockAiSettings = {
+    ...settings,
+    providerConfigs: newProviderConfigs,
+  };
+  return mockAiSettings;
+};
+
 
 export const triggerAutomatedProceduresForNewMember = (computerId: string, groupId: string) => {
     const group = getGroupById(groupId);
