@@ -179,7 +179,7 @@ export default function CommandsPage() {
       targetName = group?.name;
       if (group) {
         const onlineComputersInGroup = getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
-        if (onlineComputersInGroup.length === 0 && executionMode === "procedure") { // Only block for procedures if no online members
+        if (onlineComputersInGroup.length === 0 && executionMode === "procedure") { 
             toast({ title: "Info", description: `No online computers in group "${targetName}" to run procedure.`, variant: "default" });
             return;
         }
@@ -333,20 +333,26 @@ export default function CommandsPage() {
                 />
               </div>
               <Select 
+                key={`target-computer-select-${targetComputerSearchTerm}`}
                 value={selectedComputerId} 
                 onValueChange={setSelectedComputerId} 
                 disabled={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 && !!targetComputerSearchTerm}
               >
                 <SelectTrigger id="targetComputer">
-                  <SelectValue placeholder={filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 ? (targetComputerSearchTerm ? "No online computers match search" : "No online computers available") : "Select an online computer"} />
+                  <SelectValue placeholder={
+                      isLoadingComputers ? "Loading computers..." :
+                      filteredComputersForSelect.filter(c => c.status === 'Online').length === 0 ?
+                          (targetComputerSearchTerm ? "No online computers match search" : "No online computers available") :
+                      "Select an online computer"
+                  } />
                 </SelectTrigger>
-                <SelectContent key={`target-computer-content-${targetComputerSearchTerm}`}>
+                <SelectContent>
                   {filteredComputersForSelect.filter(c => c.status === 'Online').map(computer => (
                     <SelectItem key={computer.id} value={computer.id}>
                       {computer.name} ({computer.ipAddress})
                     </SelectItem>
                   ))}
-                  {filteredComputersForSelect.filter(c => c.status !== 'Online').length > 0 && filteredComputersForSelect.filter(c => c.status === 'Online').length > 0 && <React.Fragment><SelectItem value="disabled-sep" disabled className="font-semibold text-muted-foreground opacity-100 pointer-events-none">--- Offline / Other ---</SelectItem></React.Fragment>}
+                  {filteredComputersForSelect.filter(c => c.status !== 'Online').length > 0 && filteredComputersForSelect.filter(c => c.status === 'Online').length > 0 && <React.Fragment><SelectItem value="disabled-sep" disabled className="font-semibold text-muted-foreground opacity-100 pointer-events-none mt-2 pt-2 border-t">--- Offline / Other ---</SelectItem></React.Fragment>}
                   {filteredComputersForSelect.filter(c => c.status !== 'Online').map(computer => (
                     <SelectItem key={computer.id} value={computer.id} disabled>
                       {computer.name} ({computer.status})
@@ -372,14 +378,20 @@ export default function CommandsPage() {
                 />
               </div>
               <Select 
+                key={`target-group-select-${targetGroupSearchTerm}`}
                 value={selectedGroupId} 
                 onValueChange={setSelectedGroupId} 
                 disabled={filteredGroupsForSelect.length === 0 && !!targetGroupSearchTerm}
               >
                 <SelectTrigger id="targetGroup">
-                  <SelectValue placeholder={filteredGroupsForSelect.length === 0 ? (targetGroupSearchTerm ? "No groups match search" : "No groups available") : "Select a group"} />
+                  <SelectValue placeholder={
+                      isLoadingGroups ? "Loading groups..." :
+                      filteredGroupsForSelect.length === 0 ?
+                          (targetGroupSearchTerm ? "No groups match search" : "No groups available") :
+                      "Select a group"
+                  } />
                 </SelectTrigger>
-                <SelectContent key={`target-group-content-${targetGroupSearchTerm}`}>
+                <SelectContent>
                   {filteredGroupsForSelect.map(group => (
                     <SelectItem key={group.id} value={group.id}>
                       {group.name} ({group.computerIds.length} computer(s))
@@ -450,14 +462,20 @@ export default function CommandsPage() {
                         />
                     </div>
                     <Select 
+                        key={`select-procedure-${procedureSelectSearchTerm}`}
                         value={selectedProcedureIdForExecution} 
                         onValueChange={setSelectedProcedureIdForExecution} 
                         disabled={filteredProceduresForSelect.length === 0 && !!procedureSelectSearchTerm}
                     >
                         <SelectTrigger id="selectProcedure">
-                        <SelectValue placeholder={filteredProceduresForSelect.length === 0 ? (procedureSelectSearchTerm ? "No procedures match search" : "No procedures available") : "Select a procedure"} />
+                        <SelectValue placeholder={
+                           isLoadingProcedures ? "Loading procedures..." :
+                           filteredProceduresForSelect.length === 0 ?
+                               (procedureSelectSearchTerm ? "No procedures match search" : "No procedures available") :
+                           "Select a procedure"
+                        } />
                         </SelectTrigger>
-                        <SelectContent key={`select-procedure-content-${procedureSelectSearchTerm}`}>
+                        <SelectContent>
                         {filteredProceduresForSelect.map(proc => (
                             <SelectItem key={proc.id} value={proc.id}>
                             {proc.name} ({proc.scriptType})
@@ -539,3 +557,6 @@ export default function CommandsPage() {
     </div>
   );
 }
+
+
+    
