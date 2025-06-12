@@ -22,7 +22,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Separator } from '@/components/ui/separator';
 
@@ -38,6 +37,7 @@ const initialSmtpSettingsState: SMTPSettings = {
 
 const initialAiSettingsState: AiSettings = {
   globalGenerationEnabled: true,
+  scriptGenerationEnabled: true, // Added this based on previous discussions, ensure it's in types if used
   providerConfigs: [],
 };
 
@@ -80,7 +80,6 @@ export default function SettingsPage() {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load SMTP settings from mock.';
         setSmtpError(errorMessage);
-        // toast({ title: "Error Loading SMTP Settings (Mock)", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoadingSmtp(false);
       }
@@ -91,12 +90,11 @@ export default function SettingsPage() {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load AI settings from mock.';
         setAiError(errorMessage);
-        // toast({ title: "Error Loading AI Settings (Mock)", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoadingAi(false);
       }
     }, 300);
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     loadMockSettings();
@@ -110,10 +108,10 @@ export default function SettingsPage() {
     }));
   };
 
-   const handleSmtpCheckboxChange = (name: keyof SMTPSettings, checked: boolean) => {
+   const handleSmtpCheckboxChange = (name: keyof SMTPSettings, checkedValue: boolean) => {
     setSmtpSettings(prev => ({
       ...prev,
-      [name]: checked,
+      [name]: checkedValue,
     }));
   };
 
@@ -145,8 +143,8 @@ export default function SettingsPage() {
     }
   };
 
-  const handleGlobalAiEnableChange = (checked: boolean) => {
-    setAiSettings(prev => ({...prev, globalGenerationEnabled: checked }));
+  const handleGlobalAiEnableChange = (checkedValue: boolean) => {
+    setAiSettings(prev => ({...prev, globalGenerationEnabled: checkedValue, scriptGenerationEnabled: checkedValue }));
   };
   
   const handleAiProviderConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -154,8 +152,8 @@ export default function SettingsPage() {
     setCurrentAiProviderConfig(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleAiProviderSwitchChange = (fieldName: keyof AiProviderConfig, checked: boolean) => {
-    setCurrentAiProviderConfig(prev => ({ ...prev, [fieldName]: checked }));
+  const handleAiProviderSwitchChange = (fieldName: keyof AiProviderConfig, checkedValue: boolean) => {
+    setCurrentAiProviderConfig(prev => ({ ...prev, [fieldName]: checkedValue }));
   };
   
   const openAddAiProviderModal = () => {
@@ -177,37 +175,37 @@ export default function SettingsPage() {
     }
 
     let updatedProviders: AiProviderConfig[];
+    const providerToSave: AiProviderConfig = {
+        id: currentAiProviderConfig.id || `ai-provider-${Date.now()}`,
+        name: currentAiProviderConfig.name || '',
+        providerType: currentAiProviderConfig.providerType || 'googleAI',
+        apiKey: currentAiProviderConfig.apiKey,
+        isEnabled: !!currentAiProviderConfig.isEnabled,
+        isDefault: !!currentAiProviderConfig.isDefault,
+    };
+
+
     if (isEditingAiProvider && currentAiProviderConfig.id) {
       updatedProviders = aiSettings.providerConfigs.map(p => 
-        p.id === currentAiProviderConfig.id ? { ...p, ...currentAiProviderConfig } as AiProviderConfig : p
+        p.id === currentAiProviderConfig.id ? providerToSave : p
       );
     } else {
-      const newProvider: AiProviderConfig = {
-        ...initialAiProviderConfigState,
-        ...currentAiProviderConfig,
-        id: `ai-provider-${Date.now()}`,
-        providerType: 'googleAI', // For now fixed
-      };
-      updatedProviders = [...aiSettings.providerConfigs, newProvider];
+      updatedProviders = [...aiSettings.providerConfigs, providerToSave];
     }
     
-    // Ensure only one default if new/edited one is set to default
-    if (currentAiProviderConfig.isDefault) {
+    if (providerToSave.isDefault) {
         updatedProviders = updatedProviders.map(p => 
-            p.id === (currentAiProviderConfig.id || `ai-provider-${Date.now()}`) // Match new or existing
-            ? p 
-            : { ...p, isDefault: false }
+            p.id === providerToSave.id ? p : { ...p, isDefault: false }
         );
     }
 
-
     const newSettings = { ...aiSettings, providerConfigs: updatedProviders };
     setAiSettings(newSettings); 
-    saveAiSettings(newSettings); // Save to mockData, which also handles default logic
+    saveAiSettings(newSettings); 
     
     toast({ title: "Success", description: `AI Provider configuration ${isEditingAiProvider ? 'updated' : 'added'}.` });
     setIsAiProviderModalOpen(false);
-    loadMockSettings(); // Reload to reflect changes from saveAiSettings logic
+    loadMockSettings(); 
   };
 
   const handleDeleteAiProvider = (providerId: string) => {
@@ -235,14 +233,14 @@ export default function SettingsPage() {
       loadMockSettings();
   };
 
-  const handleToggleProviderEnabled = (providerId: string, isEnabled: boolean) => {
+  const handleToggleProviderEnabled = (providerId: string, newCheckedState: boolean) => {
     const updatedConfigs = aiSettings.providerConfigs.map(p =>
-      p.id === providerId ? { ...p, isEnabled } : p
+      p.id === providerId ? { ...p, isEnabled: newCheckedState } : p
     );
     const newSettings = { ...aiSettings, providerConfigs: updatedConfigs };
     setAiSettings(newSettings);
-    saveAiSettings(newSettings); // This will handle default logic if the current default is disabled
-    toast({ title: "Provider Status Updated", description: `Provider ${isEnabled ? 'enabled' : 'disabled'}.`});
+    saveAiSettings(newSettings); 
+    toast({ title: "Provider Status Updated", description: `Provider ${newCheckedState ? 'enabled' : 'disabled'}.`});
     loadMockSettings();
   };
 
@@ -257,7 +255,7 @@ export default function SettingsPage() {
             title: 'Success!',
             description: 'Global AI settings have been saved to mock data.',
         });
-        loadMockSettings(); // Reload to ensure consistency
+        loadMockSettings(); 
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving AI settings (Mock).';
         setAiError(errorMessage);
@@ -273,7 +271,7 @@ export default function SettingsPage() {
 
   const canDeleteProvider = (provider: AiProviderConfig) => {
     if (provider.isDefault && aiSettings.providerConfigs.filter(p => p.isEnabled).length <= 1) {
-      return false; // Cannot delete the only enabled default provider
+      return false; 
     }
     return true;
   };
@@ -314,7 +312,7 @@ export default function SettingsPage() {
                 <Input id="port" name="port" type="number" value={smtpSettings.port} onChange={handleSmtpChange} placeholder="e.g., 587" required disabled={isSubmittingSmtp}/>
                 </div>
                 <div className="flex items-center space-x-2">
-                <Checkbox id="secure" name="secure" checked={smtpSettings.secure} onCheckedChange={(checked) => handleSmtpCheckboxChange('secure', !!checked)} disabled={isSubmittingSmtp}/>
+                <Checkbox id="secure" name="secure" checked={smtpSettings.secure} onCheckedChange={(checkedValue) => handleSmtpCheckboxChange('secure', !!checkedValue)} disabled={isSubmittingSmtp}/>
                 <Label htmlFor="secure" className="font-normal">Use TLS/SSL</Label>
                 </div>
                 <div>
@@ -407,8 +405,8 @@ export default function SettingsPage() {
                                             </div>
                                             <Switch
                                                 checked={provider.isEnabled}
-                                                onCheckedChange={(checked) => handleToggleProviderEnabled(provider.id, checked)}
-                                                disabled={isSubmittingAi || !aiSettings.globalGenerationEnabled || (provider.isDefault && aiSettings.providerConfigs.filter(p=>p.isEnabled).length === 1 && checked)}
+                                                onCheckedChange={(newCheckedState) => handleToggleProviderEnabled(provider.id, newCheckedState)}
+                                                disabled={isSubmittingAi || !aiSettings.globalGenerationEnabled || (provider.isDefault && provider.isEnabled && aiSettings.providerConfigs.filter(p=>p.isEnabled).length === 1)}
                                                 title={provider.isEnabled ? "Disable Provider" : "Enable Provider"}
                                             />
                                         </div>
@@ -484,23 +482,31 @@ export default function SettingsPage() {
                 <Switch 
                     id="providerIsEnabled"
                     checked={!!currentAiProviderConfig.isEnabled}
-                    onCheckedChange={(checked) => handleAiProviderSwitchChange('isEnabled', checked)}
+                    onCheckedChange={(checkedValue) => handleAiProviderSwitchChange('isEnabled', checkedValue)}
                 />
                 <Label htmlFor="providerIsEnabled" className="font-normal">Enable this configuration</Label>
             </div>
-            {aiSettings.providerConfigs.filter(p => p.isEnabled && p.id !== currentAiProviderConfig.id).length > 0 && currentAiProviderConfig.isEnabled && (
+            {/* Only show "Set as default" if it can actually be set as default (i.e., it's enabled) */}
+            {currentAiProviderConfig.isEnabled && (
                 <div className="flex items-center space-x-2">
                     <Checkbox
                         id="providerIsDefault"
                         checked={!!currentAiProviderConfig.isDefault}
-                        onCheckedChange={(checked) => handleAiProviderSwitchChange('isDefault', !!checked)}
-                        disabled={!currentAiProviderConfig.isEnabled}
+                        onCheckedChange={(checkedValue) => handleAiProviderSwitchChange('isDefault', !!checkedValue)}
+                        disabled={
+                            // If this is the only provider, it must be default if enabled
+                            (aiSettings.providerConfigs.filter(p => p.isEnabled && p.id !== currentAiProviderConfig.id).length === 0 && !isEditingAiProvider) ||
+                            // If editing and it's the only enabled provider
+                            (isEditingAiProvider && currentAiProviderConfig.isEnabled && aiSettings.providerConfigs.filter(p => p.isEnabled).length === 1 && aiSettings.providerConfigs.find(p=>p.isEnabled)?.id === currentAiProviderConfig.id)
+                        }
+
                     />
                     <Label htmlFor="providerIsDefault" className="font-normal">Set as default provider</Label>
                 </div>
             )}
-            {aiSettings.providerConfigs.length === 0 && currentAiProviderConfig.isEnabled && (
-                 <p className="text-xs text-muted-foreground">This will be set as the default provider as it's the first one.</p>
+             {/* Inform user if this will become the default because it's the first enabled one */}
+            {currentAiProviderConfig.isEnabled && aiSettings.providerConfigs.filter(p => p.isEnabled && p.id !== currentAiProviderConfig.id).length === 0 && !currentAiProviderConfig.isDefault && (
+                 <p className="text-xs text-muted-foreground">This will be set as the default provider as it will be the only enabled one.</p>
             )}
 
 
@@ -518,3 +524,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
