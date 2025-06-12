@@ -137,7 +137,7 @@ export default function GroupDetailsPage() {
         const payload = {
             name: editName,
             description: editDescription,
-            computerIds: editSelectedComputerIds, // This state is updated by the computer membership dialog
+            computerIds: editSelectedComputerIds, 
             associatedProcedures: group.associatedProcedures, 
             associatedMonitors: group.associatedMonitors,
         };
@@ -174,8 +174,6 @@ export default function GroupDetailsPage() {
   };
   
   const handleSaveComputerMembership = () => {
-    // `editSelectedComputerIds` is already updated by `handleComputerMembershipChangeInDialog`
-    // The main "Save All Changes" button will persist this.
     setIsManageComputersModalOpen(false);
     setComputerSearchTerm('');
     toast({ title: "Membership Updated", description: "Computer selections updated. Click 'Save All Changes' to persist." });
@@ -260,8 +258,8 @@ export default function GroupDetailsPage() {
     setCurrentAssociatedProcedures(prev => {
         const newArray = [...prev];
         const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-        if (targetIndex < 0 || targetIndex >= newArray.length) return prev; // Bounds check
-        [newArray[currentIndex], newArray[targetIndex]] = [newArray[targetIndex], newArray[currentIndex]]; // Swap
+        if (targetIndex < 0 || targetIndex >= newArray.length) return prev; 
+        [newArray[currentIndex], newArray[targetIndex]] = [newArray[targetIndex], newArray[currentIndex]]; 
         return newArray;
     });
   };
@@ -517,7 +515,7 @@ export default function GroupDetailsPage() {
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground peer-focus:text-primary" />
                                     <Input 
                                         type="search"
-                                        placeholder="Search procedures by name or description..."
+                                        placeholder="Search procedures by name..."
                                         value={procedureSearchTerm}
                                         onChange={(e) => setProcedureSearchTerm(e.target.value)}
                                         className="pl-8 peer mb-3"
@@ -536,7 +534,6 @@ export default function GroupDetailsPage() {
                                                 <div className="flex items-start justify-between">
                                                     <div>
                                                         <Label htmlFor={`proc-assoc-${proc.id}`} className="font-medium text-base">{proc.name}</Label>
-                                                        <p className="text-xs text-muted-foreground mt-1">{proc.description}</p>
                                                     </div>
                                                     <Checkbox
                                                         id={`proc-assoc-${proc.id}`}
@@ -697,7 +694,7 @@ export default function GroupDetailsPage() {
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground peer-focus:text-primary" />
                                     <Input 
                                         type="search"
-                                        placeholder="Search monitors by name or description..."
+                                        placeholder="Search monitors by name..."
                                         value={monitorSearchTerm}
                                         onChange={(e) => setMonitorSearchTerm(e.target.value)}
                                         className="pl-8 peer mb-3"
@@ -715,8 +712,6 @@ export default function GroupDetailsPage() {
                                                 <div className="flex items-start justify-between">
                                                     <div>
                                                         <Label htmlFor={`mon-assoc-${mon.id}`} className="font-medium text-base">{mon.name}</Label>
-                                                        <p className="text-xs text-muted-foreground mt-1">{mon.description}</p>
-                                                        <p className="text-xs text-muted-foreground mt-1">Default: Every {mon.defaultIntervalValue} {mon.defaultIntervalUnit}. Email on alert: {mon.sendEmailOnAlert ? 'Yes' : 'No'}</p>
                                                     </div>
                                                     <Checkbox
                                                         id={`mon-assoc-${mon.id}`}
@@ -729,7 +724,7 @@ export default function GroupDetailsPage() {
                                                 {isAssociated && config && (
                                                 <div className="mt-3 space-y-3">
                                                     <div className="pt-3 border-t">
-                                                        <Label className="text-sm font-semibold text-muted-foreground">Group Schedule (Overrides Monitor Default)</Label>
+                                                        <Label className="text-sm font-semibold text-muted-foreground">Group Schedule</Label>
                                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center mt-1">
                                                             <Select
                                                                 value={config.schedule?.type || 'interval'}
