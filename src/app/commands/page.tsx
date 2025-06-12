@@ -274,15 +274,15 @@ export default function CommandsPage() {
   const getTargetName = (command: CustomCommand): string => {
     if (command.targetType === 'group') {
       const group = allGroups.find(g => g.id === command.targetId);
-      let name = group ? \`Group: \${group.name}\` : \`Group ID: \${command.targetId}\`;
+      let name = group ? `Group: ${group.name}` : `Group ID: ${command.targetId}`;
       if (command.computerId && command.computerId !== command.targetId) { 
         const computer = allComputers.find(c => c.id === command.computerId);
-        name += computer ? \` (on \${computer.name})\` : \` (on Comp ID: \${command.computerId})\`;
+        name += computer ? ` (on ${computer.name})` : ` (on Comp ID: ${command.computerId})`;
       }
       return name;
     } else {
       const computer = allComputers.find(c => c.id === command.targetId);
-      return computer ? computer.name : \`Computer ID: \${command.targetId}\`;
+      return computer ? computer.name : `Computer ID: ${command.targetId}`;
     }
   };
 
@@ -334,7 +334,7 @@ export default function CommandsPage() {
                 disabled={isLoadingComputers}
               />
               <Select 
-                key={'target-computer-select-${targetComputerSearchTerm}'}
+                key={`target-computer-select-${targetComputerSearchTerm}`}
                 value={selectedComputerId} 
                 onValueChange={setSelectedComputerId}
                 disabled={isLoadingComputers || (filteredComputersForSelect.online.length === 0 && filteredComputersForSelect.offline.length === 0 && !!targetComputerSearchTerm)}
@@ -392,7 +392,7 @@ export default function CommandsPage() {
                 disabled={isLoadingGroups}
               />
               <Select 
-                key={'target-group-select-${targetGroupSearchTerm}'}
+                key={`target-group-select-${targetGroupSearchTerm}`}
                 value={selectedGroupId} 
                 onValueChange={setSelectedGroupId}
                 disabled={isLoadingGroups || (filteredGroupsForSelect.length === 0 && !!targetGroupSearchTerm) || (allGroups.length === 0 && !targetGroupSearchTerm)}
@@ -457,7 +457,7 @@ export default function CommandsPage() {
                   id="commandContent"
                   value={commandContent}
                   onChange={(e) => setCommandContent(e.target.value)}
-                  placeholder={\`Enter \${commandScriptType} command or script here...\`}
+                  placeholder={`Enter ${commandScriptType} command or script here...`}
                   rows={8}
                   className="font-code"
                 />
@@ -480,7 +480,7 @@ export default function CommandsPage() {
                     disabled={isLoadingProcedures}
                   />
                   <Select 
-                    key={'select-procedure-${procedureSelectSearchTerm}'}
+                    key={`select-procedure-${procedureSelectSearchTerm}`}
                     value={selectedProcedureIdForExecution} 
                     onValueChange={setSelectedProcedureIdForExecution}
                     disabled={isLoadingProcedures || (filteredProceduresForSelect.length === 0 && !!procedureSelectSearchTerm) || (allProcedures.length === 0 && !procedureSelectSearchTerm)}
@@ -581,3 +581,5 @@ export default function CommandsPage() {
     </div>
   );
 }
+
+    
