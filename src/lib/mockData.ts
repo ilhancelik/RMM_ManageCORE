@@ -94,6 +94,18 @@ export let mockMonitors: Monitor[] = [
     sendEmailOnAlert: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'mon-8',
+    name: 'Uygulama Kurulum/Kaldırma İzleyicisi',
+    description: "Yeni uygulama kurulumlarını veya kaldırılmalarını tespit eder ve uyarı gönderir. (Simüle edilmiş)",
+    scriptType: 'PowerShell',
+    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR.\n# Gerçek dünyada uygulama kurulum/kaldırma tespiti karmaşıktır ve\n# sistem olay günlüklerinin veya diğer gelişmiş tekniklerin izlenmesini gerektirir.\n\n$detectionChance = Get-Random -Minimum 1 -Maximum 100\n$installedApps = @("Microsoft Office Pro", "Adobe Photoshop", "Google Chrome", "Mozilla Firefox", "VLC Player", "7-Zip Archiver", "Notepad++ Editor")\n$appName = $installedApps[(Get-Random -Maximum $installedApps.Count)]\n$action = @("kuruldu", "kaldırıldı")[(Get-Random -Maximum 2)]\n\nif ($detectionChance -le 15) { # %15 ihtimalle bir şey "tespit et"\n    "ALERT: Simüle edilmiş tespit - \'$appName\' uygulaması yakın zamanda $action."\n} else {\n    "OK: Yeni uygulama kurulumu veya kaldırılması tespit edilmedi (simüle edilmiş)."\n}',
+    defaultIntervalValue: 60,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   }
 ];
 
