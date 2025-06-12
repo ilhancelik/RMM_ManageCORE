@@ -173,7 +173,7 @@ export default function ComputersPage() {
       executeMockProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
       toast({
         title: "Procedures Execution Queued (Mock)",
-        description: \`"\${procedureToRun.name}" has been queued for execution on \${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.\`
+        description: `"${procedureToRun.name}" has been queued for execution on ${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.`
       });
       setIsRunProcedureModalOpen(false);
       setSelectedComputerIds([]);
@@ -218,7 +218,7 @@ export default function ComputersPage() {
                 disabled={isLoadingProceduresOrGroups}
               />
               <Select 
-                key={'group-filter-select-${groupFilterSearchTerm}'}
+                key={`group-filter-select-${groupFilterSearchTerm}`}
                 value={selectedGroupId} 
                 onValueChange={setSelectedGroupId} 
                 disabled={isLoadingProceduresOrGroups || (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) || (groups.length === 0 && !groupFilterSearchTerm)}
@@ -231,7 +231,7 @@ export default function ComputersPage() {
                       "All Groups"
                   } />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent key={`group-filter-content-${groupFilterSearchTerm}`}>
                   <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
                   {filteredGroupsForFilterSelect.length > 0 ? (
                     filteredGroupsForFilterSelect.map(group => (
@@ -288,7 +288,6 @@ export default function ComputersPage() {
                   disabled={isLoadingProceduresOrGroups}
                 />
                 <Select 
-                  key={'dialog-procedure-select-${procedureSearchTerm}'}
                   value={selectedProcedureId} 
                   onValueChange={setSelectedProcedureId}
                   disabled={isLoadingProceduresOrGroups || (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm) || (allProcedures.length === 0 && !procedureSearchTerm)}
@@ -301,7 +300,7 @@ export default function ComputersPage() {
                       "Select a procedure..."
                     }/>
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent key={`dialog-procedure-content-${procedureSearchTerm}`}>
                     {filteredProceduresForDialog.length > 0 ? (
                       filteredProceduresForDialog.map(proc => (
                         <SelectItem key={proc.id} value={proc.id}>
@@ -331,12 +330,12 @@ export default function ComputersPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {selectedGroupId !== ALL_GROUPS_VALUE ? \`\${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers\` : 'All Computers'}
-            {searchTerm && \` (Filtered by "\${searchTerm}")\`}
+            {selectedGroupId !== ALL_GROUPS_VALUE ? `${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers` : 'All Computers'}
+            {searchTerm && ` (Filtered by "${searchTerm}")`}
           </CardTitle>
           <CardDescription>
             {selectedGroupId !== ALL_GROUPS_VALUE
-              ? \`Viewing computers in the "\${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.\`
+              ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
               : 'View and manage all connected computers (Mock Data).'}
             {filteredComputers.length === 0 && searchTerm && !isLoadingComputers && ' No computers match your search.'}
           </CardDescription>
@@ -363,9 +362,9 @@ export default function ComputersPage() {
             />
           ) : (
             <p className="text-center text-muted-foreground py-8">
-              {searchTerm && \`No computers found matching "\${searchTerm}".\`}
-              {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && \`No computers found in the selected group.\`}
-              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? \`No computers found in mock data.\` : \`No computers found.\`)}
+              {searchTerm && `No computers found matching "${searchTerm}".`}
+              {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && `No computers found in the selected group.`}
+              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? `No computers found in mock data.` : `No computers found.`)}
             </p>
           )}
         </CardContent>
@@ -378,3 +377,6 @@ export default function ComputersPage() {
     </div>
   );
 }
+
+
+    
