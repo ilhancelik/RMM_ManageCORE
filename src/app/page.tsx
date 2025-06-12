@@ -229,7 +229,7 @@ export default function DashboardPage() {
               <Cpu className="mr-3 h-6 w-6 text-blue-500" />
               <div>
                 <p className="text-sm font-medium">Avg. CPU Usage</p>
-                <p className="text-xl font-bold">
+                <div className="text-xl font-bold">
                     {isLoadingComputers ? <Skeleton className="h-6 w-16 inline-block" /> : 
                      computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined).length > 0 ? 
                      `${(computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined)
@@ -237,14 +237,14 @@ export default function DashboardPage() {
                                 computers.filter(c => c.status === 'Online' && c.cpuUsage !== undefined).length
                                ).toFixed(1)}%` 
                      : 'N/A'}
-                </p> 
+                </div> 
               </div>
             </div>
              <div className="flex items-center">
               <MemoryStick className="mr-3 h-6 w-6 text-green-500" />
               <div>
                 <p className="text-sm font-medium">Avg. RAM Usage</p>
-                <p className="text-xl font-bold">
+                <div className="text-xl font-bold">
                     {isLoadingComputers ? <Skeleton className="h-6 w-16 inline-block" /> : 
                      computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined).length > 0 ? 
                      `${(computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined)
@@ -252,7 +252,7 @@ export default function DashboardPage() {
                                 computers.filter(c => c.status === 'Online' && c.ramUsage !== undefined).length
                                ).toFixed(1)}%` 
                      : 'N/A'}
-                </p>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -286,3 +286,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
