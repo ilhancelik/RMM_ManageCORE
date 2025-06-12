@@ -72,6 +72,30 @@ export let mockMonitors: Monitor[] = [
     createdAt: new Date().toISOString(), 
     updatedAt: new Date().toISOString() 
   },
+  {
+    id: 'mon-6',
+    name: 'Yakın Zamanda Yönetici Hesabı Değişiklikleri İzleyicisi',
+    description: "Yerel yönetici hesabı oluşturulmalarını veya Administrators grubuna üye eklemelerini izler. Not: Bu monitörün etkili çalışması için Güvenlik Olay Günlüklerinde detaylı denetimin (Örn: Olay ID'leri 4720, 4728, 4732) etkinleştirilmesi ve olayların düzenli olarak kontrol edilmesi önerilir.",
+    scriptType: 'PowerShell',
+    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR - GERÇEK OLAY GÜNLÜĞÜNÜ KONTROL ETMEZ.\n# Gerçek senaryoda, Get-WinEvent kullanarak Güvenlik günlüklerinden\n# 4720 (Kullanıcı Oluşturuldu), 4728 (Güvenlik Etkin Genel Gruba Üye Eklendi),\n# 4732 (Güvenlik Etkin Yerel Gruba Üye Eklendi) gibi olay ID\'lerini sorgularsınız.\n# Bu script, gösterim amacıyla rastgele bir olay "tespit eder".\n\n$adminUsernames = @("Administrator", "Admin", "SistemYoneticisi") # İzlenecek potansiyel admin kullanıcı adları\n$recentUsers = Get-LocalUser | Where-Object { $_.LastLogon -gt (Get-Date).AddMinutes(-60) -and $_.Enabled }\n$adminGroup = Get-LocalGroupMember -Group "Administrators"\n\n$alertMessage = ""\n\nforeach ($user in $recentUsers) {\n    if ($adminUsernames -contains $user.Name) {\n        $alertMessage += "Potansiyel yeni yönetici hesabı aktif: $($user.Name). "\n    }\n    if (($adminGroup | Where-Object {$_.SID -eq $user.SID}).Length -gt 0) {\n         # Yeni eklenmiş gibi değil de, genel bir kontrol yapıyor.\n         # Gerçek senaryoda bu daha çok olay bazlı olmalı.\n    }\n}\n\n# Bu kısım daha çok "yeni eklenen" senaryosu için olmalı, mock için basitleştirildi.\nif ((Get-Random -Minimum 1 -Maximum 20) -eq 1) { # %5 ihtimalle "yeni ekleme" simülasyonu\n    $alertMessage += "Simüle edilmiş yeni yönetici grup üyeliği tespiti. "\n}\n\nif ($alertMessage -ne "") {\n    "ALERT: $($alertMessage)Lütfen Güvenlik Olay Günlüklerini detaylı inceleyin."\n} else {\n    "OK: Yakın zamanda şüpheli yönetici hesabı aktivitesi veya değişikliği tespit edilmedi (simüle edilmiş)."\n}',
+    defaultIntervalValue: 1,
+    defaultIntervalUnit: 'hours',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'mon-7',
+    name: 'Başarısız RDP Giriş Denemeleri İzleyicisi',
+    description: "Kısa bir süre içinde belirli bir eşiği aşan başarısız RDP (Uzak Masaüstü Bağlantısı) giriş denemelerini (Olay ID 4625) izler. Eşik ve zaman aralığı script içinde ayarlanabilir. Not: Bu monitör için Group Policy'de 'Oturum Açma Olaylarını Denetle' (Başarılı ve Başarısız) ayarının (Bilgisayar Yapılandırması -> Windows Ayarları -> Güvenlik Ayarları -> Gelişmiş Denetim İlkesi Yapılandırması -> Oturum Açma/Kapatma) etkinleştirilmiş olması gerekir.",
+    scriptType: 'PowerShell',
+    scriptContent: 'param(\n    [int]$AttemptThreshold = 5,  # Kaç denemeden sonra uyarı verilsin\n    [int]$TimeWindowMinutes = 10 # Son kaç dakika içindeki denemeler sayılsın\n)\n\n$startTime = (Get-Date).AddMinutes(-$TimeWindowMinutes)\n\ntry {\n    # LogonType 10 for RemoteInteractive (RDP)\n    # EventData\'dan LogonType\'ı filtrelemek Get-WinEvent\'in FilterHashtable\'ında doğrudan zor olabilir,\n    # bu yüzden sonuçları aldıktan sonra filtreliyoruz.\n    $failedLogons = Get-WinEvent -FilterHashtable @{\n        LogName = \'Security\';\n        ID = 4625; # Başarısız Oturum Açma\n        StartTime = $startTime\n    } -ErrorAction SilentlyContinue | Where-Object { $_.Properties[8].Value -eq 10 } # Properties[8] genellikle LogonType\'dır 4625 için\n\n    if ($failedLogons.Count -ge $AttemptThreshold) {\n        "ALERT: Son $TimeWindowMinutes dakika içinde $($failedLogons.Count) adet başarısız RDP giriş denemesi tespit edildi (Eşik: $AttemptThreshold). Olası kaba kuvvet saldırısı."\n    } else {\n        "OK: Son $TimeWindowMinutes dakika içinde $($failedLogons.Count) adet başarısız RDP giriş denemesi (Eşik: $AttemptThreshold)."\n    }\n} catch {\n    "ERROR: Olay günlükleri sorgulanamadı. İzinleri ve günlük kullanılabilirliğini kontrol edin. Hata: $($_.Exception.Message)"\n}',
+    defaultIntervalValue: 15,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
 ];
 
 
@@ -517,5 +541,7 @@ if (typeof window !== 'undefined') { // Ensure this runs only in browser-like en
     // setInterval(simulateMonitorChecks, 30000); // Check every 30 seconds
 }
 
+
+    
 
     
