@@ -5,10 +5,9 @@ import type { Procedure, ScriptType, AiSettings } from '@/types';
 import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock, getAiSettings } from '@/lib/mockData'; 
 import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-script-flow';
 
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2, Search, Sparkles, Bot } from 'lucide-react';
-import Link from 'next/link';
+import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,13 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProcedureTable } from '@/components/procedures/ProcedureTable';
 
 export default function ProceduresPage() {
   const [procedures, setProcedures] = useState<Procedure[]>([]);
@@ -56,7 +55,6 @@ export default function ProceduresPage() {
   const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
-  // AI Script Generation State
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
   const [showAiSection, setShowAiSection] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -110,7 +108,6 @@ export default function ProceduresPage() {
     setProcedureScriptContent('');
     setCurrentProcedure(null);
     setIsEditMode(false);
-    // Reset AI related fields
     setShowAiSection(false);
     setAiPrompt('');
     setAiGeneratedScript('');
@@ -176,7 +173,7 @@ export default function ProceduresPage() {
     if (!window.confirm(`Are you sure you want to delete procedure "${procedureNameText}"? This action cannot be undone.`)) {
         return;
     }
-    setIsSubmitting(true); // Can reuse isSubmitting for delete operation if modals are exclusive
+    setIsSubmitting(true); 
     try {
         deleteProcedureFromMock(procedureId);
         toast({title: "Success", description: `Procedure "${procedureNameText}" deleted (Mock).`});
@@ -196,7 +193,7 @@ export default function ProceduresPage() {
         setAiGenerationError("Please describe what the script should do.");
         return;
     }
-    if (!aiSettings?.scriptGenerationEnabled) {
+    if (!aiSettings?.globalGenerationEnabled) {
         setAiGenerationError("AI script generation is disabled in settings.");
         return;
     }
@@ -267,22 +264,21 @@ export default function ProceduresPage() {
         />
       </div>
 
-      {/* AI Generation Section */}
-      <Separator className="my-2" />
+      <Separator />
       <div className="space-y-2">
         <Button
             type="button"
             variant="outline"
             onClick={() => setShowAiSection(!showAiSection)}
-            disabled={isSubmitting || !aiSettings?.scriptGenerationEnabled}
+            disabled={isSubmitting || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)}
             className="w-full"
         >
             <Sparkles className="mr-2 h-4 w-4" />
             {showAiSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
-            {!aiSettings?.scriptGenerationEnabled && <span className="ml-2 text-xs text-muted-foreground">(Disabled in Settings)</span>}
+            {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
         </Button>
 
-        {showAiSection && aiSettings?.scriptGenerationEnabled && (
+        {showAiSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
             <Card className="p-4 space-y-3 bg-muted/50">
                  <Alert variant="default" className="bg-background">
                     <Bot className="h-4 w-4" />
@@ -300,10 +296,10 @@ export default function ProceduresPage() {
                         onChange={(e) => setAiPrompt(e.target.value)}
                         placeholder={`e.g., "List all running services", "Delete temp files older than 30 days in C:\\Temp"`}
                         rows={3}
-                        disabled={isGeneratingWithAi}
+                        disabled={isGeneratingWithAi || isPendingAI}
                     />
                 </div>
-                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || !aiPrompt.trim() || isSubmitting}>
+                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || isPendingAI || !aiPrompt.trim() || isSubmitting}>
                     {isGeneratingWithAi || isPendingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                     {isGeneratingWithAi || isPendingAI ? 'Generating...' : 'Generate'}
                 </Button>
@@ -339,29 +335,23 @@ export default function ProceduresPage() {
     return (
       <div className="container mx-auto py-2">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold text-foreground">Procedures</h1>
+          <Skeleton className="h-10 w-40" />
           <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
             <Skeleton className="h-10 w-full sm:w-[250px]" />
             <Skeleton className="h-10 w-24" />
             <Skeleton className="h-10 w-36" />
           </div>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <Skeleton className="h-6 w-3/4" /> <Skeleton className="h-5 w-16" />
-                </div>
-                <Skeleton className="h-4 w-full mt-1" />
-              </CardHeader>
-              <CardContent><Skeleton className="h-8 w-1/2" /></CardContent>
-              <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                <Skeleton className="h-9 w-20" /> <Skeleton className="h-9 w-20" /> <Skeleton className="h-9 w-20" />
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+        </Card>
          <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="ml-2 text-muted-foreground">Loading procedures...</p>
@@ -434,67 +424,64 @@ export default function ProceduresPage() {
         </DialogContent>
       </Dialog>
 
-      {filteredProcedures.length === 0 && !isLoading ? (
-         <Card className="text-center py-10">
-            <CardHeader>
-                <FileCode className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>
-                  {procedureSearchTerm || filterType !== 'All'
-                    ? 'No Procedures Found'
-                    : 'No Procedures Yet'}
-                </CardTitle>
-                <CardDescription>
-                  {procedureSearchTerm && filterType !== 'All'
-                    ? `No procedures match your search for "${procedureSearchTerm}" with type "${filterType}".`
-                    : procedureSearchTerm
-                      ? `No procedures match your search for "${procedureSearchTerm}".`
-                      : filterType !== 'All'
-                        ? `No procedures found for type "${filterType}". Try a different filter or create one.`
-                        : 'Create procedures to automate tasks on your computers. Use the button above to get started.'}
-                </CardDescription>
-            </CardHeader>
-             <CardContent>
-                 <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Procedure
-                </Button>
-            </CardContent>
-        </Card>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProcedures.map((procedure) => (
-            <Card key={procedure.id} className="flex flex-col">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="truncate max-w-[80%]">{procedure.name}</CardTitle>
-                  <Badge variant="secondary">{procedure.scriptType}</Badge>
+      <Card>
+        <CardHeader>
+            <CardTitle>
+                {filterType !== 'All' ? `${filterType} Procedures` : 'All Procedures'}
+                {procedureSearchTerm && ` (Filtered by "${procedureSearchTerm}")`}
+            </CardTitle>
+            <CardDescription>
+                {`View and manage ${filterType !== 'All' ? filterType.toLowerCase() : 'all'} script procedures.`}
+                {!isLoading && filteredProcedures.length === 0 && ' No procedures match your current filters.'}
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                 <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                 </div>
+            ) : error ? (
+                <p className="text-destructive text-center py-4">{error}</p>
+            ) : filteredProcedures.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                    <FileCode className="mx-auto h-12 w-12 mb-4" />
+                    <p className="font-semibold">
+                        {procedureSearchTerm || filterType !== 'All'
+                        ? 'No Procedures Found'
+                        : 'No Procedures Yet'}
+                    </p>
+                    <p className="text-sm">
+                    {procedureSearchTerm && filterType !== 'All'
+                        ? `No procedures match your search for "${procedureSearchTerm}" with type "${filterType}".`
+                        : procedureSearchTerm
+                        ? `No procedures match your search for "${procedureSearchTerm}".`
+                        : filterType !== 'All'
+                            ? `No procedures found for type "${filterType}". Try a different filter or create one.`
+                            : 'Create procedures to automate tasks on your computers.'}
+                    </p>
+                     {!procedureSearchTerm && filterType === 'All' && (
+                        <Button onClick={handleOpenCreateModal} disabled={isSubmitting} className="mt-4">
+                            <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Procedure
+                        </Button>
+                    )}
                 </div>
-                <CardDescription className="h-10 overflow-hidden text-ellipsis">{procedure.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-xs text-muted-foreground">
-                  Created: {new Date(procedure.createdAt).toLocaleDateString()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Updated: {new Date(procedure.updatedAt).toLocaleDateString()}
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                 <Button variant="ghost" size="sm" asChild>
-                    <Link href={`/procedures/${procedure.id}`}>
-                        <Eye className="mr-2 h-4 w-4" /> View
-                    </Link>
-                 </Button>
-                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(procedure)} disabled={isSubmitting}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                 </Button>
-                 <Button variant="destructive" size="sm" onClick={() => handleDelete(procedure.id, procedure.name)} disabled={isSubmitting}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                 </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+            ) : (
+                <ProcedureTable 
+                    procedures={filteredProcedures} 
+                    onEdit={handleOpenEditModal} 
+                    onDelete={handleDelete}
+                    disabled={isSubmitting}
+                />
+            )}
+        </CardContent>
+        {!isLoading && !error && filteredProcedures.length > 0 && (
+            <CardFooter className="text-sm text-muted-foreground">
+                Showing {filteredProcedures.length} of {procedures.length} procedures.
+            </CardFooter>
+        )}
+      </Card>
     </div>
   );
 }

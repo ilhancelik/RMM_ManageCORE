@@ -2,11 +2,10 @@
 "use client";
 
 import type { Computer, ComputerGroup } from '@/types';
-import { getGroups, addComputerGroup, updateComputerGroup, deleteComputerGroup, getComputers, triggerAutomatedProceduresForNewMember } from '@/lib/mockData';
+import { getGroups, addComputerGroup, deleteComputerGroup, getComputers, triggerAutomatedProceduresForNewMember } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Users, Eye, Loader2 } from 'lucide-react';
-import Link from 'next/link';
+import { PlusCircle, Users, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -21,8 +20,8 @@ import { Textarea } from "@/components/ui/textarea";
 import React, { useState, useEffect, useCallback } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GroupTable } from '@/components/groups/GroupTable';
 
 export default function GroupsPage() {
   const [groups, setGroups] = useState<ComputerGroup[]>([]);
@@ -35,7 +34,6 @@ export default function GroupsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // State for the "Create Group" dialog
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
   const [newGroupSelectedComputerIds, setNewGroupSelectedComputerIds] = useState<string[]>([]);
@@ -85,7 +83,7 @@ export default function GroupsPage() {
         name: newGroupName,
         description: newGroupDescription,
         computerIds: newGroupSelectedComputerIds,
-        associatedProcedures: [], // New groups start with no associated procedures/monitors
+        associatedProcedures: [], 
         associatedMonitors: [],
       };
 
@@ -113,8 +111,6 @@ export default function GroupsPage() {
      if (!window.confirm(`Are you sure you want to delete group "${groupNameText}"? This action cannot be undone.`)) {
         return;
     }
-    // Note: We might want a separate loading state for delete if it's slow
-    // For now, reusing isSubmitting, but consider its implications if create is also possible.
     setIsSubmitting(true); 
     try {
         deleteComputerGroup(groupId);
@@ -177,11 +173,16 @@ export default function GroupsPage() {
         <div className="flex justify-between items-center mb-6">
           <Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-36" />
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}><CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-full mt-1" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /></CardContent><CardFooter className="flex justify-end gap-2 border-t pt-4"><Skeleton className="h-9 w-20" /><Skeleton className="h-9 w-20" /></CardFooter></Card>
-          ))}
-        </div>
+        <Card>
+            <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
+            <CardContent>
+                <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            </CardContent>
+        </Card>
         <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading groups...</p></div>
       </div>
     );
@@ -217,66 +218,47 @@ export default function GroupsPage() {
           </DialogContent>
       </Dialog>
 
-      {groups.length === 0 && !isLoading ? (
-        <Card className="text-center py-10">
-            <CardHeader>
-                <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>No Groups Yet</CardTitle>
-                <CardDescription>Create groups to organize your computers.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button onClick={handleOpenCreateModal} disabled={isSubmitting || isLoadingComputers}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Group
-                </Button>
-            </CardContent>
-        </Card>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.map((group) => (
-            <Card key={group.id} className="flex flex-col">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="truncate max-w-[80%]">{group.name}</CardTitle>
-                  <Users className="h-5 w-5 text-muted-foreground" />
+      <Card>
+        <CardHeader>
+            <CardTitle>All Computer Groups</CardTitle>
+            <CardDescription>
+                View and manage all computer groups.
+                {!isLoading && groups.length === 0 && ' No groups found.'}
+            </CardDescription>
+        </CardHeader>
+        <CardContent>
+            {isLoading ? (
+                 <div className="space-y-2">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                 </div>
+            ) : error ? (
+                <p className="text-destructive text-center py-4">{error}</p>
+            ) : groups.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                    <Users className="mx-auto h-12 w-12 mb-4" />
+                    <p className="font-semibold">No Groups Yet</p>
+                    <p className="text-sm">Create groups to organize your computers.</p>
+                    <Button onClick={handleOpenCreateModal} disabled={isSubmitting || isLoadingComputers} className="mt-4">
+                        <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Group
+                    </Button>
                 </div>
-                <CardDescription className="h-10 overflow-hidden text-ellipsis">{group.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-sm font-medium text-foreground">
-                  {group.computerIds.length} Computer{group.computerIds.length !== 1 ? 's' : ''}
-                </p>
-                <ScrollArea className="max-h-20">
-                  <ul className="text-xs text-muted-foreground list-disc list-inside">
-                    {group.computerIds.slice(0,10).map(id => { 
-                      const computer = allComputers.find(c => c.id === id);
-                      return <li key={id} className="truncate">{computer ? computer.name : `ID: ${id.substring(0,8)}...`}</li>;
-                    })}
-                    {group.computerIds.length > 10 && <li>...and {group.computerIds.length-10} more</li>}
-                  </ul>
-                </ScrollArea>
-                 <p className="text-sm font-medium text-foreground mt-2">
-                  {group.associatedProcedures?.length || 0} Associated Procedure{group.associatedProcedures?.length !== 1 ? 's' : ''}
-                </p>
-                 <p className="text-sm font-medium text-foreground mt-1">
-                  {group.associatedMonitors?.length || 0} Associated Monitor{group.associatedMonitors?.length !== 1 ? 's' : ''}
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                 <Button variant="outline" size="sm" asChild>
-                    <Link href={`/groups/${group.id}`}>
-                        <Edit className="mr-2 h-4 w-4" /> Edit
-                    </Link>
-                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => handleDeleteGroup(group.id, group.name)} disabled={isSubmitting}>
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+            ) : (
+                <GroupTable 
+                    groups={groups} 
+                    onDelete={handleDeleteGroup}
+                    disabled={isSubmitting}
+                />
+            )}
+        </CardContent>
+        {!isLoading && !error && groups.length > 0 && (
+            <CardFooter className="text-sm text-muted-foreground">
+                Showing {groups.length} groups.
+            </CardFooter>
+        )}
+      </Card>
     </div>
   );
 }
-
     

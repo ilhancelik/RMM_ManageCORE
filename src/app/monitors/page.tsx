@@ -27,13 +27,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
-import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { MonitorTable } from '@/components/monitors/MonitorTable';
 
 const intervalUnits: Monitor['defaultIntervalUnit'][] = ['minutes', 'hours', 'days'];
 
@@ -49,7 +49,6 @@ export default function MonitorsPage() {
   const [currentMonitor, setCurrentMonitor] = useState<Monitor | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Form state
   const [monitorName, setMonitorName] = useState('');
   const [monitorDescription, setMonitorDescription] = useState('');
   const [monitorScriptType, setMonitorScriptType] = useState<ScriptType>('PowerShell');
@@ -60,7 +59,6 @@ export default function MonitorsPage() {
 
   const [monitorSearchTerm, setMonitorSearchTerm] = useState('');
   
-  // AI Script Generation State
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
   const [showAiSection, setShowAiSection] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -112,7 +110,6 @@ export default function MonitorsPage() {
     setMonitorSendEmail(true);
     setCurrentMonitor(null);
     setIsEditMode(false);
-    // Reset AI related fields
     setShowAiSection(false);
     setAiPrompt('');
     setAiGeneratedScript('');
@@ -205,8 +202,8 @@ export default function MonitorsPage() {
         setAiGenerationError("Please describe what the script should do.");
         return;
     }
-    if (!aiSettings?.scriptGenerationEnabled) {
-        setAiGenerationError("AI script generation is disabled in settings.");
+    if (!aiSettings?.globalGenerationEnabled || !aiSettings.providerConfigs.some(p => p.isEnabled)) {
+        setAiGenerationError("AI script generation is disabled or no provider is active.");
         return;
     }
     setIsGeneratingWithAi(true);
@@ -272,22 +269,21 @@ export default function MonitorsPage() {
         />
       </div>
       
-      {/* AI Generation Section */}
-      <Separator className="my-2" />
+      <Separator />
       <div className="space-y-2">
         <Button
             type="button"
             variant="outline"
             onClick={() => setShowAiSection(!showAiSection)}
-            disabled={isSubmitting || !aiSettings?.scriptGenerationEnabled}
+            disabled={isSubmitting || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)}
             className="w-full"
         >
             <Sparkles className="mr-2 h-4 w-4" />
             {showAiSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
-            {!aiSettings?.scriptGenerationEnabled && <span className="ml-2 text-xs text-muted-foreground">(Disabled in Settings)</span>}
+            {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
         </Button>
 
-        {showAiSection && aiSettings?.scriptGenerationEnabled && (
+        {showAiSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
             <Card className="p-4 space-y-3 bg-muted/50">
                  <Alert variant="default" className="bg-background">
                     <Bot className="h-4 w-4" />
@@ -305,10 +301,10 @@ export default function MonitorsPage() {
                         onChange={(e) => setAiPrompt(e.target.value)}
                         placeholder={`e.g., "Check if CPU usage is above 80%", "Verify if 'PrintSpooler' service is running"`}
                         rows={3}
-                        disabled={isGeneratingWithAi}
+                        disabled={isGeneratingWithAi || isPendingAI}
                     />
                 </div>
-                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || !aiPrompt.trim() || isSubmitting}>
+                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || isPendingAI || !aiPrompt.trim() || isSubmitting}>
                     {isGeneratingWithAi || isPendingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
                     {isGeneratingWithAi || isPendingAI ? 'Generating...' : 'Generate'}
                 </Button>
@@ -337,7 +333,7 @@ export default function MonitorsPage() {
             </Card>
         )}
       </div>
-      <Separator className="my-2"/>
+      <Separator />
 
 
       <div className="grid grid-cols-4 items-center gap-4">
@@ -366,21 +362,22 @@ export default function MonitorsPage() {
     return (
       <div className="container mx-auto py-2">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-          <h1 className="text-3xl font-bold text-foreground">Monitors</h1>
+          <Skeleton className="h-10 w-32" />
           <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
             <Skeleton className="h-10 w-full sm:w-[250px]" />
             <Skeleton className="h-10 w-36" />
           </div>
         </div>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(3)].map((_, i) => (
-            <Card key={`skel-mon-${i}`}>
-              <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-full mt-1" /></CardHeader>
-              <CardContent><Skeleton className="h-8 w-1/2" /></CardContent>
-              <CardFooter className="flex justify-end gap-2 border-t pt-4"><Skeleton className="h-9 w-20" /><Skeleton className="h-9 w-20" /></CardFooter>
-            </Card>
-          ))}
-        </div>
+        <Card>
+          <CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          </CardContent>
+        </Card>
         <div className="flex justify-center items-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
             <p className="ml-2 text-muted-foreground">Loading monitors...</p>
@@ -438,66 +435,59 @@ export default function MonitorsPage() {
         </DialogContent>
       </Dialog>
 
-      {filteredMonitors.length === 0 && !isLoading ? (
-         <Card className="text-center py-10">
-            <CardHeader>
-                <Activity className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle>{monitorSearchTerm ? 'No Monitors Found' : 'No Monitors Yet'}</CardTitle>
-                <CardDescription>
-                  {monitorSearchTerm
-                    ? `No monitors match your search for "${monitorSearchTerm}". Try a different term or clear the search.`
-                    : 'Create monitors to keep an eye on your systems.'}
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                 <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Monitor
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            All Monitors
+            {monitorSearchTerm && ` (Filtered by "${monitorSearchTerm}")`}
+          </CardTitle>
+          <CardDescription>
+            View and manage all system monitors.
+            {!isLoading && filteredMonitors.length === 0 && ' No monitors match your current filters.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ) : error ? (
+            <p className="text-destructive text-center py-4">{error}</p>
+          ) : filteredMonitors.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Activity className="mx-auto h-12 w-12 mb-4" />
+              <p className="font-semibold">
+                {monitorSearchTerm ? 'No Monitors Found' : 'No Monitors Yet'}
+              </p>
+              <p className="text-sm">
+                {monitorSearchTerm
+                  ? `No monitors match your search for "${monitorSearchTerm}". Try a different term or clear the search.`
+                  : 'Create monitors to keep an eye on your systems.'}
+              </p>
+              {!monitorSearchTerm && (
+                <Button onClick={handleOpenCreateModal} disabled={isSubmitting} className="mt-4">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Monitor
                 </Button>
-            </CardContent>
-        </Card>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredMonitors.map((monitor) => (
-            <Card key={monitor.id} className="flex flex-col">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <CardTitle className="truncate max-w-[70%]">{monitor.name}</CardTitle>
-                  <div className="flex flex-col items-end">
-                    <Badge variant="secondary">{monitor.scriptType}</Badge>
-                    {monitor.sendEmailOnAlert ? (
-                      <Badge variant="default" className="mt-1 bg-blue-500 hover:bg-blue-600">Email Active</Badge>
-                    ) : (
-                      <Badge variant="outline" className="mt-1">Email Off</Badge>
-                    )}
-                  </div>
-                </div>
-                <CardDescription className="h-10 overflow-hidden text-ellipsis">{monitor.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="flex-grow">
-                <p className="text-sm text-muted-foreground">
-                  Default Interval: Every {monitor.defaultIntervalValue} {monitor.defaultIntervalUnit}
-                </p>
-                 <p className="text-xs text-muted-foreground mt-1">
-                  Created: {new Date(monitor.createdAt).toLocaleDateString()}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Updated: {new Date(monitor.updatedAt).toLocaleDateString()}
-                </p>
-              </CardContent>
-              <CardFooter className="flex justify-end gap-2 border-t pt-4">
-                 <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(monitor)} disabled={isSubmitting}>
-                    <Edit className="mr-2 h-4 w-4" /> Edit
-                 </Button>
-                 <Button variant="destructive" size="sm" onClick={() => handleDelete(monitor.id, monitor.name)} disabled={isSubmitting}>
-                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                 </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
-      )}
+              )}
+            </div>
+          ) : (
+            <MonitorTable 
+              monitors={filteredMonitors} 
+              onEdit={handleOpenEditModal} 
+              onDelete={handleDelete}
+              disabled={isSubmitting}
+            />
+          )}
+        </CardContent>
+        {!isLoading && !error && filteredMonitors.length > 0 && (
+          <CardFooter className="text-sm text-muted-foreground">
+            Showing {filteredMonitors.length} of {monitors.length} monitors.
+          </CardFooter>
+        )}
+      </Card>
     </div>
   );
 }
-
     
