@@ -1,11 +1,14 @@
 
+
 "use client";
 
-import type { Procedure, ScriptType } from '@/types';
-import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock } from '@/lib/mockData'; 
+import type { Procedure, ScriptType, AiSettings } from '@/types';
+import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock, getAiSettings } from '@/lib/mockData'; 
+import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-script-flow';
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2, Search } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileCode, Eye, ListFilter, Loader2, Search, Sparkles, Bot } from 'lucide-react';
 import Link from 'next/link';
 import {
   Dialog,
@@ -25,17 +28,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export default function ProceduresPage() {
   const [procedures, setProcedures] = useState<Procedure[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const [isPendingAI, startAITransition] = useTransition();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -50,18 +57,27 @@ export default function ProceduresPage() {
   const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
+  // AI Script Generation State
+  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
+  const [showAiSection, setShowAiSection] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiGeneratedScript, setAiGeneratedScript] = useState('');
+  const [aiExplanation, setAiExplanation] = useState('');
+  const [isGeneratingWithAi, setIsGeneratingWithAi] = useState(false);
+  const [aiGenerationError, setAiGenerationError] = useState<string | null>(null);
 
-  const loadMockProcedures = useCallback(() => {
+
+  const loadInitialData = useCallback(() => {
     setIsLoading(true);
     setError(null);
-    // Simulate delay for mock data
     setTimeout(() => {
       try {
         setProcedures(getProcedures());
+        setAiSettings(getAiSettings());
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load procedures from mock.';
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load data from mock.';
         setError(errorMessage);
-        toast({ title: "Error Loading Procedures (Mock)", description: errorMessage, variant: "destructive" });
+        toast({ title: "Error Loading Data (Mock)", description: errorMessage, variant: "destructive" });
       } finally {
         setIsLoading(false);
       }
@@ -69,8 +85,8 @@ export default function ProceduresPage() {
   }, [toast]);
 
   useEffect(() => {
-    loadMockProcedures();
-  }, [loadMockProcedures]);
+    loadInitialData();
+  }, [loadInitialData]);
   
   const filteredProcedures = useMemo(() => {
     let results = procedures;
@@ -95,6 +111,13 @@ export default function ProceduresPage() {
     setProcedureScriptContent('');
     setCurrentProcedure(null);
     setIsEditMode(false);
+    // Reset AI related fields
+    setShowAiSection(false);
+    setAiPrompt('');
+    setAiGeneratedScript('');
+    setAiExplanation('');
+    setIsGeneratingWithAi(false);
+    setAiGenerationError(null);
   };
 
   const handleOpenCreateModal = () => {
@@ -136,10 +159,10 @@ export default function ProceduresPage() {
         toast({title: "Success", description: `Procedure "${procedureName}" created (Mock).`});
       }
       
-      setTimeout(() => { // Simulate API delay
+      setTimeout(() => { 
         resetForm();
         setIsModalOpen(false);
-        loadMockProcedures(); // Refresh the list
+        loadInitialData(); 
         setIsSubmitting(false);
       }, 500);
 
@@ -154,12 +177,12 @@ export default function ProceduresPage() {
     if (!window.confirm(`Are you sure you want to delete procedure "${procedureNameText}"? This action cannot be undone.`)) {
         return;
     }
-    setIsSubmitting(true);
+    setIsSubmitting(true); // Can reuse isSubmitting for delete operation if modals are exclusive
     try {
         deleteProcedureFromMock(procedureId);
         toast({title: "Success", description: `Procedure "${procedureNameText}" deleted (Mock).`});
-        setTimeout(() => { // Simulate API delay
-          loadMockProcedures(); // Refresh the list
+        setTimeout(() => { 
+          loadInitialData(); 
           setIsSubmitting(false);
         }, 500);
     } catch (err) {
@@ -169,8 +192,48 @@ export default function ProceduresPage() {
     }
   };
 
+  const handleGenerateWithAI = async () => {
+    if (!aiPrompt.trim()) {
+        setAiGenerationError("Please describe what the script should do.");
+        return;
+    }
+    if (!aiSettings?.scriptGenerationEnabled) {
+        setAiGenerationError("AI script generation is disabled in settings.");
+        return;
+    }
+    setIsGeneratingWithAi(true);
+    setAiGenerationError(null);
+    setAiGeneratedScript('');
+    setAiExplanation('');
+
+    const input: GenerateScriptInput = {
+        description: aiPrompt,
+        scriptType: procedureScriptType,
+        context: `This script is for a system administration procedure. Target OS is likely Windows. Ensure the script is safe and follows best practices for ${procedureScriptType}.`,
+    };
+    
+    startAITransition(async () => {
+        try {
+            const result = await generateScript(input);
+            if (result.generatedScript) {
+                setAiGeneratedScript(result.generatedScript);
+                setAiExplanation(result.explanation || '');
+            } else {
+                throw new Error("AI returned an empty script.");
+            }
+        } catch (error) {
+            console.error("AI Script Generation Error:", error);
+            const msg = error instanceof Error ? error.message : "Unknown AI error.";
+            setAiGenerationError(`Failed to generate script: ${msg}`);
+            toast({ title: "AI Generation Failed", description: msg, variant: "destructive" });
+        } finally {
+            setIsGeneratingWithAi(false);
+        }
+    });
+  };
+
   const ProcedureFormFields = (
-    <div className="grid gap-4 py-4">
+    <div className="grid gap-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="name" className="text-right">Name</Label>
         <Input id="name" value={procedureName} onChange={(e) => setProcedureName(e.target.value)} className="col-span-3" disabled={isSubmitting} />
@@ -181,7 +244,7 @@ export default function ProceduresPage() {
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="scriptType" className="text-right">Script Type</Label>
-        <Select value={procedureScriptType} onValueChange={(value: ScriptType) => setProcedureScriptType(value)} disabled={isSubmitting}>
+        <Select value={procedureScriptType} onValueChange={(value: ScriptType) => setProcedureScriptType(value)} disabled={isSubmitting || isGeneratingWithAi}>
           <SelectTrigger className="col-span-3">
             <SelectValue placeholder="Select script type" />
           </SelectTrigger>
@@ -203,6 +266,72 @@ export default function ProceduresPage() {
           placeholder={`Enter ${procedureScriptType} script here...`}
           disabled={isSubmitting}
         />
+      </div>
+
+      {/* AI Generation Section */}
+      <Separator className="my-2 col-span-4" />
+      <div className="col-span-4 space-y-2">
+        <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowAiSection(!showAiSection)}
+            disabled={isSubmitting || !aiSettings?.scriptGenerationEnabled}
+            className="w-full"
+        >
+            <Sparkles className="mr-2 h-4 w-4" />
+            {showAiSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
+            {!aiSettings?.scriptGenerationEnabled && <span className="ml-2 text-xs text-muted-foreground">(Disabled in Settings)</span>}
+        </Button>
+
+        {showAiSection && aiSettings?.scriptGenerationEnabled && (
+            <Card className="p-4 space-y-3 bg-muted/50">
+                 <Alert variant="default" className="bg-background">
+                    <Bot className="h-4 w-4" />
+                    <AlertTitle>AI Script Generation</AlertTitle>
+                    <AlertDescription>
+                        Describe what you want the script to do. The AI will attempt to generate a {procedureScriptType} script.
+                        <strong className="block mt-1">Always review AI-generated scripts carefully before use.</strong>
+                    </AlertDescription>
+                </Alert>
+                <div>
+                    <Label htmlFor="aiPrompt">Describe the script's purpose:</Label>
+                    <Textarea
+                        id="aiPrompt"
+                        value={aiPrompt}
+                        onChange={(e) => setAiPrompt(e.target.value)}
+                        placeholder={`e.g., "List all running services", "Delete temp files older than 30 days in C:\\Temp"`}
+                        rows={3}
+                        disabled={isGeneratingWithAi}
+                    />
+                </div>
+                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || !aiPrompt.trim() || isSubmitting}>
+                    {isGeneratingWithAi || isPendingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                    {isGeneratingWithAi || isPendingAI ? 'Generating...' : 'Generate'}
+                </Button>
+
+                {aiGenerationError && <p className="text-sm text-destructive">{aiGenerationError}</p>}
+                
+                {aiGeneratedScript && (
+                    <div className="space-y-2 pt-2">
+                        <Label htmlFor="aiGeneratedScript">AI Generated Script:</Label>
+                        <ScrollArea className="h-40 border rounded-md p-2 bg-background">
+                           <pre className="text-xs font-code whitespace-pre-wrap">{aiGeneratedScript}</pre>
+                        </ScrollArea>
+                        {aiExplanation && (
+                            <>
+                                <Label htmlFor="aiExplanation">Explanation:</Label>
+                                <ScrollArea className="h-20 border rounded-md p-2 bg-background text-xs">
+                                    <p className="whitespace-pre-wrap">{aiExplanation}</p>
+                                </ScrollArea>
+                            </>
+                        )}
+                        <Button type="button" size="sm" variant="outline" onClick={() => {setProcedureScriptContent(aiGeneratedScript); toast({title: "Script Copied", description: "AI generated script copied to script content field."})}}>
+                            Use this Script
+                        </Button>
+                    </div>
+                )}
+            </Card>
+        )}
       </div>
     </div>
   );
@@ -246,7 +375,7 @@ export default function ProceduresPage() {
     return (
       <div className="container mx-auto py-10 text-center text-destructive">
         <p>{error}</p>
-        <Button onClick={loadMockProcedures} variant="outline" className="mt-4">Retry</Button>
+        <Button onClick={loadInitialData} variant="outline" className="mt-4">Retry</Button>
       </div>
     );
   }

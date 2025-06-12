@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7,12 +8,14 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { getSmtpSettings, saveSmtpSettings, type SMTPSettings } from '@/lib/mockData';
-import { Mail, Save, Loader2 } from 'lucide-react';
+import { getSmtpSettings, saveSmtpSettings, type SMTPSettings, getAiSettings, saveAiSettings, type AiSettings } from '@/lib/mockData';
+import { Mail, Save, Loader2, Bot } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Settings } from 'lucide-react';
 
-const initialSettingsState: SMTPSettings = {
+const initialSmtpSettingsState: SMTPSettings = {
   server: '',
   port: 587,
   username: '',
@@ -22,27 +25,50 @@ const initialSettingsState: SMTPSettings = {
   defaultToEmail: '',
 };
 
+const initialAiSettingsState: AiSettings = {
+  scriptGenerationEnabled: true,
+};
+
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [settings, setSettings] = useState<SMTPSettings>(initialSettingsState);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [smtpSettings, setSmtpSettings] = useState<SMTPSettings>(initialSmtpSettingsState);
+  const [aiSettings, setAiSettings] = useState<AiSettings>(initialAiSettingsState);
+  
+  const [isLoadingSmtp, setIsLoadingSmtp] = useState(true);
+  const [isSubmittingSmtp, setIsSubmittingSmtp] = useState(false);
+  const [smtpError, setSmtpError] = useState<string | null>(null);
+
+  const [isLoadingAi, setIsLoadingAi] = useState(true);
+  const [isSubmittingAi, setIsSubmittingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const loadMockSettings = useCallback(() => {
-    setIsLoading(true);
-    setError(null);
-    // Simulate delay for mock data
+    setIsLoadingSmtp(true);
+    setIsLoadingAi(true);
+    setSmtpError(null);
+    setAiError(null);
+    
     setTimeout(() => {
       try {
-        const loadedSettings = getSmtpSettings();
-        setSettings(loadedSettings || initialSettingsState);
+        const loadedSmtpSettings = getSmtpSettings();
+        setSmtpSettings(loadedSmtpSettings || initialSmtpSettingsState);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load SMTP settings from mock.';
-        setError(errorMessage);
-        toast({ title: "Error Loading Settings (Mock)", description: errorMessage, variant: "destructive" });
+        setSmtpError(errorMessage);
+        toast({ title: "Error Loading SMTP Settings (Mock)", description: errorMessage, variant: "destructive" });
       } finally {
-        setIsLoading(false);
+        setIsLoadingSmtp(false);
+      }
+
+      try {
+        const loadedAiSettings = getAiSettings();
+        setAiSettings(loadedAiSettings || initialAiSettingsState);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load AI settings from mock.';
+        setAiError(errorMessage);
+        toast({ title: "Error Loading AI Settings (Mock)", description: errorMessage, variant: "destructive" });
+      } finally {
+        setIsLoadingAi(false);
       }
     }, 300);
   }, [toast]);
@@ -51,130 +77,186 @@ export default function SettingsPage() {
     loadMockSettings();
   }, [loadMockSettings]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSmtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
-    setSettings(prev => ({
+    setSmtpSettings(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : (name === 'port' ? parseInt(value) || 0 : value),
     }));
   };
-   const handleCheckboxChange = (name: keyof SMTPSettings, checked: boolean) => {
-    setSettings(prev => ({
+
+   const handleSmtpCheckboxChange = (name: keyof SMTPSettings, checked: boolean) => {
+    setSmtpSettings(prev => ({
       ...prev,
       [name]: checked,
     }));
   };
 
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSmtpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
+    setIsSubmittingSmtp(true);
+    setSmtpError(null);
     try {
-      if (!settings.server || settings.port <= 0 || !settings.fromEmail || !settings.defaultToEmail) {
-         toast({ title: "Error", description: "Server, Port, From Email, and Default To Email are required.", variant: "destructive" });
-         setIsSubmitting(false);
+      if (!smtpSettings.server || smtpSettings.port <= 0 || !smtpSettings.fromEmail || !smtpSettings.defaultToEmail) {
+         toast({ title: "Error", description: "Server, Port, From Email, and Default To Email are required for SMTP.", variant: "destructive" });
+         setIsSubmittingSmtp(false);
          return;
       }
-      saveSmtpSettings(settings);
+      saveSmtpSettings(smtpSettings);
       toast({
         title: 'Success!',
         description: 'SMTP settings have been saved to mock data.',
       });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving settings (Mock).';
-      setError(errorMessage);
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving SMTP settings (Mock).';
+      setSmtpError(errorMessage);
       toast({
-        title: 'Error saving settings (Mock)',
+        title: 'Error saving SMTP settings (Mock)',
         description: errorMessage,
         variant: 'destructive',
       });
     } finally {
-      setTimeout(() => setIsSubmitting(false), 500); // Simulate API delay
+      setTimeout(() => setIsSubmittingSmtp(false), 500); 
     }
   };
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto py-2">
-        <div className="flex items-center mb-6 gap-2">
-          <Mail className="h-8 w-8 text-primary" />
-          <h1 className="text-3xl font-bold text-foreground">Application Settings</h1>
-        </div>
-        <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <Skeleton className="h-7 w-1/3 mb-1" />
-            <Skeleton className="h-4 w-2/3" />
-          </CardHeader>
-          <CardContent className="space-y-6 pt-2">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="space-y-1.5">
-                <Skeleton className="h-4 w-1/4" />
-                <Skeleton className="h-10 w-full" />
-              </div>
-            ))}
-            <Skeleton className="h-5 w-1/3" />
-          </CardContent>
-          <CardFooter>
-            <Skeleton className="h-10 w-36" />
-          </CardFooter>
-        </Card>
-      </div>
-    );
-  }
+  const handleAiSettingChange = (name: keyof AiSettings, value: boolean) => {
+    setAiSettings(prev => ({
+        ...prev,
+        [name]: value,
+    }));
+  };
+
+  const handleAiSettingsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingAi(true);
+    setAiError(null);
+    try {
+        saveAiSettings(aiSettings);
+        toast({
+            title: 'Success!',
+            description: 'AI settings have been saved to mock data.',
+        });
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving AI settings (Mock).';
+        setAiError(errorMessage);
+        toast({
+            title: 'Error saving AI settings (Mock)',
+            description: errorMessage,
+            variant: 'destructive',
+        });
+    } finally {
+        setTimeout(() => setIsSubmittingAi(false), 500);
+    }
+  };
+
 
   return (
     <div className="container mx-auto py-2">
       <div className="flex items-center mb-6 gap-2">
-        <Mail className="h-8 w-8 text-primary" />
+        <Settings className="h-8 w-8 text-primary" />
         <h1 className="text-3xl font-bold text-foreground">Application Settings</h1>
       </div>
 
-      <Card className="max-w-2xl mx-auto">
+      <Card className="max-w-2xl mx-auto mb-6">
         <CardHeader>
-          <CardTitle>SMTP Configuration</CardTitle>
+          <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5"/>SMTP Configuration</CardTitle>
           <CardDescription>Configure SMTP server settings for sending email notifications from monitors (Mock Data).</CardDescription>
         </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
-            {error && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>}
-            <div>
-              <Label htmlFor="server">SMTP Server</Label>
-              <Input id="server" name="server" value={settings.server} onChange={handleChange} placeholder="e.g., smtp.example.com" required disabled={isSubmitting} />
-            </div>
-            <div>
-              <Label htmlFor="port">Port</Label>
-              <Input id="port" name="port" type="number" value={settings.port} onChange={handleChange} placeholder="e.g., 587" required disabled={isSubmitting}/>
-            </div>
-             <div className="flex items-center space-x-2">
-              <Checkbox id="secure" name="secure" checked={settings.secure} onCheckedChange={(checked) => handleCheckboxChange('secure', !!checked)} disabled={isSubmitting}/>
-              <Label htmlFor="secure" className="font-normal">Use TLS/SSL</Label>
-            </div>
-            <div>
-              <Label htmlFor="username">Username (Optional)</Label>
-              <Input id="username" name="username" value={settings.username || ''} onChange={handleChange} placeholder="e.g., user@example.com" disabled={isSubmitting}/>
-            </div>
-            <div>
-              <Label htmlFor="password">Password (Optional)</Label>
-              <Input id="password" name="password" type="password" value={settings.password || ''} onChange={handleChange} placeholder="Enter password if auth is required" disabled={isSubmitting}/>
-            </div>
-            <div>
-              <Label htmlFor="fromEmail">From Email Address</Label>
-              <Input id="fromEmail" name="fromEmail" type="email" value={settings.fromEmail} onChange={handleChange} placeholder="e.g., noreply@yourdomain.com" required disabled={isSubmitting}/>
-            </div>
-            <div>
-              <Label htmlFor="defaultToEmail">Default Recipient Email</Label>
-              <Input id="defaultToEmail" name="defaultToEmail" type="email" value={settings.defaultToEmail} onChange={handleChange} placeholder="e.g., admin@yourdomain.com" required disabled={isSubmitting}/>
-            </div>
-          </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={isSubmitting || isLoading}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              {isSubmitting ? 'Saving...' : 'Save SMTP Settings'}
-            </Button>
-          </CardFooter>
-        </form>
+        {isLoadingSmtp ? (
+            <CardContent className="space-y-6 pt-2">
+                {[...Array(6)].map((_, i) => (
+                <div key={`smtp-skel-${i}`} className="space-y-1.5">
+                    <Skeleton className="h-4 w-1/4" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+                ))}
+            </CardContent>
+        ) : (
+            <form onSubmit={handleSmtpSubmit}>
+            <CardContent className="space-y-4">
+                {smtpError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{smtpError}</p>}
+                <div>
+                <Label htmlFor="server">SMTP Server</Label>
+                <Input id="server" name="server" value={smtpSettings.server} onChange={handleSmtpChange} placeholder="e.g., smtp.example.com" required disabled={isSubmittingSmtp} />
+                </div>
+                <div>
+                <Label htmlFor="port">Port</Label>
+                <Input id="port" name="port" type="number" value={smtpSettings.port} onChange={handleSmtpChange} placeholder="e.g., 587" required disabled={isSubmittingSmtp}/>
+                </div>
+                <div className="flex items-center space-x-2">
+                <Checkbox id="secure" name="secure" checked={smtpSettings.secure} onCheckedChange={(checked) => handleSmtpCheckboxChange('secure', !!checked)} disabled={isSubmittingSmtp}/>
+                <Label htmlFor="secure" className="font-normal">Use TLS/SSL</Label>
+                </div>
+                <div>
+                <Label htmlFor="username">Username (Optional)</Label>
+                <Input id="username" name="username" value={smtpSettings.username || ''} onChange={handleSmtpChange} placeholder="e.g., user@example.com" disabled={isSubmittingSmtp}/>
+                </div>
+                <div>
+                <Label htmlFor="password">Password (Optional)</Label>
+                <Input id="password" name="password" type="password" value={smtpSettings.password || ''} onChange={handleSmtpChange} placeholder="Enter password if auth is required" disabled={isSubmittingSmtp}/>
+                </div>
+                <div>
+                <Label htmlFor="fromEmail">From Email Address</Label>
+                <Input id="fromEmail" name="fromEmail" type="email" value={smtpSettings.fromEmail} onChange={handleSmtpChange} placeholder="e.g., noreply@yourdomain.com" required disabled={isSubmittingSmtp}/>
+                </div>
+                <div>
+                <Label htmlFor="defaultToEmail">Default Recipient Email</Label>
+                <Input id="defaultToEmail" name="defaultToEmail" type="email" value={smtpSettings.defaultToEmail} onChange={handleSmtpChange} placeholder="e.g., admin@yourdomain.com" required disabled={isSubmittingSmtp}/>
+                </div>
+            </CardContent>
+            <CardFooter>
+                <Button type="submit" disabled={isSubmittingSmtp || isLoadingSmtp}>
+                {isSubmittingSmtp ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                {isSubmittingSmtp ? 'Saving...' : 'Save SMTP Settings'}
+                </Button>
+            </CardFooter>
+            </form>
+        )}
+      </Card>
+
+      <Card className="max-w-2xl mx-auto">
+        <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />AI Script Generation Settings</CardTitle>
+            <CardDescription>Configure settings related to AI-powered script generation (Mock Data).</CardDescription>
+        </CardHeader>
+        {isLoadingAi ? (
+            <CardContent className="space-y-6 pt-2">
+                <div className="space-y-1.5">
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-10 w-full" />
+                </div>
+            </CardContent>
+        ) : (
+            <form onSubmit={handleAiSettingsSubmit}>
+                <CardContent className="space-y-4">
+                    {aiError && <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{aiError}</p>}
+                    <div className="flex items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                            <Label htmlFor="aiScriptGenerationEnabled" className="text-base">Enable AI Script Generation</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Allow the use of AI to generate script suggestions in Procedures and Monitors.
+                            </p>
+                        </div>
+                        <Switch
+                            id="aiScriptGenerationEnabled"
+                            checked={aiSettings.scriptGenerationEnabled}
+                            onCheckedChange={(checked) => handleAiSettingChange('scriptGenerationEnabled', checked)}
+                            disabled={isSubmittingAi}
+                        />
+                    </div>
+                    {/* Future AI settings (API key, model selection) can be added here */}
+                </CardContent>
+                <CardFooter>
+                    <Button type="submit" disabled={isSubmittingAi || isLoadingAi}>
+                        {isSubmittingAi ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                        {isSubmittingAi ? 'Saving...' : 'Save AI Settings'}
+                    </Button>
+                </CardFooter>
+            </form>
+        )}
       </Card>
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig } from '@/types';
+
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings } from '@/types';
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 
@@ -120,6 +121,11 @@ export let mockSmtpSettings: SMTPSettings = {
   defaultToEmail: 'admin@example.com',
 };
 
+export let mockAiSettings: AiSettings = {
+  scriptGenerationEnabled: true,
+};
+
+
 // --- Helper Functions for Mock Data ---
 
 // Computers
@@ -200,12 +206,14 @@ export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): Computer
     if (comp && !comp.groupIds?.includes(newGroup.id)) {
       updateComputer(compId, { groupIds: [...(comp.groupIds || []), newGroup.id] });
     }
+    // Trigger automated procedures for new members
+    triggerAutomatedProceduresForNewMember(compId, newGroup.id);
   });
   return newGroup;
 };
 export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGroup, 'id'>>): ComputerGroup | undefined => {
   let updatedGroup: ComputerGroup | undefined;
-  const oldGroup = getGroupById(id); // Get a deep copy or ensure it's not mutated if it's from state
+  const oldGroup = JSON.parse(JSON.stringify(getGroupById(id))); // Deep copy for comparison
 
   mockComputerGroups = mockComputerGroups.map(g => {
     if (g.id === id) {
@@ -235,9 +243,7 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
         const comp = getComputerById(compId);
         if (comp && !(comp.groupIds || []).includes(id)) {
           updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
-          // This is where we ensure triggerAutomatedProceduresForNewMember is called for newly added members
-          // Note: This was potentially missing or implicitly handled before. Explicitly calling it.
-          // triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id); // updatedGroup will be defined here
+          triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id); 
         }
       }
     });
@@ -479,6 +485,14 @@ export const saveSmtpSettings = (settings: SMTPSettings): SMTPSettings => {
   mockSmtpSettings = { ...settings };
   return mockSmtpSettings;
 };
+
+// AI Settings
+export const getAiSettings = (): AiSettings => mockAiSettings;
+export const saveAiSettings = (settings: AiSettings): AiSettings => {
+  mockAiSettings = { ...settings };
+  return mockAiSettings;
+};
+
 
 export const triggerAutomatedProceduresForNewMember = (computerId: string, groupId: string) => {
     const group = getGroupById(groupId);

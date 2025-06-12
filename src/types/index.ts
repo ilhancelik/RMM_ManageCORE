@@ -1,4 +1,5 @@
 
+
 export interface Computer {
   id: string;
   name: string;
@@ -108,4 +109,10 @@ export interface SMTPSettings {
   secure: boolean; // TLS/SSL
   fromEmail: string; // Email address to send from
   defaultToEmail: string; // Default recipient for alerts
+}
+
+export interface AiSettings {
+  scriptGenerationEnabled: boolean;
+  // apiKey?: string; // For future use if needed
+  // defaultModel?: string; // For future use if needed
 }
