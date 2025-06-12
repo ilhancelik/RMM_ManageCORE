@@ -6,7 +6,7 @@ import {
     getGroupById, 
     updateComputerGroup, 
     getProcedures, 
-    getComputers as getAllComputers, // Renamed to avoid conflict if any local `computers` state
+    getComputers as getAllComputers, 
     getMonitors,
     getProcedureById,
     getMonitorById
@@ -14,12 +14,12 @@ import {
 import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2, Search } from 'lucide-react';
 import { ComputerTable } from '@/components/computers/ComputerTable';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -55,9 +55,12 @@ export default function GroupDetailsPage() {
   
   const [isManageProceduresModalOpen, setIsManageProceduresModalOpen] = useState(false);
   const [currentAssociatedProcedures, setCurrentAssociatedProcedures] = useState<AssociatedProcedureConfig[]>([]);
+  const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
+
 
   const [isManageMonitorsModalOpen, setIsManageMonitorsModalOpen] = useState(false);
   const [currentAssociatedMonitors, setCurrentAssociatedMonitors] = useState<AssociatedMonitorConfig[]>([]);
+  const [monitorSearchTerm, setMonitorSearchTerm] = useState('');
 
 
   const loadGroupDetails = useCallback(() => {
@@ -115,6 +118,29 @@ export default function GroupDetailsPage() {
   useEffect(() => {
     loadGroupDetails();
   }, [loadGroupDetails]);
+
+  const filteredProceduresForDialog = useMemo(() => {
+    if (!procedureSearchTerm.trim()) {
+      return allProcedures;
+    }
+    const lowerSearchTerm = procedureSearchTerm.toLowerCase();
+    return allProcedures.filter(proc =>
+      proc.name.toLowerCase().includes(lowerSearchTerm) ||
+      proc.description.toLowerCase().includes(lowerSearchTerm)
+    );
+  }, [allProcedures, procedureSearchTerm]);
+
+  const filteredMonitorsForDialog = useMemo(() => {
+    if (!monitorSearchTerm.trim()) {
+      return allMonitors;
+    }
+    const lowerSearchTerm = monitorSearchTerm.toLowerCase();
+    return allMonitors.filter(mon =>
+      mon.name.toLowerCase().includes(lowerSearchTerm) ||
+      mon.description.toLowerCase().includes(lowerSearchTerm)
+    );
+  }, [allMonitors, monitorSearchTerm]);
+
 
   const handleProcedureAssociationChange = (procedureId: string, isAssociated: boolean) => {
     setCurrentAssociatedProcedures(prev => {
@@ -184,12 +210,13 @@ export default function GroupDetailsPage() {
         setGroup(updatedGroup); 
       }
       setIsManageProceduresModalOpen(false);
+      setProcedureSearchTerm('');
       toast({ title: "Success", description: "Associated procedures updated (Mock)." });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save associated procedures (Mock).';
       toast({ title: "Error", description: errorMessage, variant: "destructive"});
     } finally {
-      setTimeout(() => setIsSaving(false), 500); // Simulate API delay
+      setTimeout(() => setIsSaving(false), 500); 
     }
   };
 
@@ -200,6 +227,7 @@ export default function GroupDetailsPage() {
       schedule: ap.schedule || { type: 'disabled' as const }
     }));
     setCurrentAssociatedProcedures(initialDialogProcedures);
+    setProcedureSearchTerm('');
     setIsManageProceduresModalOpen(true);
   };
 
@@ -264,12 +292,13 @@ export default function GroupDetailsPage() {
         setGroup(updatedGroup);
       }
       setIsManageMonitorsModalOpen(false);
+      setMonitorSearchTerm('');
       toast({ title: "Success", description: "Associated monitors updated (Mock)." });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save associated monitors (Mock).';
       toast({ title: "Error", description: errorMessage, variant: "destructive"});
     } finally {
-      setTimeout(() => setIsSaving(false), 500); // Simulate API delay
+      setTimeout(() => setIsSaving(false), 500); 
     }
   };
 
@@ -287,6 +316,7 @@ export default function GroupDetailsPage() {
         };
     });
     setCurrentAssociatedMonitors(initialDialogMonitors);
+    setMonitorSearchTerm('');
     setIsManageMonitorsModalOpen(true);
   };
 
@@ -378,7 +408,7 @@ export default function GroupDetailsPage() {
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle>Associated Procedures</CardTitle>
-                        <Dialog open={isManageProceduresModalOpen} onOpenChange={setIsManageProceduresModalOpen}>
+                        <Dialog open={isManageProceduresModalOpen} onOpenChange={(isOpen) => { setIsManageProceduresModalOpen(isOpen); if (!isOpen) setProcedureSearchTerm('');}}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm" onClick={openManageProceduresModal} disabled={isSaving || isLoading}>
                                     <Settings className="mr-2 h-4 w-4" /> Manage
@@ -389,10 +419,20 @@ export default function GroupDetailsPage() {
                                 <DialogTitle>Manage Associated Procedures for {group.name}</DialogTitle>
                                 <DialogDescription>Select procedures, configure their behavior, schedule, and order (Mock Data).</DialogDescription>
                                 </DialogHeader>
-                                <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
+                                <div className="py-2 relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground peer-focus:text-primary" />
+                                    <Input 
+                                        type="search"
+                                        placeholder="Search procedures by name or description..."
+                                        value={procedureSearchTerm}
+                                        onChange={(e) => setProcedureSearchTerm(e.target.value)}
+                                        className="pl-8 peer mb-3"
+                                    />
+                                </div>
+                                <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {allProcedures.length === 0 && <p className="text-muted-foreground p-2">No procedures available to associate.</p>}
-                                    {allProcedures.map(proc => {
+                                    {filteredProceduresForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allProcedures.length === 0 ? 'No procedures available.' : 'No procedures match your search.'}</p>}
+                                    {filteredProceduresForDialog.map(proc => {
                                         const assocIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
                                         const isAssociated = assocIndex !== -1;
                                         const config = isAssociated ? currentAssociatedProcedures[assocIndex] : undefined;
@@ -484,8 +524,8 @@ export default function GroupDetailsPage() {
                                             </div>
                                         );
                                     })}
-                                    {currentAssociatedProcedures.length > 0 && allProcedures.length > 0 && <Separator className="my-4"/> }
-                                    {allProcedures.length > 0 && <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Execution Order</Label>}
+                                    {currentAssociatedProcedures.length > 0 && filteredProceduresForDialog.length > 0 && <Separator className="my-4"/> }
+                                    {filteredProceduresForDialog.length > 0 && <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Execution Order</Label>}
                                     {currentAssociatedProcedures.map((assocProc, index) => {
                                         const procedureName = getProcedureNameFromMock(assocProc.procedureId);
                                         if (!procedureName || procedureName === 'Unknown Procedure') return null;
@@ -502,7 +542,7 @@ export default function GroupDetailsPage() {
                                 </div>
                                 </ScrollArea>
                                 <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsManageProceduresModalOpen(false)} disabled={isSaving}>Cancel</Button>
+                                <Button variant="outline" onClick={() => {setIsManageProceduresModalOpen(false); setProcedureSearchTerm('');}} disabled={isSaving}>Cancel</Button>
                                 <Button onClick={handleSaveAssociatedProcedures} disabled={isSaving || allProcedures.length === 0}>
                                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                   Save Associations
@@ -546,7 +586,7 @@ export default function GroupDetailsPage() {
                 <CardHeader>
                     <div className="flex justify-between items-center">
                         <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" />Associated Monitors</CardTitle>
-                        <Dialog open={isManageMonitorsModalOpen} onOpenChange={setIsManageMonitorsModalOpen}>
+                        <Dialog open={isManageMonitorsModalOpen} onOpenChange={(isOpen) => { setIsManageMonitorsModalOpen(isOpen); if(!isOpen) setMonitorSearchTerm('');}}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" size="sm" onClick={openManageMonitorsModal} disabled={isSaving || isLoading}>
                                     <Settings className="mr-2 h-4 w-4" /> Manage
@@ -557,10 +597,20 @@ export default function GroupDetailsPage() {
                                 <DialogTitle>Manage Associated Monitors for {group.name}</DialogTitle>
                                 <DialogDescription>Select monitors and configure their schedule for this group (Mock Data).</DialogDescription>
                                 </DialogHeader>
-                                <ScrollArea className="max-h-[calc(80vh-200px)] p-1">
+                                 <div className="py-2 relative">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground peer-focus:text-primary" />
+                                    <Input 
+                                        type="search"
+                                        placeholder="Search monitors by name or description..."
+                                        value={monitorSearchTerm}
+                                        onChange={(e) => setMonitorSearchTerm(e.target.value)}
+                                        className="pl-8 peer mb-3"
+                                    />
+                                </div>
+                                <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
-                                    {allMonitors.length === 0 && <p className="text-muted-foreground p-2">No monitors available to associate.</p>}
-                                    {allMonitors.map(mon => { 
+                                    {filteredMonitorsForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allMonitors.length === 0 ? 'No monitors available.' : 'No monitors match your search.'}</p>}
+                                    {filteredMonitorsForDialog.map(mon => { 
                                         const isAssociated = currentAssociatedMonitors.some(am => am.monitorId === mon.id);
                                         const config = currentAssociatedMonitors.find(am => am.monitorId === mon.id);
                                         
@@ -636,7 +686,7 @@ export default function GroupDetailsPage() {
                                 </div>
                                 </ScrollArea>
                                 <DialogFooter>
-                                <Button variant="outline" onClick={() => setIsManageMonitorsModalOpen(false)} disabled={isSaving}>Cancel</Button>
+                                <Button variant="outline" onClick={() => { setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');}} disabled={isSaving}>Cancel</Button>
                                 <Button onClick={handleSaveAssociatedMonitors} disabled={isSaving || allMonitors.length === 0}>
                                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                   Save Monitor Associations
@@ -679,3 +729,4 @@ export default function GroupDetailsPage() {
     </div>
   );
 }
+
