@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Procedure, ScriptType, AiSettings } from '@/types';
@@ -233,7 +232,7 @@ export default function ProceduresPage() {
   };
 
   const ProcedureFormFields = (
-    <div className="grid gap-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
+    <div className="space-y-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="name" className="text-right">Name</Label>
         <Input id="name" value={procedureName} onChange={(e) => setProcedureName(e.target.value)} className="col-span-3" disabled={isSubmitting} />
@@ -269,8 +268,8 @@ export default function ProceduresPage() {
       </div>
 
       {/* AI Generation Section */}
-      <Separator className="my-2 col-span-4" />
-      <div className="col-span-4 space-y-2">
+      <Separator className="my-2" />
+      <div className="space-y-2">
         <Button
             type="button"
             variant="outline"
@@ -499,5 +498,4 @@ export default function ProceduresPage() {
     </div>
   );
 }
-
     

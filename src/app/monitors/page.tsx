@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import type { Monitor, ScriptType, AiSettings } from '@/types';
@@ -242,7 +241,7 @@ export default function MonitorsPage() {
   };
 
   const MonitorFormFields = (
-    <div className="grid gap-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
+    <div className="space-y-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="monitorName" className="text-right">Name</Label>
         <Input id="monitorName" value={monitorName} onChange={(e) => setMonitorName(e.target.value)} className="col-span-3" disabled={isSubmitting}/>
@@ -274,8 +273,8 @@ export default function MonitorsPage() {
       </div>
       
       {/* AI Generation Section */}
-      <Separator className="my-2 col-span-4" />
-      <div className="col-span-4 space-y-2">
+      <Separator className="my-2" />
+      <div className="space-y-2">
         <Button
             type="button"
             variant="outline"
@@ -338,7 +337,7 @@ export default function MonitorsPage() {
             </Card>
         )}
       </div>
-      <Separator className="my-2 col-span-4"/>
+      <Separator className="my-2"/>
 
 
       <div className="grid grid-cols-4 items-center gap-4">
