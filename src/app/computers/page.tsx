@@ -44,8 +44,9 @@ export default function ComputersPage() {
   
   const [groups, setGroups] = useState<ComputerGroup[]>([]); 
   const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
-  const [isLoadingProceduresOrGroups, setIsLoadingProceduresOrGroups] = useState(false);
+  const [isLoadingProceduresOrGroups, setIsLoadingProceduresOrGroups] = useState(true); // Combined for simplicity
 
+  const [groupFilterSearchTerm, setGroupFilterSearchTerm] = useState('');
 
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
@@ -53,12 +54,10 @@ export default function ComputersPage() {
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
   const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
 
-
   const loadInitialData = useCallback(() => {
     setIsLoadingComputers(true);
     setComputerError(null);
     setIsLoadingProceduresOrGroups(true); 
-    // Simulate delay for mock data
     setTimeout(() => {
       try {
         setComputers(getComputers());
@@ -83,14 +82,24 @@ export default function ComputersPage() {
     loadInitialData();
   }, [loadInitialData]);
 
+  const filteredGroupsForFilterSelect = useMemo(() => {
+    if (!groupFilterSearchTerm.trim()) {
+      return groups;
+    }
+    const lowerSearch = groupFilterSearchTerm.toLowerCase();
+    return groups.filter(group => group.name.toLowerCase().includes(lowerSearch));
+  }, [groups, groupFilterSearchTerm]);
 
   const filteredComputers = useMemo(() => {
     let filtered = computers;
 
     if (selectedGroupId !== ALL_GROUPS_VALUE) {
-      filtered = filtered.filter(computer =>
-        computer.groupIds?.includes(selectedGroupId)
-      );
+      const group = groups.find(g => g.id === selectedGroupId);
+      if (group) {
+        filtered = filtered.filter(computer =>
+          computer.groupIds?.includes(selectedGroupId)
+        );
+      }
     }
 
     if (searchTerm.trim() !== '') {
@@ -102,7 +111,7 @@ export default function ComputersPage() {
       );
     }
     return filtered;
-  }, [computers, selectedGroupId, searchTerm]);
+  }, [computers, selectedGroupId, searchTerm, groups]);
 
   const handleComputerSelection = (computerId: string, checked: boolean) => {
     setSelectedComputerIds(prev => {
@@ -149,7 +158,6 @@ export default function ComputersPage() {
 
     setIsExecutingProcedure(true);
     try {
-      // Call mock execution function
       executeMockProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
       toast({
         title: "Procedures Execution Queued (Mock)",
@@ -163,7 +171,6 @@ export default function ComputersPage() {
         const errorMessage = err instanceof Error ? err.message : 'Failed to queue procedure execution (Mock).';
         toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive"});
     } finally {
-        // Simulate delay for mock execution
         setTimeout(() => setIsExecutingProcedure(false), 1000);
     }
   };
@@ -195,22 +202,41 @@ export default function ComputersPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <ListFilter className="h-5 w-5 text-muted-foreground" />
-            <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
-            <Select value={selectedGroupId} onValueChange={setSelectedGroupId} disabled={isLoadingComputers || groups.length === 0}>
-              <SelectTrigger id="groupFilter" className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Select a group" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
-                {groups.map(group => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
+            <div className="flex items-center gap-1">
+                <ListFilter className="h-5 w-5 text-muted-foreground" />
+                <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
+            </div>
+            <div className="w-full sm:w-[180px] space-y-1">
+                 <Input 
+                    type="search"
+                    placeholder="Search groups..."
+                    value={groupFilterSearchTerm}
+                    onChange={(e) => setGroupFilterSearchTerm(e.target.value)}
+                    className="h-8 text-xs pl-2"
+                    disabled={isLoadingProceduresOrGroups || groups.length === 0}
+                 />
+                <Select 
+                    value={selectedGroupId} 
+                    onValueChange={setSelectedGroupId} 
+                    disabled={isLoadingProceduresOrGroups || groups.length === 0}
+                >
+                <SelectTrigger id="groupFilter" className="w-full">
+                    <SelectValue placeholder="Select a group" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
+                    {filteredGroupsForFilterSelect.map(group => (
+                    <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                    </SelectItem>
+                    ))}
+                    {filteredGroupsForFilterSelect.length === 0 && groupFilterSearchTerm && (
+                        <p className="p-2 text-xs text-muted-foreground">No groups match search.</p>
+                    )}
+                </SelectContent>
+                </Select>
+            </div>
           </div>
           <Button asChild>
             <Link href="/computers/new">
@@ -242,14 +268,17 @@ export default function ComputersPage() {
                 </DialogDescription>
               </DialogHeader>
               <div className="py-4 space-y-4">
-                <Input 
-                  type="search"
-                  placeholder="Search procedures..."
-                  value={procedureSearchTerm}
-                  onChange={(e) => setProcedureSearchTerm(e.target.value)}
-                  className="mb-2"
-                  disabled={isLoadingProceduresOrGroups}
-                />
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    type="search"
+                    placeholder="Search procedures..."
+                    value={procedureSearchTerm}
+                    onChange={(e) => setProcedureSearchTerm(e.target.value)}
+                    className="pl-8 mb-2"
+                    disabled={isLoadingProceduresOrGroups}
+                  />
+                </div>
                 <div>
                     <Label htmlFor="select-procedure">Procedure</Label>
                     <Select value={selectedProcedureId} onValueChange={setSelectedProcedureId} disabled={isLoadingProceduresOrGroups}>
@@ -262,7 +291,7 @@ export default function ComputersPage() {
                                 <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading...
                             </div>
                         ) : filteredProceduresForDialog.length === 0 ? (
-                            <p className="p-2 text-sm text-muted-foreground">No procedures found.</p>
+                            <p className="p-2 text-sm text-muted-foreground">{procedureSearchTerm ? "No procedures match search." : "No procedures found."}</p>
                         ) : (
                             <ScrollArea className="h-[200px]">
                             {filteredProceduresForDialog.map(proc => (
@@ -304,12 +333,9 @@ export default function ComputersPage() {
         <CardContent>
           {isLoadingComputers ? (
             <div className="space-y-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" />
               <div className="flex justify-center items-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="ml-2 text-muted-foreground">Loading computers...</p>
+                <Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading computers...</p>
               </div>
             </div>
           ) : computerError ? (
@@ -341,3 +367,4 @@ export default function ComputersPage() {
     </div>
   );
 }
+
