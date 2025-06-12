@@ -5,7 +5,7 @@ import type { Computer, ScriptType, CustomCommand, ComputerGroup, Procedure } fr
 import { scriptTypes, getComputers, getGroups, addCustomCommand, getCommandHistory, getComputerById, getGroupById, getProcedures, executeMockProcedure } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, ListChecks, Loader2, Play, Check, ChevronsUpDown, Search } from 'lucide-react';
+import { Send, ListChecks, Loader2, Play } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -24,19 +24,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 type TargetType = "computer" | "group";
 type ExecutionMode = "script" | "procedure";
@@ -60,23 +47,17 @@ export default function CommandsPage() {
 
   const [allComputers, setAllComputers] = useState<Computer[]>([]);
   const [isLoadingComputers, setIsLoadingComputers] = useState(true);
+  const [targetComputerSearchTerm, setTargetComputerSearchTerm] = useState('');
   
   const [allGroups, setAllGroups] = useState<ComputerGroup[]>([]);
   const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [targetGroupSearchTerm, setTargetGroupSearchTerm] = useState('');
 
   const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
   const [isLoadingProcedures, setIsLoadingProcedures] = useState(true);
+  const [procedureSelectSearchTerm, setProcedureSelectSearchTerm] = useState('');
 
   const [isSendingCommand, setIsSendingCommand] = useState(false);
-
-  // Popover states for Comboboxes
-  const [openComputerPopover, setOpenComputerPopover] = useState(false);
-  const [openGroupPopover, setOpenGroupPopover] = useState(false);
-  const [openProcedurePopover, setOpenProcedurePopover] = useState(false);
-
-  // Search term states for Combobox inputs (if needed, CommandInput handles its own value)
-  // For simplicity, CommandInput will manage its internal search term.
-  // We will use filtered lists based on this internal term if we don't store it explicitly.
 
   const loadInitialData = useCallback(() => {
     setIsLoadingHistory(true);
@@ -139,6 +120,42 @@ export default function CommandsPage() {
     }, 300);
   }, [toast]);
 
+  const filteredComputersForSelect = useMemo(() => {
+    const online = allComputers.filter(c => c.status === 'Online');
+    const offline = allComputers.filter(c => c.status !== 'Online');
+    
+    const filterLogic = (computer: Computer) => 
+        computer.name.toLowerCase().includes(targetComputerSearchTerm.toLowerCase()) ||
+        computer.ipAddress.toLowerCase().includes(targetComputerSearchTerm.toLowerCase()) ||
+        computer.os.toLowerCase().includes(targetComputerSearchTerm.toLowerCase());
+
+    if (!targetComputerSearchTerm.trim()) {
+      return { online, offline, hasSearchResults: true };
+    }
+    const filteredOnline = online.filter(filterLogic);
+    const filteredOffline = offline.filter(filterLogic);
+    return { online: filteredOnline, offline: filteredOffline, hasSearchResults: filteredOnline.length > 0 || filteredOffline.length > 0 };
+  }, [allComputers, targetComputerSearchTerm]);
+
+  const filteredGroupsForSelect = useMemo(() => {
+    if (!targetGroupSearchTerm.trim()) {
+      return allGroups;
+    }
+    return allGroups.filter(group =>
+      group.name.toLowerCase().includes(targetGroupSearchTerm.toLowerCase()) ||
+      group.description.toLowerCase().includes(targetGroupSearchTerm.toLowerCase())
+    );
+  }, [allGroups, targetGroupSearchTerm]);
+
+  const filteredProceduresForSelect = useMemo(() => {
+    if (!procedureSelectSearchTerm.trim()) {
+      return allProcedures;
+    }
+    return allProcedures.filter(proc =>
+      proc.name.toLowerCase().includes(procedureSelectSearchTerm.toLowerCase()) ||
+      proc.description.toLowerCase().includes(procedureSelectSearchTerm.toLowerCase())
+    );
+  }, [allProcedures, procedureSelectSearchTerm]);
 
   const handleSendCommand = () => {
     let targetIdValue: string;
@@ -257,15 +274,15 @@ export default function CommandsPage() {
   const getTargetName = (command: CustomCommand): string => {
     if (command.targetType === 'group') {
       const group = allGroups.find(g => g.id === command.targetId);
-      let name = group ? `Group: ${group.name}` : `Group ID: ${command.targetId}`;
+      let name = group ? \`Group: \${group.name}\` : \`Group ID: \${command.targetId}\`;
       if (command.computerId && command.computerId !== command.targetId) { 
         const computer = allComputers.find(c => c.id === command.computerId);
-        name += computer ? ` (on ${computer.name})` : ` (on Comp ID: ${command.computerId})`;
+        name += computer ? \` (on \${computer.name})\` : \` (on Comp ID: \${command.computerId})\`;
       }
       return name;
     } else {
       const computer = allComputers.find(c => c.id === command.targetId);
-      return computer ? computer.name : `Computer ID: ${command.targetId}`;
+      return computer ? computer.name : \`Computer ID: \${command.targetId}\`;
     }
   };
 
@@ -308,64 +325,57 @@ export default function CommandsPage() {
           {!isLoadingComputers && targetType === "computer" && (
             <div className="space-y-2">
               <Label htmlFor="targetComputer">Target Computer</Label>
-              <Popover open={openComputerPopover} onOpenChange={setOpenComputerPopover}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openComputerPopover}
-                    className="w-full justify-between"
-                    disabled={isLoadingComputers || allComputers.filter(c => c.status === 'Online').length === 0}
-                  >
-                    {selectedComputerId
-                      ? allComputers.find(computer => computer.id === selectedComputerId)?.name
-                      : allComputers.filter(c => c.status === 'Online').length === 0 ? "No online computers available" : "Select an online computer..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search online computers..." />
-                    <CommandList>
-                      <CommandEmpty>No computer found.</CommandEmpty>
-                      <CommandGroup>
-                        {allComputers.filter(c => c.status === 'Online').map(computer => (
-                          <CommandItem
-                            key={computer.id}
-                            value={computer.name}
-                            onSelect={() => {
-                              setSelectedComputerId(computer.id);
-                              setOpenComputerPopover(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedComputerId === computer.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {computer.name} ({computer.ipAddress})
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                      {allComputers.filter(c => c.status !== 'Online').length > 0 && (
-                        <CommandGroup heading="Offline / Other">
-                           {allComputers.filter(c => c.status !== 'Online').map(computer => (
-                            <CommandItem
-                              key={computer.id}
-                              value={computer.name}
-                              disabled
-                              className="text-muted-foreground"
-                            >
-                              {computer.name} ({computer.status})
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      )}
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Input 
+                type="search" 
+                placeholder="Search online computers..." 
+                value={targetComputerSearchTerm} 
+                onChange={(e) => setTargetComputerSearchTerm(e.target.value)}
+                className="mb-1"
+                disabled={isLoadingComputers}
+              />
+              <Select 
+                key={'target-computer-select-${targetComputerSearchTerm}'}
+                value={selectedComputerId} 
+                onValueChange={setSelectedComputerId}
+                disabled={isLoadingComputers || (filteredComputersForSelect.online.length === 0 && filteredComputersForSelect.offline.length === 0 && !!targetComputerSearchTerm)}
+              >
+                <SelectTrigger id="targetComputer">
+                  <SelectValue placeholder={
+                     isLoadingComputers ? "Loading computers..." : 
+                     (allComputers.filter(c=>c.status === 'Online').length === 0 && !targetComputerSearchTerm) ? "No online computers available" : 
+                     (!filteredComputersForSelect.hasSearchResults && !!targetComputerSearchTerm) ? "No computers match search" :
+                     "Select an online computer..."
+                  }/>
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredComputersForSelect.online.length > 0 && (
+                    filteredComputersForSelect.online.map(computer => (
+                      <SelectItem key={computer.id} value={computer.id}>
+                        {computer.name} ({computer.ipAddress})
+                      </SelectItem>
+                    ))
+                  )}
+                  {filteredComputersForSelect.offline.length > 0 && (
+                    <>
+                      {filteredComputersForSelect.online.length > 0 && <SelectItem value="divider-offline" disabled className="font-bold text-muted-foreground my-1">--- Offline / Other ---</SelectItem>}
+                      {filteredComputersForSelect.offline.map(computer => (
+                        <SelectItem key={computer.id} value={computer.id} disabled>
+                          {computer.name} ({computer.status})
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {!filteredComputersForSelect.hasSearchResults && !!targetComputerSearchTerm && (
+                     <SelectItem value="no-results" disabled>No computers match search</SelectItem>
+                  )}
+                  {filteredComputersForSelect.online.length === 0 && filteredComputersForSelect.offline.length === 0 && !targetComputerSearchTerm && allComputers.length > 0 && (
+                     <SelectItem value="no-online" disabled>No online computers available</SelectItem>
+                  )}
+                   {allComputers.length === 0 && !targetComputerSearchTerm && (
+                     <SelectItem value="no-computers" disabled>No computers found</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
@@ -373,50 +383,42 @@ export default function CommandsPage() {
           {!isLoadingGroups && targetType === "group" && (
             <div className="space-y-2">
               <Label htmlFor="targetGroup">Target Group</Label>
-              <Popover open={openGroupPopover} onOpenChange={setOpenGroupPopover}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={openGroupPopover}
-                    className="w-full justify-between"
-                    disabled={isLoadingGroups || allGroups.length === 0}
-                  >
-                    {selectedGroupId
-                      ? allGroups.find(group => group.id === selectedGroupId)?.name
-                      : allGroups.length === 0 ? "No groups available" : "Select a group..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
-                    <CommandInput placeholder="Search groups..." />
-                    <CommandList>
-                      <CommandEmpty>No group found.</CommandEmpty>
-                      <CommandGroup>
-                        {allGroups.map(group => (
-                          <CommandItem
-                            key={group.id}
-                            value={group.name}
-                            onSelect={() => {
-                              setSelectedGroupId(group.id);
-                              setOpenGroupPopover(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedGroupId === group.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            {group.name} ({group.computerIds.length} computer(s))
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <Input 
+                type="search" 
+                placeholder="Search groups..." 
+                value={targetGroupSearchTerm} 
+                onChange={(e) => setTargetGroupSearchTerm(e.target.value)}
+                className="mb-1"
+                disabled={isLoadingGroups}
+              />
+              <Select 
+                key={'target-group-select-${targetGroupSearchTerm}'}
+                value={selectedGroupId} 
+                onValueChange={setSelectedGroupId}
+                disabled={isLoadingGroups || (filteredGroupsForSelect.length === 0 && !!targetGroupSearchTerm) || (allGroups.length === 0 && !targetGroupSearchTerm)}
+              >
+                <SelectTrigger id="targetGroup">
+                  <SelectValue placeholder={
+                    isLoadingGroups ? "Loading groups..." :
+                    (allGroups.length === 0 && !targetGroupSearchTerm) ? "No groups available" :
+                    (filteredGroupsForSelect.length === 0 && !!targetGroupSearchTerm) ? "No groups match search" :
+                    "Select a group..."
+                  }/>
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredGroupsForSelect.length > 0 ? (
+                    filteredGroupsForSelect.map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name} ({group.computerIds.length} computer(s))
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="no-results" disabled>
+                      {allGroups.length === 0 && !targetGroupSearchTerm ? "No groups available" : "No groups match your search."}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           )}
           
@@ -455,7 +457,7 @@ export default function CommandsPage() {
                   id="commandContent"
                   value={commandContent}
                   onChange={(e) => setCommandContent(e.target.value)}
-                  placeholder={`Enter ${commandScriptType} command or script here...`}
+                  placeholder={\`Enter \${commandScriptType} command or script here...\`}
                   rows={8}
                   className="font-code"
                 />
@@ -468,50 +470,44 @@ export default function CommandsPage() {
               <Label htmlFor="selectProcedure">Select Procedure</Label>
                {isLoadingProcedures && <Skeleton className="h-10 w-full" />}
                {!isLoadingProcedures && (
-                 <Popover open={openProcedurePopover} onOpenChange={setOpenProcedurePopover}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openProcedurePopover}
-                      className="w-full justify-between"
-                      disabled={isLoadingProcedures || allProcedures.length === 0}
-                    >
-                      {selectedProcedureIdForExecution
-                        ? allProcedures.find(proc => proc.id === selectedProcedureIdForExecution)?.name
-                        : allProcedures.length === 0 ? "No procedures available" : "Select a procedure..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search procedures..." />
-                      <CommandList>
-                        <CommandEmpty>No procedure found.</CommandEmpty>
-                        <CommandGroup>
-                          {allProcedures.map(proc => (
-                            <CommandItem
-                              key={proc.id}
-                              value={proc.name}
-                              onSelect={() => {
-                                setSelectedProcedureIdForExecution(proc.id);
-                                setOpenProcedurePopover(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedProcedureIdForExecution === proc.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {proc.name} ({proc.scriptType})
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+                <>
+                  <Input 
+                    type="search" 
+                    placeholder="Search procedures..." 
+                    value={procedureSelectSearchTerm} 
+                    onChange={(e) => setProcedureSelectSearchTerm(e.target.value)}
+                    className="mb-1"
+                    disabled={isLoadingProcedures}
+                  />
+                  <Select 
+                    key={'select-procedure-${procedureSelectSearchTerm}'}
+                    value={selectedProcedureIdForExecution} 
+                    onValueChange={setSelectedProcedureIdForExecution}
+                    disabled={isLoadingProcedures || (filteredProceduresForSelect.length === 0 && !!procedureSelectSearchTerm) || (allProcedures.length === 0 && !procedureSelectSearchTerm)}
+                  >
+                    <SelectTrigger id="selectProcedure">
+                      <SelectValue placeholder={
+                        isLoadingProcedures ? "Loading procedures..." :
+                        (allProcedures.length === 0 && !procedureSelectSearchTerm) ? "No procedures available" :
+                        (filteredProceduresForSelect.length === 0 && !!procedureSelectSearchTerm) ? "No procedures match search" :
+                        "Select a procedure..."
+                      }/>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredProceduresForSelect.length > 0 ? (
+                        filteredProceduresForSelect.map(proc => (
+                          <SelectItem key={proc.id} value={proc.id}>
+                            {proc.name} ({proc.scriptType})
+                          </SelectItem>
+                        ))
+                      ) : (
+                         <SelectItem value="no-results" disabled>
+                           {allProcedures.length === 0 && !procedureSelectSearchTerm ? "No procedures available" : "No procedures match your search."}
+                         </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </>
                )}
             </div>
           )}
@@ -585,6 +581,3 @@ export default function CommandsPage() {
     </div>
   );
 }
-    
-
-    

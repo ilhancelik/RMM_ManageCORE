@@ -24,25 +24,12 @@ import {
 } from '@/components/ui/dialog';
 import { getComputers, getProcedures, getGroups, executeMockProcedure } from '@/lib/mockData'; 
 import type { Computer, ComputerGroup, Procedure } from '@/types';
-import { PlusCircle, ListFilter, Search, Play, Loader2, Check, ChevronsUpDown } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, Play, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 const ALL_GROUPS_VALUE = "all-groups";
 
@@ -59,15 +46,13 @@ export default function ComputersPage() {
   const [allProcedures, setAllProcedures] = useState<Procedure[]>([]);
   const [isLoadingProceduresOrGroups, setIsLoadingProceduresOrGroups] = useState(true); 
 
+  const [groupFilterSearchTerm, setGroupFilterSearchTerm] = useState('');
+  const [procedureSearchTerm, setProcedureSearchTerm] = useState(''); 
+
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
-  const [procedureSearchTerm, setProcedureSearchTerm] = useState(''); // For dialog procedure search
   const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
-
-  // Popover states for Comboboxes
-  const [openGroupFilterPopover, setOpenGroupFilterPopover] = useState(false);
-  const [openProcedureDialogPopover, setOpenProcedureDialogPopover] = useState(false);
 
 
   const loadInitialData = useCallback(() => {
@@ -98,6 +83,24 @@ export default function ComputersPage() {
     loadInitialData();
   }, [loadInitialData]);
 
+  const filteredGroupsForFilterSelect = useMemo(() => {
+    if (!groupFilterSearchTerm.trim()) {
+      return groups;
+    }
+    return groups.filter(group =>
+      group.name.toLowerCase().includes(groupFilterSearchTerm.toLowerCase())
+    );
+  }, [groups, groupFilterSearchTerm]);
+
+  const filteredProceduresForDialog = useMemo(() => {
+    if (!procedureSearchTerm.trim()) {
+      return allProcedures;
+    }
+    return allProcedures.filter(proc =>
+      proc.name.toLowerCase().includes(procedureSearchTerm.toLowerCase()) ||
+      proc.description.toLowerCase().includes(procedureSearchTerm.toLowerCase())
+    );
+  }, [allProcedures, procedureSearchTerm]);
 
   const filteredComputers = useMemo(() => {
     let filtered = computers;
@@ -170,7 +173,7 @@ export default function ComputersPage() {
       executeMockProcedure(procedureToRun.id, onlineSelectedComputers.map(c => c.id));
       toast({
         title: "Procedures Execution Queued (Mock)",
-        description: `"${procedureToRun.name}" has been queued for execution on ${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.`
+        description: \`"\${procedureToRun.name}" has been queued for execution on \${onlineSelectedComputers.length} selected computer(s). Check procedure or computer details for status.\`
       });
       setIsRunProcedureModalOpen(false);
       setSelectedComputerIds([]);
@@ -203,70 +206,46 @@ export default function ComputersPage() {
           <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-2">
             <div className="flex items-center gap-1">
                 <ListFilter className="h-5 w-5 text-muted-foreground" />
-                <Label htmlFor="groupFilterPopover" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
+                <Label htmlFor="groupFilter" className="text-sm font-medium sr-only sm:not-sr-only">Filter by Group:</Label>
             </div>
             <div className="w-full sm:w-[180px] space-y-1">
-                <Popover open={openGroupFilterPopover} onOpenChange={setOpenGroupFilterPopover}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      id="groupFilterPopover"
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={openGroupFilterPopover}
-                      className="w-full justify-between h-10"
-                      disabled={isLoadingProceduresOrGroups || groups.length === 0}
-                    >
-                      {selectedGroupId === ALL_GROUPS_VALUE
-                        ? (groups.length === 0 ? "No groups available" : "All Groups")
-                        : groups.find(group => group.id === selectedGroupId)?.name || "Select a group..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput placeholder="Search groups..." />
-                      <CommandList>
-                        <CommandEmpty>No group found.</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            key={ALL_GROUPS_VALUE}
-                            value="All Groups"
-                            onSelect={() => {
-                              setSelectedGroupId(ALL_GROUPS_VALUE);
-                              setOpenGroupFilterPopover(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedGroupId === ALL_GROUPS_VALUE ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            All Groups
-                          </CommandItem>
-                          {groups.map(group => (
-                            <CommandItem
-                              key={group.id}
-                              value={group.name}
-                              onSelect={() => {
-                                setSelectedGroupId(group.id);
-                                setOpenGroupFilterPopover(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  selectedGroupId === group.id ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              {group.name}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
+              <Input 
+                type="search" 
+                placeholder="Search groups..." 
+                value={groupFilterSearchTerm} 
+                onChange={(e) => setGroupFilterSearchTerm(e.target.value)}
+                className="h-9 text-xs mb-0.5"
+                disabled={isLoadingProceduresOrGroups}
+              />
+              <Select 
+                key={'group-filter-select-${groupFilterSearchTerm}'}
+                value={selectedGroupId} 
+                onValueChange={setSelectedGroupId} 
+                disabled={isLoadingProceduresOrGroups || (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) || (groups.length === 0 && !groupFilterSearchTerm)}
+              >
+                <SelectTrigger id="groupFilter" className="h-10">
+                  <SelectValue placeholder={
+                      isLoadingProceduresOrGroups ? "Loading groups..." :
+                      (groups.length === 0 && !groupFilterSearchTerm) ? "No groups available" :
+                      (filteredGroupsForFilterSelect.length === 0 && !!groupFilterSearchTerm) ? "No groups match search" :
+                      "All Groups"
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_GROUPS_VALUE}>All Groups</SelectItem>
+                  {filteredGroupsForFilterSelect.length > 0 ? (
+                    filteredGroupsForFilterSelect.map(group => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                     <SelectItem value="no-results" disabled>
+                        {groups.length === 0 && !groupFilterSearchTerm ? "No groups available" : "No groups match search"}
+                     </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button asChild>
@@ -298,61 +277,44 @@ export default function ComputersPage() {
                   Offline computers will be skipped.
                 </DialogDescription>
               </DialogHeader>
-              <div className="py-4 space-y-4">
-                <div>
-                    <Label htmlFor="select-procedure-dialog">Procedure</Label>
-                    <Popover open={openProcedureDialogPopover} onOpenChange={setOpenProcedureDialogPopover}>
-                      <PopoverTrigger asChild>
-                        <Button
-                          id="select-procedure-dialog"
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openProcedureDialogPopover}
-                          className="w-full justify-between"
-                          disabled={isLoadingProceduresOrGroups || allProcedures.length === 0}
-                        >
-                          {selectedProcedureId
-                            ? allProcedures.find(proc => proc.id === selectedProcedureId)?.name
-                            : allProcedures.length === 0 ? "No procedures available" : "Select a procedure..."}
-                          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                          <CommandInput 
-                            placeholder="Search procedures..." 
-                            value={procedureSearchTerm} // Controlled input for dialog search
-                            onValueChange={setProcedureSearchTerm}
-                          />
-                          <CommandList>
-                            <CommandEmpty>No procedure found.</CommandEmpty>
-                            <CommandGroup>
-                              {allProcedures
-                                .filter(proc => proc.name.toLowerCase().includes(procedureSearchTerm.toLowerCase()) || proc.description.toLowerCase().includes(procedureSearchTerm.toLowerCase()))
-                                .map(proc => (
-                                <CommandItem
-                                  key={proc.id}
-                                  value={proc.name}
-                                  onSelect={() => {
-                                    setSelectedProcedureId(proc.id);
-                                    setOpenProcedureDialogPopover(false);
-                                  }}
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedProcedureId === proc.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  {proc.name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                </div>
+              <div className="py-4 space-y-2">
+                <Label htmlFor="select-procedure-dialog">Procedure</Label>
+                <Input 
+                  type="search" 
+                  placeholder="Search procedures..." 
+                  value={procedureSearchTerm} 
+                  onChange={(e) => setProcedureSearchTerm(e.target.value)}
+                  className="mb-1"
+                  disabled={isLoadingProceduresOrGroups}
+                />
+                <Select 
+                  key={'dialog-procedure-select-${procedureSearchTerm}'}
+                  value={selectedProcedureId} 
+                  onValueChange={setSelectedProcedureId}
+                  disabled={isLoadingProceduresOrGroups || (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm) || (allProcedures.length === 0 && !procedureSearchTerm)}
+                >
+                  <SelectTrigger id="select-procedure-dialog">
+                    <SelectValue placeholder={
+                      isLoadingProceduresOrGroups ? "Loading procedures..." :
+                      (allProcedures.length === 0 && !procedureSearchTerm) ? "No procedures available" :
+                      (filteredProceduresForDialog.length === 0 && !!procedureSearchTerm) ? "No procedures match search" :
+                      "Select a procedure..."
+                    }/>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredProceduresForDialog.length > 0 ? (
+                      filteredProceduresForDialog.map(proc => (
+                        <SelectItem key={proc.id} value={proc.id}>
+                          {proc.name}
+                        </SelectItem>
+                      ))
+                    ): (
+                      <SelectItem value="no-results" disabled>
+                        {allProcedures.length === 0 && !procedureSearchTerm ? "No procedures available" : "No procedures match search"}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => { setIsRunProcedureModalOpen(false); setProcedureSearchTerm(''); }} disabled={isExecutingProcedure}>Cancel</Button>
@@ -369,12 +331,12 @@ export default function ComputersPage() {
       <Card>
         <CardHeader>
           <CardTitle>
-            {selectedGroupId !== ALL_GROUPS_VALUE ? `${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers` : 'All Computers'}
-            {searchTerm && ` (Filtered by "${searchTerm}")`}
+            {selectedGroupId !== ALL_GROUPS_VALUE ? \`\${groups.find(g => g.id === selectedGroupId)?.name || 'Selected Group'} Computers\` : 'All Computers'}
+            {searchTerm && \` (Filtered by "\${searchTerm}")\`}
           </CardTitle>
           <CardDescription>
             {selectedGroupId !== ALL_GROUPS_VALUE
-              ? `Viewing computers in the "${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.`
+              ? \`Viewing computers in the "\${groups.find(g => g.id === selectedGroupId)?.name || 'selected'}" group.\`
               : 'View and manage all connected computers (Mock Data).'}
             {filteredComputers.length === 0 && searchTerm && !isLoadingComputers && ' No computers match your search.'}
           </CardDescription>
@@ -401,9 +363,9 @@ export default function ComputersPage() {
             />
           ) : (
             <p className="text-center text-muted-foreground py-8">
-              {searchTerm && `No computers found matching "${searchTerm}".`}
-              {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && `No computers found in the selected group.`}
-              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? `No computers found in mock data.` : `No computers found.`)}
+              {searchTerm && \`No computers found matching "\${searchTerm}".\`}
+              {!searchTerm && selectedGroupId !== ALL_GROUPS_VALUE && \`No computers found in the selected group.\`}
+              {!searchTerm && selectedGroupId === ALL_GROUPS_VALUE && (computers.length === 0 ? \`No computers found in mock data.\` : \`No computers found.\`)}
             </p>
           )}
         </CardContent>
@@ -416,5 +378,3 @@ export default function ComputersPage() {
     </div>
   );
 }
-
-    
