@@ -26,7 +26,7 @@ export interface AssociatedProcedureConfig {
 
 export interface AssociatedMonitorConfig {
   monitorId: string;
-  schedule: ScheduleConfig; 
+  schedule: ScheduleConfig;
 }
 
 export interface ComputerGroup {
@@ -46,32 +46,33 @@ export interface Procedure {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
-  createdAt: string; 
-  updatedAt: string; 
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProcedureExecution {
   id: string;
   procedureId: string;
   computerId: string;
-  computerName?: string; 
+  computerName?: string;
   status: 'Pending' | 'Running' | 'Success' | 'Failed' | 'Cancelled';
-  startTime?: string; 
-  endTime?: string; 
+  startTime?: string;
+  endTime?: string;
   logs: string;
   output?: string;
 }
 
 export interface CustomCommand {
     id:string;
-    computerId: string; 
-    targetType?: 'computer' | 'group'; 
-    targetId: string; 
+    computerId: string;
+    targetType?: 'computer' | 'group';
+    targetId: string;
     command: string;
     scriptType: ScriptType;
+    runAsUser?: boolean; // Added this line
     status: 'Pending' | 'Sent' | 'Success' | 'Failed';
     output?: string;
-    executedAt?: string; 
+    executedAt?: string;
 }
 
 export interface Monitor {
@@ -79,33 +80,33 @@ export interface Monitor {
   name: string;
   description: string;
   scriptType: ScriptType;
-  scriptContent: string; 
-  defaultIntervalValue: number; 
-  defaultIntervalUnit: 'minutes' | 'hours' | 'days'; 
+  scriptContent: string;
+  defaultIntervalValue: number;
+  defaultIntervalUnit: 'minutes' | 'hours' | 'days';
   sendEmailOnAlert: boolean;
-  createdAt: string; 
-  updatedAt: string; 
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface MonitorExecutionLog {
   id: string;
   monitorId: string;
-  computerId: string; 
+  computerId: string;
   computerName?: string;
-  timestamp: string; 
-  status: 'OK' | 'ALERT' | 'Error' | 'Running'; 
-  message: string; 
-  notified?: boolean; 
+  timestamp: string;
+  status: 'OK' | 'ALERT' | 'Error' | 'Running';
+  message: string;
+  notified?: boolean;
 }
 
 export interface SMTPSettings {
   server: string;
   port: number;
-  username?: string; 
-  password?: string; 
-  secure: boolean; 
-  fromEmail: string; 
-  defaultToEmail: string; 
+  username?: string;
+  password?: string;
+  secure: boolean;
+  fromEmail: string;
+  defaultToEmail: string;
 }
 
 export interface AiProviderConfig {

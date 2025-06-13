@@ -35,41 +35,41 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
 export let mockMonitors: Monitor[] = [
   { id: 'mon-1', name: 'CPU Usage Monitor', description: 'Alerts if CPU usage is high.', scriptType: 'PowerShell', scriptContent: 'if ((Get-Counter "\\Processor(_Total)\\% Processor Time").CounterSamples[0].CookedValue -gt 80) { "ALERT: CPU Usage High" } else { "OK: CPU Usage Normal" }', defaultIntervalValue: 5, defaultIntervalUnit: 'minutes', sendEmailOnAlert: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 1).toISOString() },
   { id: 'mon-2', name: 'Disk Space Monitor (C:)', description: 'Checks free disk space on C:. Alerts if < 10% free.', scriptType: 'PowerShell', scriptContent: '$disk = Get-PSDrive C; if (($disk.Free / $disk.Size) * 100 -lt 10) { "ALERT: Low Disk Space on C:" } else { "OK: Disk space sufficient on C:" }', defaultIntervalValue: 1, defaultIntervalUnit: 'hours', sendEmailOnAlert: false, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date().toISOString() },
-  { 
-    id: 'mon-3', 
-    name: 'Print Spooler Service Monitor', 
-    description: 'Checks if the Print Spooler service is running.', 
-    scriptType: 'PowerShell', 
-    scriptContent: '$serviceName = "Spooler"\nif ((Get-Service -Name $serviceName -ErrorAction SilentlyContinue).Status -eq "Running") { \n    "OK: Service $serviceName is running." \n} else { \n    "ALERT: Service $serviceName is NOT running." \n}', 
-    defaultIntervalValue: 15, 
-    defaultIntervalUnit: 'minutes', 
-    sendEmailOnAlert: true, 
-    createdAt: new Date().toISOString(), 
-    updatedAt: new Date().toISOString() 
+  {
+    id: 'mon-3',
+    name: 'Print Spooler Service Monitor',
+    description: 'Checks if the Print Spooler service is running.',
+    scriptType: 'PowerShell',
+    scriptContent: '$serviceName = "Spooler"\nif ((Get-Service -Name $serviceName -ErrorAction SilentlyContinue).Status -eq "Running") { \n    "OK: Service $serviceName is running." \n} else { \n    "ALERT: Service $serviceName is NOT running." \n}',
+    defaultIntervalValue: 15,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
-  { 
-    id: 'mon-4', 
-    name: 'Google DNS Ping Monitor', 
-    description: 'Pings Google DNS (8.8.8.8) to check external connectivity.', 
-    scriptType: 'CMD', 
-    scriptContent: 'ping -n 1 8.8.8.8 | find "TTL=" > nul\nif errorlevel 1 (\n    echo ALERT: 8.8.8.8 is NOT reachable.\n) else (\n    echo OK: 8.8.8.8 is reachable.\n)', 
-    defaultIntervalValue: 30, 
-    defaultIntervalUnit: 'minutes', 
-    sendEmailOnAlert: false, 
-    createdAt: new Date().toISOString(), 
-    updatedAt: new Date().toISOString() 
+  {
+    id: 'mon-4',
+    name: 'Google DNS Ping Monitor',
+    description: 'Pings Google DNS (8.8.8.8) to check external connectivity.',
+    scriptType: 'CMD',
+    scriptContent: 'ping -n 1 8.8.8.8 | find "TTL=" > nul\nif errorlevel 1 (\n    echo ALERT: 8.8.8.8 is NOT reachable.\n) else (\n    echo OK: 8.8.8.8 is reachable.\n)',
+    defaultIntervalValue: 30,
+    defaultIntervalUnit: 'minutes',
+    sendEmailOnAlert: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
-  { 
-    id: 'mon-5', 
-    name: 'Pending Reboot Check', 
-    description: 'Checks if the system has a pending reboot state.', 
-    scriptType: 'PowerShell', 
-    scriptContent: '$RebootRequired = $false\n# Component-Based Servicing kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending") { $RebootRequired = $true }\n# Windows Update kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired") { $RebootRequired = $true }\n\nif ($RebootRequired) { \n    "ALERT: System requires a reboot." \n} else { \n    "OK: No pending reboot found." \n}', 
-    defaultIntervalValue: 4, 
-    defaultIntervalUnit: 'hours', 
-    sendEmailOnAlert: true, 
-    createdAt: new Date().toISOString(), 
-    updatedAt: new Date().toISOString() 
+  {
+    id: 'mon-5',
+    name: 'Pending Reboot Check',
+    description: 'Checks if the system has a pending reboot state.',
+    scriptType: 'PowerShell',
+    scriptContent: '$RebootRequired = $false\n# Component-Based Servicing kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending") { $RebootRequired = $true }\n# Windows Update kontrolü\nif (Test-Path "HKLM:\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired") { $RebootRequired = $true }\n\nif ($RebootRequired) { \n    "ALERT: System requires a reboot." \n} else { \n    "OK: No pending reboot found." \n}',
+    defaultIntervalValue: 4,
+    defaultIntervalUnit: 'hours',
+    sendEmailOnAlert: true,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   },
   {
     id: 'mon-6',
@@ -116,8 +116,8 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 ];
 
 export let mockCustomCommands: CustomCommand[] = [
-  { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', status: 'Sent', executedAt: new Date().toISOString() },
+  { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString() },
 ];
 
 export let mockSmtpSettings: SMTPSettings = {
@@ -137,7 +137,7 @@ export let mockAiSettings: AiSettings = {
       id: 'default-google-ai',
       name: 'Default Google AI',
       providerType: 'googleAI',
-      apiKey: '', 
+      apiKey: '',
       isEnabled: true,
       isDefault: true,
     }
@@ -151,10 +151,10 @@ export const getComputers = (): Computer[] => {
     if (c.status === 'Online') {
       return {
         ...c,
-        cpuUsage: Math.floor(Math.random() * 70) + 5, 
-        ramUsage: Math.floor(Math.random() * 60) + 20, 
-        diskUsage: c.diskUsage || (Math.floor(Math.random() * 50) + 10), 
-        lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600000)).toISOString() 
+        cpuUsage: Math.floor(Math.random() * 70) + 5,
+        ramUsage: Math.floor(Math.random() * 60) + 20,
+        diskUsage: c.diskUsage || (Math.floor(Math.random() * 50) + 10),
+        lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600000)).toISOString()
       };
     }
     return c;
@@ -185,7 +185,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates }; 
+      updatedComputer = { ...c, ...updates };
       return updatedComputer;
     }
     return c;
@@ -232,8 +232,8 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
   const oldGroupIndex = mockComputerGroups.findIndex(g => g.id === id);
   if (oldGroupIndex === -1) return undefined;
 
-  const oldGroup = { ...mockComputerGroups[oldGroupIndex] }; 
-  
+  const oldGroup = { ...mockComputerGroups[oldGroupIndex] };
+
   updatedGroup = { ...oldGroup, ...updates };
   mockComputerGroups[oldGroupIndex] = updatedGroup;
 
@@ -414,7 +414,7 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
     notified: logData.status === 'ALERT' ? mockSmtpSettings.fromEmail && mockSmtpSettings.defaultToEmail : false,
   };
   mockMonitorExecutionLogs = [newLog, ...mockMonitorExecutionLogs];
-  if (mockMonitorExecutionLogs.length > 200) { 
+  if (mockMonitorExecutionLogs.length > 200) {
     mockMonitorExecutionLogs = mockMonitorExecutionLogs.slice(0, 200);
   }
   return newLog;
@@ -422,24 +422,26 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
 
 export const getCommandHistory = (): CustomCommand[] => {
   mockCustomCommands.forEach(cmd => {
-    if (cmd.status === 'Sent' && Math.random() < 0.2) { 
+    if (cmd.status === 'Sent' && Math.random() < 0.2) {
       cmd.status = Math.random() < 0.7 ? 'Success' : 'Failed';
       cmd.output = cmd.status === 'Success' ? `Mock Success: ${cmd.command}` : `Mock Fail: ${cmd.command}`;
     }
   });
   return mockCustomCommands.sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
 }
-export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'executedAt' | 'status' | 'output'> & { targetId: string; targetType: 'computer' | 'group'} ): CustomCommand | CustomCommand[] => {
+
+export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'executedAt' | 'status' | 'output'> & { targetId: string; targetType: 'computer' | 'group'; runAsUser?: boolean } ): CustomCommand | CustomCommand[] => {
   const baseCommand: Omit<CustomCommand, 'id' | 'computerId'> = {
     ...commandData,
     executedAt: new Date().toISOString(),
     status: 'Sent',
+    runAsUser: commandData.runAsUser || false, // Ensure runAsUser is set
   };
 
   if (commandData.targetType === 'group') {
     const group = getGroupById(commandData.targetId);
     if (!group) throw new Error('Group not found');
-    
+
     const commandsSent: CustomCommand[] = [];
     group.computerIds.forEach(compId => {
         const computer = getComputerById(compId);
@@ -447,8 +449,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId, 
-                targetId: group.id, 
+                computerId: compId,
+                targetId: group.id,
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
@@ -459,18 +461,18 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, 
+            computerId: group.id,
             targetId: group.id,
             targetType: 'group',
-            status: 'Sent', 
+            status: 'Sent',
             output: "Command sent to group, but no online members found to execute immediately."
         };
         mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
-        return [groupSendCommand]; 
+        return [groupSendCommand];
     }
     return commandsSent;
 
-  } else { 
+  } else {
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
     if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
@@ -478,7 +480,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId, 
+        computerId: commandData.targetId,
         targetId: commandData.targetId,
         targetType: 'computer'
     };
@@ -508,7 +510,7 @@ export const getAiSettings = (): AiSettings => {
       // If no provider is enabled, but providers exist, make the first one default and enable it.
       // This ensures there's always a "best effort" default if configs exist.
       // mockAiSettings.providerConfigs[0].isDefault = true;
-      // mockAiSettings.providerConfigs[0].isEnabled = true; 
+      // mockAiSettings.providerConfigs[0].isEnabled = true;
       // Commented out: Let saveAiSettings handle this enforcement more explicitly.
     }
   }
@@ -542,10 +544,10 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
        // Ensure it's also marked as enabled (though it should be by find condition)
-      firstEnabledProvider.isEnabled = true; 
+      firstEnabledProvider.isEnabled = true;
     }
   }
-  
+
   // Pass 3: If still no default provider (e.g., all are disabled or list is empty),
   // and if there are providers, make the very first one default and enable it.
   // This ensures there's a default if any configs exist at all.
@@ -599,6 +601,6 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
     }
 };
 
-if (typeof window !== 'undefined') { 
-    // setInterval(simulateMonitorChecks, 30000); 
+if (typeof window !== 'undefined') {
+    // setInterval(simulateMonitorChecks, 30000);
 }
