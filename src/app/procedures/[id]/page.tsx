@@ -9,7 +9,7 @@ import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield } from 'lucide-react'; // Added UserCircle, Shield
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +41,8 @@ export default function ProcedureDetailPage() {
   const [editDescription, setEditDescription] = useState('');
   const [editScriptType, setEditScriptType] = useState<ScriptType>('CMD');
   const [editScriptContent, setEditScriptContent] = useState('');
+  const [editRunAsUser, setEditRunAsUser] = useState(false);
+
 
   const [allComputers, setAllComputers] = useState<Computer[]>([]);
   const [isLoadingTargetComputers, setIsLoadingTargetComputers] = useState(true);
@@ -65,7 +67,6 @@ export default function ProcedureDetailPage() {
     setIsLoadingTargetComputers(true);
     setError(null);
 
-    // Simulate delay for mock data
     setTimeout(() => {
       try {
         const fetchedProcedure = getProcedureById(id);
@@ -76,6 +77,7 @@ export default function ProcedureDetailPage() {
           setEditDescription(fetchedProcedure.description);
           setEditScriptType(fetchedProcedure.scriptType);
           setEditScriptContent(fetchedProcedure.scriptContent);
+          setEditRunAsUser(fetchedProcedure.runAsUser || false);
           
           setExecutions(getExecutions({ procedureId: id }));
           setAllComputers(getComputers().filter(c => c.status === 'Online'));
@@ -101,7 +103,7 @@ export default function ProcedureDetailPage() {
   const refreshExecutions = useCallback(() => {
     if (!procedure) return;
     setIsLoadingExecutions(true);
-    setTimeout(() => { // Simulate delay
+    setTimeout(() => { 
         setExecutions(getExecutions({ procedureId: procedure.id }));
         setIsLoadingExecutions(false);
         toast({ title: "Execution history refreshed (Mock)"});
@@ -117,6 +119,7 @@ export default function ProcedureDetailPage() {
         description: editDescription,
         scriptType: editScriptType,
         scriptContent: editScriptContent,
+        runAsUser: editRunAsUser,
       };
       const updatedProc = updateProcedureInMock(procedure.id, updatedData);
       if (updatedProc) {
@@ -125,6 +128,7 @@ export default function ProcedureDetailPage() {
         setEditDescription(updatedProc.description);
         setEditScriptType(updatedProc.scriptType);
         setEditScriptContent(updatedProc.scriptContent);
+        setEditRunAsUser(updatedProc.runAsUser || false);
       }
       setIsEditing(false);
       toast({ title: "Procedure Saved (Mock)", description: `${updatedProc?.name || ''} has been updated.` });
@@ -132,7 +136,7 @@ export default function ProcedureDetailPage() {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving (Mock).';
         toast({ title: "Error Saving Procedure", description: errorMessage, variant: "destructive" });
     } finally {
-        setTimeout(() => setIsSaving(false), 500); // Simulate API delay
+        setTimeout(() => setIsSaving(false), 500); 
     }
   };
   
@@ -142,6 +146,7 @@ export default function ProcedureDetailPage() {
         setEditDescription(procedure.description);
         setEditScriptType(procedure.scriptType);
         setEditScriptContent(procedure.scriptContent);
+        setEditRunAsUser(procedure.runAsUser || false);
     }
     setIsEditing(false);
   }
@@ -153,10 +158,10 @@ export default function ProcedureDetailPage() {
     }
     setIsExecuting(true);
     try {
-      executeMockProcedure(procedure.id, selectedComputerIds);
+      executeMockProcedure(procedure.id, selectedComputerIds); // executeMockProcedure now uses procedure's runAsUser setting
       toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
       setSelectedComputerIds([]); 
-      setTimeout(() => { // Simulate API delay and refresh
+      setTimeout(() => { 
         refreshExecutions();
         setIsExecuting(false);
       }, 2000); 
@@ -240,7 +245,7 @@ export default function ProcedureDetailPage() {
                 </div>
             </CardHeader>
         </Card>
-        <Skeleton className="h-10 w-full mb-4" /> {/* TabsList skeleton */}
+        <Skeleton className="h-10 w-full mb-4" /> 
         <Card>
             <CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader>
             <CardContent><Skeleton className="h-40 w-full" /></CardContent>
@@ -341,6 +346,20 @@ export default function ProcedureDetailPage() {
                         disabled={isSaving}
                         />
                     </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                         <Label htmlFor="editRunAsUser" className="text-right">Execution Context</Label>
+                         <div className="col-span-3 flex items-center space-x-2">
+                            <Checkbox
+                                id="editRunAsUser"
+                                checked={editRunAsUser}
+                                onCheckedChange={(checked) => setEditRunAsUser(checked === true)}
+                                disabled={isSaving}
+                            />
+                            <Label htmlFor="editRunAsUser" className="font-normal">
+                                Run this procedure as User (otherwise runs as SYSTEM)
+                            </Label>
+                        </div>
+                    </div>
                 </div>
             </CardContent>
         )}
@@ -362,6 +381,13 @@ export default function ProcedureDetailPage() {
               <div>
                 <Label className="text-sm text-muted-foreground">Script Type</Label>
                 <p className="font-semibold">{procedure.scriptType}</p>
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground">Default Execution Context</Label>
+                <div className="flex items-center gap-2">
+                    {procedure.runAsUser ? <UserCircle className="h-5 w-5 text-blue-600" /> : <Shield className="h-5 w-5 text-gray-600" />}
+                    <p className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</p>
+                </div>
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Script Content</Label>
@@ -386,7 +412,7 @@ export default function ProcedureDetailPage() {
             <Card className="md:col-span-1">
               <CardHeader>
                 <CardTitle>Select Target Computers</CardTitle>
-                 <CardDescription>Select online computers to run this procedure on.</CardDescription>
+                 <CardDescription>Select online computers to run this procedure on. It will run with its default context: <span className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</span>.</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingTargetComputers ? (
@@ -443,6 +469,7 @@ export default function ProcedureDetailPage() {
                         <TableHeader>
                         <TableRow>
                             <TableHead>Computer</TableHead>
+                            <TableHead>Context</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>Started</TableHead>
                             <TableHead>Actions</TableHead>
@@ -452,6 +479,7 @@ export default function ProcedureDetailPage() {
                         {executions.map(exec => (
                             <TableRow key={exec.id}>
                             <TableCell>{exec.computerName || exec.computerId}</TableCell>
+                            <TableCell>{exec.runAsUser ? 'User' : 'System'}</TableCell>
                             <TableCell>
                                 <Badge variant={exec.status === 'Success' ? 'default' : exec.status === 'Failed' ? 'destructive': 'secondary'} 
                                     className={exec.status === 'Success' ? 'bg-green-500 hover:bg-green-600' : exec.status === 'Failed' ? 'bg-red-500 hover:bg-red-600' : exec.status === 'Pending' || exec.status === 'Running' ? 'bg-blue-500 hover:bg-blue-600' : ''}>
@@ -498,7 +526,7 @@ export default function ProcedureDetailPage() {
                   className="font-mono text-xs"
                 />
                  <Button variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => {
-                    const recentLogs = executions.slice(0, 5).map(e => `Execution ID: ${e.id}\nComputer: ${e.computerName || e.computerId}\nStatus: ${e.status}\nStart: ${e.startTime}\nEnd: ${e.endTime}\nLogs:\n${e.logs}\nOutput: ${e.output || 'N/A'}\n---`).join('\n\n');
+                    const recentLogs = executions.slice(0, 5).map(e => `Execution ID: ${e.id}\nComputer: ${e.computerName || e.computerId}\nContext: ${e.runAsUser ? 'User' : 'SYSTEM'}\nStatus: ${e.status}\nStart: ${e.startTime}\nEnd: ${e.endTime}\nLogs:\n${e.logs}\nOutput: ${e.output || 'N/A'}\n---`).join('\n\n');
                     setAiInputLogs(recentLogs || "No recent execution logs found from mock data for this procedure.");
                     if (recentLogs) toast({title: "Loaded recent logs", description: "Up to 5 most recent execution logs loaded."});
                  }}>

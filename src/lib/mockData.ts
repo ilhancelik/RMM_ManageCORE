@@ -12,9 +12,9 @@ export let mockComputers: Computer[] = [
 ];
 
 export let mockProcedures: Procedure[] = [
-  { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 'proc-3', name: 'Apply Security Registry Fix (CMD)', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
+  { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { id: 'proc-3', name: 'Apply Security Registry Fix (CMD)', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', runAsUser: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
 ];
 
 const defaultProcedureSchedule: ScheduleConfig = { type: 'disabled' };
@@ -27,9 +27,9 @@ export let mockComputerGroups: ComputerGroup[] = [
 ];
 
 export let mockProcedureExecutions: ProcedureExecution[] = [
-  { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated...\nDisk cleanup completed successfully.', output: '1.2GB freed.' },
-  { id: 'exec-2', procedureId: 'proc-2', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Failed', startTime: new Date(Date.now() - 7200000).toISOString(), endTime: new Date(Date.now() - 7200000 + 30000).toISOString(), logs: 'Restarting Spooler...\nError: Access Denied.', output: 'Failed with exit code 5' },
-  { id: 'exec-3', procedureId: 'proc-1', computerId: 'comp-5', computerName: 'VM-Test-Environment', status: 'Running', startTime: new Date().toISOString(), logs: 'Disk cleanup initiated...', output: '' },
+  { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '1.2GB freed.', runAsUser: false },
+  { id: 'exec-2', procedureId: 'proc-2', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Failed', startTime: new Date(Date.now() - 7200000).toISOString(), endTime: new Date(Date.now() - 7200000 + 30000).toISOString(), logs: 'Restarting Spooler (as SYSTEM)...\nError: Access Denied.', output: 'Failed with exit code 5', runAsUser: false },
+  { id: 'exec-3', procedureId: 'proc-1', computerId: 'comp-5', computerName: 'VM-Test-Environment', status: 'Running', startTime: new Date().toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '', runAsUser: false },
 ];
 
 export let mockMonitors: Monitor[] = [
@@ -116,8 +116,8 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 ];
 
 export let mockCustomCommands: CustomCommand[] = [
-  { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString() },
-  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString() },
+  { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString(), computerId: 'comp-1' },
+  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, // For group command, computerId might be the group id or null initially
 ];
 
 export let mockSmtpSettings: SMTPSettings = {
@@ -276,16 +276,19 @@ export const deleteComputerGroup = (id: string): boolean => {
 
 export const getProcedures = (): Procedure[] => mockProcedures.sort((a,b) => a.name.localeCompare(b.name));
 export const getProcedureById = (id: string): Procedure | undefined => mockProcedures.find(p => p.id === id);
+
 export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>): Procedure => {
   const newProcedure: Procedure = {
     ...procData,
     id: `proc-${Date.now()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    runAsUser: procData.runAsUser || false, // Ensure default
   };
   mockProcedures = [...mockProcedures, newProcedure];
   return newProcedure;
 };
+
 export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>>): Procedure | undefined => {
   let updatedProcedure: Procedure | undefined;
   mockProcedures = mockProcedures.map(p => {
@@ -297,6 +300,7 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
   });
   return updatedProcedure;
 };
+
 export const deleteProcedureFromMock = (id: string): boolean => {
   const initialLength = mockProcedures.length;
   mockProcedures = mockProcedures.filter(p => p.id !== id);
@@ -327,12 +331,17 @@ export const getProcedureExecutionsForProcedure = (procedureId: string): Procedu
 
 export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'id' | 'computerName'>): ProcedureExecution => {
   const computer = getComputerById(executionData.computerId);
+  const procedure = getProcedureById(executionData.procedureId);
+  const runContext = executionData.runAsUser ?? procedure?.runAsUser ?? false;
+
   const newExecution: ProcedureExecution = {
     ...executionData,
     id: `exec-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     computerName: computer?.name || executionData.computerId,
     startTime: executionData.startTime || new Date().toISOString(),
     status: executionData.status || 'Pending',
+    runAsUser: runContext,
+    logs: `${executionData.logs} (as ${runContext ? 'User' : 'SYSTEM'})`,
   };
   mockProcedureExecutions = [newExecution, ...mockProcedureExecutions];
 
@@ -350,20 +359,21 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
 };
 export const executeMockProcedure = (procedureId: string, computerIds: string[]): ProcedureExecution[] => {
     const executions: ProcedureExecution[] = [];
+    const proc = getProcedureById(procedureId);
+    if (!proc) return executions;
+
     computerIds.forEach(compId => {
         const computer = getComputerById(compId);
         if (computer && computer.status === 'Online') {
-            const proc = getProcedureById(procedureId);
-            if (proc) {
-                const exec = addProcedureExecution({
-                    procedureId,
-                    computerId: compId,
-                    status: 'Pending',
-                    logs: `Executing "${proc.name}" on "${computer.name}"...`,
-                    startTime: new Date().toISOString(),
-                });
-                executions.push(exec);
-            }
+            const exec = addProcedureExecution({
+                procedureId,
+                computerId: compId,
+                status: 'Pending',
+                logs: `Executing "${proc.name}" on "${computer.name}"`,
+                startTime: new Date().toISOString(),
+                runAsUser: proc.runAsUser // Pass the procedure's default context
+            });
+            executions.push(exec);
         }
     });
     return executions;
@@ -430,12 +440,12 @@ export const getCommandHistory = (): CustomCommand[] => {
   return mockCustomCommands.sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
 }
 
-export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'executedAt' | 'status' | 'output'> & { targetId: string; targetType: 'computer' | 'group'; runAsUser?: boolean } ): CustomCommand | CustomCommand[] => {
+export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'executedAt' | 'status' | 'output'> & { targetId: string; targetType: 'computer' | 'group'} ): CustomCommand | CustomCommand[] => {
   const baseCommand: Omit<CustomCommand, 'id' | 'computerId'> = {
     ...commandData,
     executedAt: new Date().toISOString(),
     status: 'Sent',
-    runAsUser: commandData.runAsUser || false, // Ensure runAsUser is set
+    runAsUser: commandData.runAsUser || false,
   };
 
   if (commandData.targetType === 'group') {
@@ -449,8 +459,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId,
-                targetId: group.id,
+                computerId: compId, // Specific computer in the group
+                targetId: group.id, // Keep original group target ID
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
@@ -458,21 +468,22 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
         }
     });
      if (commandsSent.length === 0 && group.computerIds.length > 0) {
+         // If group has members but none are online, still log a "Sent" command for the group
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id,
+            computerId: group.id, // Use group ID as computerId for this placeholder record
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
             output: "Command sent to group, but no online members found to execute immediately."
         };
         mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
-        return [groupSendCommand];
+        return [groupSendCommand]; // Return as array
     }
-    return commandsSent;
+    return commandsSent; // Return array of commands sent to individual members
 
-  } else {
+  } else { // targetType === 'computer'
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
     if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
@@ -480,12 +491,12 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId,
+        computerId: commandData.targetId, // The target computer is also the executing computer
         targetId: commandData.targetId,
         targetType: 'computer'
     };
     mockCustomCommands = [newCommand, ...mockCustomCommands];
-    return newCommand;
+    return newCommand; // Return single command
   }
 };
 
@@ -496,22 +507,14 @@ export const saveSmtpSettings = (settings: SMTPSettings): SMTPSettings => {
 };
 
 export const getAiSettings = (): AiSettings => {
-  // Ensure mockAiSettings is initialized properly before returning
   if (!mockAiSettings.providerConfigs) {
     mockAiSettings.providerConfigs = [];
   }
-  // Basic validation: if there's no default provider, try to set one.
   const hasDefault = mockAiSettings.providerConfigs.some(p => p.isDefault && p.isEnabled);
   if (!hasDefault) {
     const firstEnabled = mockAiSettings.providerConfigs.find(p => p.isEnabled);
     if (firstEnabled) {
       firstEnabled.isDefault = true;
-    } else if (mockAiSettings.providerConfigs.length > 0) {
-      // If no provider is enabled, but providers exist, make the first one default and enable it.
-      // This ensures there's always a "best effort" default if configs exist.
-      // mockAiSettings.providerConfigs[0].isDefault = true;
-      // mockAiSettings.providerConfigs[0].isEnabled = true;
-      // Commented out: Let saveAiSettings handle this enforcement more explicitly.
     }
   }
   return mockAiSettings;
@@ -521,53 +524,41 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
   let newProviderConfigs = [...(settings.providerConfigs || [])];
   let defaultProviderId: string | null = null;
 
-  // Pass 1: Identify the provider intended to be default by the user (if any)
-  // and ensure it's marked as enabled. Clear isDefault from others.
   let explicitlySetDefaultExists = false;
   newProviderConfigs.forEach(p => {
     if (p.isDefault) {
       if (!explicitlySetDefaultExists) {
         defaultProviderId = p.id;
-        p.isEnabled = true; // A provider marked as default MUST be enabled.
+        p.isEnabled = true; 
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false; // Only one default allowed.
+        p.isDefault = false; 
       }
     }
   });
 
-  // Pass 2: If no provider was explicitly set as default (or the one set was invalid),
-  // find the first *enabled* provider and make it default.
   if (!defaultProviderId) {
     const firstEnabledProvider = newProviderConfigs.find(p => p.isEnabled);
     if (firstEnabledProvider) {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
-       // Ensure it's also marked as enabled (though it should be by find condition)
       firstEnabledProvider.isEnabled = true;
     }
   }
 
-  // Pass 3: If still no default provider (e.g., all are disabled or list is empty),
-  // and if there are providers, make the very first one default and enable it.
-  // This ensures there's a default if any configs exist at all.
    if (!defaultProviderId && newProviderConfigs.length > 0) {
     newProviderConfigs[0].isDefault = true;
     newProviderConfigs[0].isEnabled = true;
     defaultProviderId = newProviderConfigs[0].id;
   }
 
-
-  // Final pass to ensure only the true default has isDefault = true
-  // and is enabled.
   if (defaultProviderId) {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, // Default is always enabled
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, 
     }));
   }
-
 
   mockAiSettings = {
     ...settings,
@@ -585,13 +576,14 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
             if (assocProc.runOnNewMember) {
                 const procedure = getProcedureById(assocProc.procedureId);
                 if (procedure && computer.status === 'Online') {
-                    console.log(`AUTOMOCK: Triggering procedure "${procedure.name}" for new member "${computer.name}" in group "${group.name}"`);
+                    console.log(`AUTOMOCK: Triggering procedure "${procedure.name}" for new member "${computer.name}" in group "${group.name}" (as ${procedure.runAsUser ? 'User' : 'SYSTEM'})`);
                     addProcedureExecution({
                         procedureId: procedure.id,
                         computerId: computer.id,
                         status: 'Pending',
                         logs: `Automatically triggered: "${procedure.name}" for new member "${computer.name}" in group "${group.name}".`,
                         startTime: new Date().toISOString(),
+                        runAsUser: procedure.runAsUser // Use procedure's default context
                     });
                 } else if (procedure && computer.status !== 'Online') {
                      console.log(`AUTOMOCK: Skipped procedure "${procedure.name}" for new offline member "${computer.name}" in group "${group.name}"`);

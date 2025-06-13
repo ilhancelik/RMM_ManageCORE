@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -51,6 +52,8 @@ export default function ProceduresPage() {
   const [procedureDescription, setProcedureDescription] = useState('');
   const [procedureScriptType, setProcedureScriptType] = useState<ScriptType>('CMD');
   const [procedureScriptContent, setProcedureScriptContent] = useState('');
+  const [procedureRunAsUser, setProcedureRunAsUser] = useState(false);
+
 
   const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
@@ -106,6 +109,7 @@ export default function ProceduresPage() {
     setProcedureDescription('');
     setProcedureScriptType('CMD');
     setProcedureScriptContent('');
+    setProcedureRunAsUser(false); 
     setCurrentProcedure(null);
     setIsEditMode(false);
     setShowAiSection(false);
@@ -131,6 +135,7 @@ export default function ProceduresPage() {
     setProcedureDescription(procedure.description);
     setProcedureScriptType(procedure.scriptType);
     setProcedureScriptContent(procedure.scriptContent);
+    setProcedureRunAsUser(procedure.runAsUser || false);
     setIsModalOpen(true);
   };
 
@@ -146,6 +151,7 @@ export default function ProceduresPage() {
         description: procedureDescription,
         scriptType: procedureScriptType,
         scriptContent: procedureScriptContent,
+        runAsUser: procedureRunAsUser,
       };
       if (isEditMode && currentProcedure) {
         updateProcedureInMock(currentProcedure.id, procData);
@@ -262,6 +268,19 @@ export default function ProceduresPage() {
           placeholder={`Enter ${procedureScriptType} script here...`}
           disabled={isSubmitting}
         />
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
+        <div className="col-start-2 col-span-3 flex items-center space-x-2">
+            <Checkbox
+                id="procedureRunAsUser"
+                checked={procedureRunAsUser}
+                onCheckedChange={(checked) => setProcedureRunAsUser(checked === true)}
+                disabled={isSubmitting}
+            />
+            <Label htmlFor="procedureRunAsUser" className="font-normal">
+                Run this procedure as User (otherwise runs as SYSTEM)
+            </Label>
+        </div>
       </div>
 
       <Separator />

@@ -46,6 +46,7 @@ export interface Procedure {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
+  runAsUser?: boolean; // Added for procedure execution context
   createdAt: string;
   updatedAt: string;
 }
@@ -60,16 +61,17 @@ export interface ProcedureExecution {
   endTime?: string;
   logs: string;
   output?: string;
+  runAsUser?: boolean; // To log how it was executed
 }
 
 export interface CustomCommand {
     id:string;
-    computerId: string;
+    computerId: string; // The specific computer a group command ran on, or the target computer.
     targetType?: 'computer' | 'group';
-    targetId: string;
+    targetId: string; // ID of the computer or group
     command: string;
     scriptType: ScriptType;
-    runAsUser?: boolean; // Added this line
+    runAsUser?: boolean;
     status: 'Pending' | 'Sent' | 'Success' | 'Failed';
     output?: string;
     executedAt?: string;
