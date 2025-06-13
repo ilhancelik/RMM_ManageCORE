@@ -245,6 +245,20 @@ export default function ProceduresPage() {
         <Textarea id="description" value={procedureDescription} onChange={(e) => setProcedureDescription(e.target.value)} className="col-span-3" disabled={isSubmitting} />
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
+        <Label htmlFor="procedureRunAsUserModal" className="text-right">Execution Context</Label>
+        <div className="col-span-3 flex items-center space-x-2">
+            <Checkbox
+                id="procedureRunAsUserModal"
+                checked={procedureRunAsUser}
+                onCheckedChange={(checked) => setProcedureRunAsUser(checked === true)}
+                disabled={isSubmitting}
+            />
+            <Label htmlFor="procedureRunAsUserModal" className="font-normal">
+                Run as User (otherwise SYSTEM)
+            </Label>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="scriptType" className="text-right">Script Type</Label>
         <Select value={procedureScriptType} onValueChange={(value: ScriptType) => setProcedureScriptType(value)} disabled={isSubmitting || isGeneratingWithAi}>
           <SelectTrigger className="col-span-3">
@@ -269,20 +283,7 @@ export default function ProceduresPage() {
           disabled={isSubmitting}
         />
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <div className="col-start-2 col-span-3 flex items-center space-x-2">
-            <Checkbox
-                id="procedureRunAsUser"
-                checked={procedureRunAsUser}
-                onCheckedChange={(checked) => setProcedureRunAsUser(checked === true)}
-                disabled={isSubmitting}
-            />
-            <Label htmlFor="procedureRunAsUser" className="font-normal">
-                Run this procedure as User (otherwise runs as SYSTEM)
-            </Label>
-        </div>
-      </div>
-
+      
       <Separator />
       <div className="space-y-2">
         <Button
@@ -504,4 +505,6 @@ export default function ProceduresPage() {
     </div>
   );
 }
+    
+
     
