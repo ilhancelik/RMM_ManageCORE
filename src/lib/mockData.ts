@@ -4,11 +4,41 @@ import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 
 export let mockComputers: Computer[] = [
-  { id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'] },
-  { id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5', lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'] },
-  { id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153', lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'] },
-  { id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20', lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [] },
-  { id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15', lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'] },
+  { 
+    id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', 
+    lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'],
+    model: 'Dell XPS 15', processor: 'Intel Core i7-11800H @ 2.30GHz, 8C/16T', ramSize: '32 GB RAM', storage: '1TB NVMe SSD',
+    graphicsCard: 'NVIDIA GeForce RTX 3050 Ti', serialNumber: 'DEVXPS15001', publicIpAddress: '88.99.170.10',
+    macAddressLan: '00:1A:2B:3C:4D:5E', macAddressWifi: '00:1A:2B:3C:4D:5F'
+  },
+  { 
+    id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5', 
+    lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'],
+    model: 'HP ProLiant DL380 Gen10', processor: 'Intel Xeon Silver 4210 @ 2.20GHz, 10C/20T', ramSize: '64 GB ECC RAM', storage: '2x 4TB SAS RAID 1',
+    graphicsCard: 'Matrox G200eH2', serialNumber: 'PRODSERV002', publicIpAddress: '212.58.244.70',
+    macAddressLan: 'A0:B1:C2:D3:E4:F0', macAddressWifi: undefined // Servers often don't have WiFi
+  },
+  { 
+    id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153', 
+    lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'],
+    model: 'Lenovo ThinkPad X1 Carbon', processor: 'Intel Core i5-10210U @ 1.60GHz, 4C/8T', ramSize: '16 GB RAM', storage: '512GB NVMe SSD',
+    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20', // Might be dynamic
+    macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD'
+  },
+  { 
+    id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20', 
+    lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [],
+    model: 'Advantech Kiosk TPC-1551T', processor: 'Intel Celeron J1900 @ 2.00GHz, 4C/4T', ramSize: '4 GB RAM', storage: '128GB SSD',
+    graphicsCard: 'Intel HD Graphics', serialNumber: 'KIOSKLOBBY004', publicIpAddress: '91.101.190.30',
+    macAddressLan: 'DD:EE:FF:77:88:99', macAddressWifi: 'DD:EE:FF:77:88:9A'
+  },
+  { 
+    id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15', 
+    lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'],
+    model: 'VMware Virtual Platform', processor: 'Virtual CPU @ 2.50GHz, 2C/4T', ramSize: '8 GB RAM', storage: '250GB Virtual Disk',
+    graphicsCard: 'VMware SVGA II Adapter', serialNumber: 'VMTESTENV005', publicIpAddress: '212.58.244.75',
+    macAddressLan: '00:0C:29:1A:2B:3C', macAddressWifi: undefined
+  },
 ];
 
 export let mockProcedures: Procedure[] = [
@@ -117,7 +147,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 
 export let mockCustomCommands: CustomCommand[] = [
   { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString(), computerId: 'comp-1' },
-  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, // For group command, computerId might be the group id or null initially
+  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, 
 ];
 
 export let mockSmtpSettings: SMTPSettings = {
@@ -151,8 +181,8 @@ export const getComputers = (): Computer[] => {
     if (c.status === 'Online') {
       return {
         ...c,
-        cpuUsage: Math.floor(Math.random() * 70) + 5,
-        ramUsage: Math.floor(Math.random() * 60) + 20,
+        cpuUsage: c.cpuUsage !== undefined ? c.cpuUsage : Math.floor(Math.random() * 70) + 5,
+        ramUsage: c.ramUsage !== undefined ? c.ramUsage : Math.floor(Math.random() * 60) + 20,
         diskUsage: c.diskUsage || (Math.floor(Math.random() * 50) + 10),
         lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600000)).toISOString()
       };
@@ -162,16 +192,17 @@ export const getComputers = (): Computer[] => {
 };
 export const getComputerById = (id: string): Computer | undefined => {
     const computer = mockComputers.find(c => c.id === id);
-    if (computer && computer.status === 'Online') {
-      return {
-        ...computer,
-        cpuUsage: Math.floor(Math.random() * 70) + 5,
-        ramUsage: Math.floor(Math.random() * 60) + 20,
-      };
+    if (computer) { // Always return full details, even if offline, but update dynamic stats if online
+      const onlineUpdate = computer.status === 'Online' ? {
+        cpuUsage: computer.cpuUsage !== undefined ? computer.cpuUsage : Math.floor(Math.random() * 70) + 5,
+        ramUsage: computer.ramUsage !== undefined ? computer.ramUsage : Math.floor(Math.random() * 60) + 20,
+        lastSeen: new Date(Date.now() - Math.floor(Math.random() * 600000)).toISOString()
+      } : {};
+      return { ...computer, ...onlineUpdate };
     }
-    return computer;
+    return undefined;
 };
-export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds' | 'cpuUsage' | 'ramUsage' | 'diskUsage'>): Computer => {
+export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds'>): Computer => {
   const newComputer: Computer = {
     ...computerData,
     id: `comp-${Date.now()}`,
@@ -185,7 +216,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates };
+      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; // Assuming updatedAt for consistency if needed later
       return updatedComputer;
     }
     return c;
@@ -255,7 +286,6 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
       if (comp && !(comp.groupIds || []).includes(id)) {
         updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
       }
-      // Trigger for genuinely new members to this group context
       if (comp && !oldGroup.computerIds.includes(compId)) {
         triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id);
       }
@@ -283,7 +313,7 @@ export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'upd
     id: `proc-${Date.now()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    runAsUser: procData.runAsUser || false, // Ensure default
+    runAsUser: procData.runAsUser || false, 
   };
   mockProcedures = [...mockProcedures, newProcedure];
   return newProcedure;
@@ -293,7 +323,7 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
   let updatedProcedure: Procedure | undefined;
   mockProcedures = mockProcedures.map(p => {
     if (p.id === id) {
-      updatedProcedure = { ...p, ...updates, updatedAt: new Date().toISOString() };
+      updatedProcedure = { ...p, ...updates, runAsUser: updates.runAsUser || p.runAsUser || false, updatedAt: new Date().toISOString() };
       return updatedProcedure;
     }
     return p;
@@ -371,7 +401,7 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
                 status: 'Pending',
                 logs: `Executing "${proc.name}" on "${computer.name}"`,
                 startTime: new Date().toISOString(),
-                runAsUser: proc.runAsUser // Pass the procedure's default context
+                runAsUser: proc.runAsUser 
             });
             executions.push(exec);
         }
@@ -459,8 +489,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId, // Specific computer in the group
-                targetId: group.id, // Keep original group target ID
+                computerId: compId, 
+                targetId: group.id, 
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
@@ -468,22 +498,21 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
         }
     });
      if (commandsSent.length === 0 && group.computerIds.length > 0) {
-         // If group has members but none are online, still log a "Sent" command for the group
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, // Use group ID as computerId for this placeholder record
+            computerId: group.id, 
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
             output: "Command sent to group, but no online members found to execute immediately."
         };
         mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
-        return [groupSendCommand]; // Return as array
+        return [groupSendCommand]; 
     }
-    return commandsSent; // Return array of commands sent to individual members
+    return commandsSent; 
 
-  } else { // targetType === 'computer'
+  } else { 
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
     if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
@@ -491,12 +520,12 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId, // The target computer is also the executing computer
+        computerId: commandData.targetId, 
         targetId: commandData.targetId,
         targetType: 'computer'
     };
     mockCustomCommands = [newCommand, ...mockCustomCommands];
-    return newCommand; // Return single command
+    return newCommand; 
   }
 };
 
@@ -583,7 +612,7 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
                         status: 'Pending',
                         logs: `Automatically triggered: "${procedure.name}" for new member "${computer.name}" in group "${group.name}".`,
                         startTime: new Date().toISOString(),
-                        runAsUser: procedure.runAsUser // Use procedure's default context
+                        runAsUser: procedure.runAsUser 
                     });
                 } else if (procedure && computer.status !== 'Online') {
                      console.log(`AUTOMOCK: Skipped procedure "${procedure.name}" for new offline member "${computer.name}" in group "${group.name}"`);

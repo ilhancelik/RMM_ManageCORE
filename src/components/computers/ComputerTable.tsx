@@ -10,12 +10,13 @@ import { MoreHorizontal, Eye, Terminal, Edit, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link'; // Added Link import
 
 interface ComputerTableProps {
   computers: Computer[];
-  selectedComputerIds?: string[]; // Made optional
-  onComputerSelect?: (computerId: string, checked: boolean) => void; // Made optional
-  onSelectAll?: (checked: boolean) => void; // Made optional
+  selectedComputerIds?: string[]; 
+  onComputerSelect?: (computerId: string, checked: boolean) => void; 
+  onSelectAll?: (checked: boolean) => void; 
 }
 
 export function ComputerTable({ computers, selectedComputerIds, onComputerSelect, onSelectAll }: ComputerTableProps) {
@@ -33,10 +34,6 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
         return 'secondary';
     }
   };
-
-  const handleViewDetails = (computerId: string) => {
-    router.push(`/computers/${computerId}`);
-  };
   
   const handleRunCommand = (computerId: string) => {
     router.push(`/commands?computerId=${computerId}`);
@@ -45,7 +42,7 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
   const onlineComputersInTable = computers.filter(computer => computer.status === 'Online');
   
   const allCurrentlyVisibleOnlineComputersSelected = 
-    !!selectedComputerIds && // Check if selectedComputerIds is provided
+    !!selectedComputerIds && 
     onlineComputersInTable.length > 0 && 
     onlineComputersInTable.every(computer => selectedComputerIds.includes(computer.id));
 
@@ -97,7 +94,11 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
                 />
               </TableCell>
             )}
-            <TableCell className="font-medium">{computer.name}</TableCell>
+            <TableCell className="font-medium">
+              <Link href={`/computers/${computer.id}`} className="hover:underline text-primary">
+                {computer.name}
+              </Link>
+            </TableCell>
             <TableCell>
               <Badge variant="default" className={getStatusBadgeVariant(computer.status)}>
                 {computer.status}
@@ -145,7 +146,7 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => handleViewDetails(computer.id)}>
+                  <DropdownMenuItem onClick={() => router.push(`/computers/${computer.id}`)}>
                     <Eye className="mr-2 h-4 w-4" />
                     View Details
                   </DropdownMenuItem>
@@ -153,11 +154,11 @@ export function ComputerTable({ computers, selectedComputerIds, onComputerSelect
                     <Terminal className="mr-2 h-4 w-4" />
                     Run Command
                   </DropdownMenuItem>
-                  <DropdownMenuItem> {/* Edit functionality can be added later */}
+                  <DropdownMenuItem disabled> 
                     <Edit className="mr-2 h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-red-600"> {/* Delete functionality can be added later */}
+                  <DropdownMenuItem className="text-red-600" disabled> 
                     <Trash2 className="mr-2 h-4 w-4" />
                     Delete
                   </DropdownMenuItem>

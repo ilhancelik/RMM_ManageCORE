@@ -4,12 +4,21 @@ export interface Computer {
   name: string;
   status: 'Online' | 'Offline' | 'Error';
   os: string;
-  ipAddress: string;
+  ipAddress: string; // LAN IP
   lastSeen: string; // ISO date string
   cpuUsage?: number; // Percentage
   ramUsage?: number; // Percentage
   diskUsage?: number; // Percentage
   groupIds?: string[];
+  model?: string;
+  processor?: string;
+  ramSize?: string; // e.g., "16 GB RAM"
+  storage?: string; // e.g., "Micron 2450 NVMe 1024GB"
+  graphicsCard?: string;
+  serialNumber?: string;
+  publicIpAddress?: string;
+  macAddressLan?: string;
+  macAddressWifi?: string;
 }
 
 export interface ScheduleConfig {
@@ -46,7 +55,7 @@ export interface Procedure {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
-  runAsUser?: boolean; // Added for procedure execution context
+  runAsUser?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,14 +70,14 @@ export interface ProcedureExecution {
   endTime?: string;
   logs: string;
   output?: string;
-  runAsUser?: boolean; // To log how it was executed
+  runAsUser?: boolean;
 }
 
 export interface CustomCommand {
     id:string;
-    computerId: string; // The specific computer a group command ran on, or the target computer.
+    computerId: string; 
     targetType?: 'computer' | 'group';
-    targetId: string; // ID of the computer or group
+    targetId: string; 
     command: string;
     scriptType: ScriptType;
     runAsUser?: boolean;
@@ -114,8 +123,8 @@ export interface SMTPSettings {
 export interface AiProviderConfig {
   id: string;
   name: string;
-  providerType: 'googleAI'; // For now, only Google AI, can be expanded later
-  apiKey?: string; // Optional, if not provided, Genkit might use env vars
+  providerType: 'googleAI'; 
+  apiKey?: string; 
   isEnabled: boolean;
   isDefault: boolean;
 }

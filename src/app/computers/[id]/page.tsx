@@ -2,12 +2,12 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { getComputerById, getExecutions, getProcedures, getProcedureById } from '@/lib/mockData'; 
-import type { Computer, Procedure, ProcedureExecution } from '@/types';
+import { getComputerById, getExecutions, getProcedureById } from '@/lib/mockData'; 
+import type { Computer, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2, Smartphone, Wifi, Server, Settings, Globe, Fingerprint, Info } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -15,6 +15,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
 
 
 export default function ComputerDetailsPage() {
@@ -28,7 +29,6 @@ export default function ComputerDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]);
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
-  // No need for allProcedures state if we fetch by ID directly
 
   const loadComputerDetails = useCallback(() => {
     if (!id) return;
@@ -36,7 +36,6 @@ export default function ComputerDetailsPage() {
     setError(null);
     setIsLoadingExecutions(true);
 
-    // Simulate delay for mock data
     setTimeout(() => {
       try {
         const fetchedComputer = getComputerById(id);
@@ -122,6 +121,20 @@ export default function ComputerDetailsPage() {
     return getProcedureById(procedureId)?.name || 'Unknown Procedure';
   };
 
+  const DetailItem = ({ icon, label, value }: { icon?: React.ElementType, label: string, value?: string | number | null }) => {
+    const IconComponent = icon;
+    return (
+        <div className="flex items-start space-x-2">
+            {IconComponent && <IconComponent className="h-5 w-5 text-muted-foreground mt-0.5" />}
+            <div>
+                <Label className="text-sm text-muted-foreground">{label}</Label>
+                <p className="font-semibold break-all">{value || 'N/A'}</p>
+            </div>
+        </div>
+    );
+  };
+
+
   return (
     <div className="container mx-auto py-2">
       <Button variant="outline" onClick={() => router.back()} className="mb-6">
@@ -130,9 +143,12 @@ export default function ComputerDetailsPage() {
 
       <Card className="mb-6">
         <CardHeader>
-          <div className="flex justify-between items-start">
-            <div>
-              <CardTitle className="text-3xl font-bold">{computer.name}</CardTitle>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <div className="mb-4 sm:mb-0">
+              <CardTitle className="text-3xl font-bold flex items-center">
+                {computer.name} 
+                <Badge variant="default" className={`${getStatusBadgeVariant(computer.status)} ml-3 text-sm`}>{computer.status}</Badge>
+              </CardTitle>
               <CardDescription>Details for {computer.name} (Mock Data)</CardDescription>
             </div>
             <div className="flex gap-2">
@@ -148,52 +164,58 @@ export default function ComputerDetailsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-6">
-          <div>
-            <p className="text-sm text-muted-foreground">Status</p>
-            <Badge variant="default" className={`${getStatusBadgeVariant(computer.status)} mb-2`}>{computer.status}</Badge>
+        <CardContent>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                <DetailItem icon={Settings} label="Operating System" value={computer.os} />
+                <DetailItem icon={Server} label="LAN IP Address" value={computer.ipAddress} />
+                <DetailItem icon={Globe} label="Public IP Address" value={computer.publicIpAddress} />
+                <DetailItem icon={Smartphone} label="LAN MAC Address" value={computer.macAddressLan} />
+                <DetailItem icon={Wifi} label="WiFi MAC Address" value={computer.macAddressWifi} />
+                <DetailItem icon={Info} label="Last Seen" value={new Date(computer.lastSeen).toLocaleString()} />
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                 <DetailItem icon={Info} label="Model" value={computer.model} />
+                 <DetailItem icon={Cpu} label="Processor" value={computer.processor} />
+                 <DetailItem icon={MemoryStick} label="RAM Size" value={computer.ramSize} />
+                 <DetailItem icon={HardDrive} label="Storage" value={computer.storage} />
+                 <DetailItem icon={Settings} label="Graphics Card" value={computer.graphicsCard} />
+                 <DetailItem icon={Fingerprint} label="Serial Number" value={computer.serialNumber} />
+            </div>
             
-            <p className="text-sm text-muted-foreground mt-2">Operating System</p>
-            <p className="font-semibold">{computer.os}</p>
-
-            <p className="text-sm text-muted-foreground mt-2">IP Address</p>
-            <p className="font-semibold">{computer.ipAddress}</p>
-
-            <p className="text-sm text-muted-foreground mt-2">Last Seen</p>
-            <p className="font-semibold">{new Date(computer.lastSeen).toLocaleString()}</p>
-          </div>
-          <div>
-            <div className="flex items-center mb-2">
-              <Cpu className="mr-2 h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">CPU Usage:</span>
-              {computer.cpuUsage !== undefined ? (
-                <>
-                  <Progress value={computer.cpuUsage} className="w-32 mx-2 h-2.5" /> 
-                  <span>{computer.cpuUsage}%</span>
-                </>
-              ): <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
+            <CardTitle className="text-xl font-semibold mb-3 mt-6 pt-4 border-t">Resource Usage</CardTitle>
+             <div className="grid md:grid-cols-3 gap-4">
+                <div className="flex items-center">
+                  <Cpu className="mr-2 h-5 w-5 text-primary" />
+                  <span className="text-sm font-medium w-24">CPU Usage:</span>
+                  {computer.cpuUsage !== undefined ? (
+                    <>
+                      <Progress value={computer.cpuUsage} className="flex-1 mx-2 h-2.5" /> 
+                      <span>{computer.cpuUsage}%</span>
+                    </>
+                  ): <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
+                </div>
+                <div className="flex items-center">
+                  <MemoryStick className="mr-2 h-5 w-5 text-primary" />
+                  <span className="text-sm font-medium w-24">RAM Usage:</span>
+                  {computer.ramUsage !== undefined ? (
+                    <>
+                      <Progress value={computer.ramUsage} className="flex-1 mx-2 h-2.5" />
+                      <span>{computer.ramUsage}%</span>
+                    </>
+                  ) : <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
+                </div>
+                <div className="flex items-center">
+                  <HardDrive className="mr-2 h-5 w-5 text-primary" />
+                  <span className="text-sm font-medium w-24">Disk Usage:</span>
+                  {computer.diskUsage !== undefined ? (
+                    <>
+                      <Progress value={computer.diskUsage} className="flex-1 mx-2 h-2.5" />
+                      <span>{computer.diskUsage}%</span>
+                    </>
+                  ) : <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
+                </div>
             </div>
-            <div className="flex items-center mb-2">
-              <MemoryStick className="mr-2 h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">RAM Usage:</span>
-              {computer.ramUsage !== undefined ? (
-                <>
-                  <Progress value={computer.ramUsage} className="w-32 mx-2 h-2.5" />
-                  <span>{computer.ramUsage}%</span>
-                </>
-              ) : <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
-            </div>
-            <div className="flex items-center">
-              <HardDrive className="mr-2 h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">Disk Usage:</span>
-              {computer.diskUsage !== undefined ? (
-                <>
-                  <Progress value={computer.diskUsage} className="w-32 mx-2 h-2.5" />
-                  <span>{computer.diskUsage}%</span>
-                </>
-              ) : <span className="ml-2 text-sm text-muted-foreground">N/A</span>}
-            </div>
-          </div>
         </CardContent>
       </Card>
 
