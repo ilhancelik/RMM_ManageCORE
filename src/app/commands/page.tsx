@@ -5,7 +5,7 @@ import type { Computer, ScriptType, CustomCommand, ComputerGroup, Procedure } fr
 import { scriptTypes, getComputers, getGroups, addCustomCommand, getCommandHistory, getComputerById, getGroupById, getProcedures, executeMockProcedure } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, ListChecks, Loader2, Play, ChevronsUpDown, Check, X, UserCircle } from 'lucide-react';
+import { Send, ListChecks, Loader2, Play, ChevronsUpDown, Check, X, UserCircle, Shield } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -37,7 +37,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"; // Make sure this is imported if not already
+} from "@/components/ui/command";
 import { cn } from '@/lib/utils';
 
 
@@ -141,37 +141,13 @@ export default function CommandsPage() {
     }, 300);
   }, [toast]);
 
-  const onlineComputersForMultiSelect = useMemo(() => {
-    return allComputers.filter(computer =>
-        computer.status === 'Online' &&
-        (computer.name.toLowerCase().includes(targetComputerSearchTerm.toLowerCase()) ||
-         computer.ipAddress.toLowerCase().includes(targetComputerSearchTerm.toLowerCase()) ||
-         computer.os.toLowerCase().includes(targetComputerSearchTerm.toLowerCase()))
-    );
-  }, [allComputers, targetComputerSearchTerm]);
+  const onlineComputersList = useMemo(() => {
+    return allComputers.filter(computer => computer.status === 'Online');
+  }, [allComputers]);
 
-  const filteredGroupsForSelect = useMemo(() => {
-    if (!targetGroupSearchTerm.trim()) {
-      return allGroups;
-    }
-    return allGroups.filter(group =>
-      group.name.toLowerCase().includes(targetGroupSearchTerm.toLowerCase()) ||
-      group.description.toLowerCase().includes(targetGroupSearchTerm.toLowerCase())
-    );
-  }, [allGroups, targetGroupSearchTerm]);
-
-  const filteredProceduresForSelect = useMemo(() => {
-    if (!procedureSelectSearchTerm.trim()) {
-      return allProcedures;
-    }
-    return allProcedures.filter(proc =>
-      proc.name.toLowerCase().includes(procedureSelectSearchTerm.toLowerCase()) ||
-      proc.description.toLowerCase().includes(procedureSelectSearchTerm.toLowerCase())
-    );
-  }, [allProcedures, procedureSelectSearchTerm]);
 
   const handleSendCommand = () => {
-    let targetIdValue: string | string[]; // Can be single group ID or array of computer IDs
+    let targetIdValue: string | string[];
     let targetName: string | undefined;
     let isTargetValid = false;
     let numTargets = 0;
@@ -184,9 +160,8 @@ export default function CommandsPage() {
       targetIdValue = selectedComputerIds;
       numTargets = selectedComputerIds.length;
       targetName = `${numTargets} computer(s)`;
-      // Offline check will happen per computer inside addCustomCommand or executeMockProcedure
       isTargetValid = true;
-    } else { // group
+    } else { 
       if (!selectedGroupId) {
         toast({ title: "Error", description: "Please select a target group.", variant: "destructive" });
         return;
@@ -196,7 +171,7 @@ export default function CommandsPage() {
       targetName = group?.name;
       if (group) {
         const onlineComputersInGroup = getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
-        if (onlineComputersInGroup.length === 0 && executionMode === "script") { // Allow procedure to be queued for group even if no online
+        if (onlineComputersInGroup.length === 0 && executionMode === "script") { 
             toast({ title: "Info", description: `No online computers in group "${targetName}" to run custom script.`, variant: "default" });
             return;
         }
@@ -242,7 +217,7 @@ export default function CommandsPage() {
             } else {
                  toast({ title: "No Commands Sent", description: "No online computers were selected or available to send the command.", variant: "default" });
             }
-        } else { // targetType === 'group'
+        } else { 
             addCustomCommand({
               targetId: targetIdValue as string,
               targetType: targetType,
@@ -252,13 +227,14 @@ export default function CommandsPage() {
             });
             toast({ title: "Command Sent (Mock)", description: `Custom command sent to group "${targetName}". Will execute on ${numTargets > 0 ? numTargets : 'available online'} member(s). Check history.` });
             setCommandContent('');
+            setSelectedGroupId(''); 
         }
 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to send command (Mock).";
         toast({ title: "Error Sending Command", description: errorMessage, variant: "destructive" });
       }
-    } else { // executionMode === "procedure"
+    } else { 
       if (!selectedProcedureIdForExecution) {
         toast({ title: "Error", description: "Please select a procedure to execute.", variant: "destructive" });
         setIsSendingCommand(false);
@@ -280,7 +256,7 @@ export default function CommandsPage() {
                 if (!isOnline && comp) toast({title: "Skipped Offline", description: `Procedure will not run on offline computer "${comp.name}".`});
                 return isOnline;
             });
-        } else { // targetType === 'group'
+        } else { 
             const group = getGroupById(targetIdValue as string);
             computerIdsForProcedure = group ? getComputers().filter(c => group.computerIds.includes(c.id) && c.status === 'Online').map(c => c.id) : [];
         }
@@ -295,6 +271,7 @@ export default function CommandsPage() {
         toast({ title: "Procedure Queued (Mock)", description: `Procedure "${procedureToRun.name}" queued for ${computerIdsForProcedure.length} computer(s).` });
         setSelectedProcedureIdForExecution('');
         if (targetType === 'computer') setSelectedComputerIds([]);
+        else setSelectedGroupId(''); 
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to execute procedure (Mock).";
         toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive" });
@@ -398,22 +375,35 @@ export default function CommandsPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
+                  <Command
+                    filter={(value, search) => {
+                      const computer = allComputers.find(c => c.id === value);
+                      if (!computer || computer.status !== 'Online') return 0;
+                      if (search.trim() === '') return 1;
+                      const searchTermLower = search.toLowerCase();
+                      if (computer.name.toLowerCase().includes(searchTermLower)) return 1;
+                      if (computer.ipAddress.toLowerCase().includes(searchTermLower)) return 1;
+                      if (computer.os.toLowerCase().includes(searchTermLower)) return 1;
+                      return 0;
+                    }}
+                  >
                     <CommandInput
                       placeholder="Search online computers..."
                       value={targetComputerSearchTerm}
                       onValueChange={setTargetComputerSearchTerm}
                     />
                     <CommandList>
-                      <CommandEmpty>{isLoadingComputers ? "Loading..." : (allComputers.filter(c=>c.status === 'Online').length === 0 ? "No online computers" : "No computers match search.")}</CommandEmpty>
+                      <CommandEmpty>
+                        {isLoadingComputers ? "Loading..." : 
+                         onlineComputersList.length === 0 ? "No online computers available." : "No computers match your search."}
+                      </CommandEmpty>
                       <CommandGroup>
-                        {onlineComputersForMultiSelect.map((computer) => (
+                        {onlineComputersList.map((computer) => (
                           <CommandItem
                             key={computer.id}
                             value={computer.id}
                             onSelect={() => {
                               handleComputerSelectionToggle(computer.id);
-                              // Keep popover open for multi-select
                             }}
                           >
                             <Check
@@ -478,16 +468,29 @@ export default function CommandsPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                  <Command>
+                  <Command
+                     filter={(value, search) => {
+                      const group = allGroups.find(g => g.id === value);
+                      if (!group) return 0;
+                      if (search.trim() === '') return 1;
+                      const searchTermLower = search.toLowerCase();
+                      if (group.name.toLowerCase().includes(searchTermLower)) return 1;
+                      if (group.description.toLowerCase().includes(searchTermLower)) return 1;
+                      return 0;
+                    }}
+                  >
                     <CommandInput
                       placeholder="Search groups..."
                       value={targetGroupSearchTerm}
                       onValueChange={setTargetGroupSearchTerm}
                     />
                     <CommandList>
-                      <CommandEmpty>{isLoadingGroups ? "Loading..." : (allGroups.length === 0 ? "No groups available" : "No groups match search.")}</CommandEmpty>
+                      <CommandEmpty>
+                        {isLoadingGroups ? "Loading..." : 
+                         allGroups.length === 0 ? "No groups available." : "No groups match search."}
+                      </CommandEmpty>
                       <CommandGroup>
-                        {filteredGroupsForSelect.map((group) => (
+                        {allGroups.map((group) => (
                           <CommandItem
                             key={group.id}
                             value={group.id}
@@ -588,16 +591,29 @@ export default function CommandsPage() {
                     </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
+                    <Command
+                       filter={(value, search) => {
+                        const proc = allProcedures.find(p => p.id === value);
+                        if (!proc) return 0;
+                        if (search.trim() === '') return 1;
+                        const searchTermLower = search.toLowerCase();
+                        if (proc.name.toLowerCase().includes(searchTermLower)) return 1;
+                        if (proc.description.toLowerCase().includes(searchTermLower)) return 1;
+                        return 0;
+                      }}
+                    >
                         <CommandInput
                         placeholder="Search procedures..."
                         value={procedureSelectSearchTerm}
                         onValueChange={setProcedureSelectSearchTerm}
                         />
                         <CommandList>
-                        <CommandEmpty>{isLoadingProcedures ? "Loading..." : (allProcedures.length === 0 ? "No procedures available" : "No procedures match search.")}</CommandEmpty>
+                        <CommandEmpty>
+                          {isLoadingProcedures ? "Loading..." : 
+                           allProcedures.length === 0 ? "No procedures available." : "No procedures match search."}
+                        </CommandEmpty>
                         <CommandGroup>
-                            {filteredProceduresForSelect.map((proc) => (
+                            {allProcedures.map((proc) => (
                             <CommandItem
                                 key={proc.id}
                                 value={proc.id}
@@ -677,7 +693,7 @@ export default function CommandsPage() {
                             <TableRow key={cmd.id}>
                                 <TableCell>{getTargetName(cmd)}</TableCell>
                                 <TableCell>{cmd.scriptType}</TableCell>
-                                <TableCell>{cmd.runAsUser ? 'User' : 'System'}</TableCell>
+                                <TableCell>{cmd.runAsUser ? <div className="flex items-center gap-1"><UserCircle className="h-4 w-4 text-blue-500" />User</div> : <div className="flex items-center gap-1"><Shield className="h-4 w-4 text-gray-500"/>System</div>}</TableCell>
                                 <TableCell>
                                     <Badge variant="default" className={getStatusBadgeVariant(cmd.status)}>{cmd.status || 'Unknown'}</Badge>
                                 </TableCell>
