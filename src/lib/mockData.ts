@@ -1,5 +1,6 @@
 
 import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm } from '@/types';
+import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
@@ -148,6 +149,7 @@ export let mockSmtpSettings: SMTPSettings = {
   secure: true,
   fromEmail: 'noreply@example.com',
   defaultToEmail: 'admin@example.com',
+  licenseExpiryNotificationDays: 30, // Default notification days
 };
 
 export let mockAiSettings: AiSettings = {
@@ -167,6 +169,7 @@ export let mockAiSettings: AiSettings = {
 const thirtyDaysFromNow = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 const sixtyDaysFromNow = () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
 const ninetyDaysAgo = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(); // For testing expiry
 
 export let mockLicenses: License[] = [
   { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup' },
@@ -174,6 +177,7 @@ export let mockLicenses: License[] = [
   { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: sixtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com' },
   { id: 'lic-4', productName: 'WinRAR Archiver', quantity: 100, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: false, purchaseDate: new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Company wide old license, replaced by 7-Zip." },
   { id: 'lic-5', productName: 'Zoom Pro Monthly', quantity: 20, licenseTerm: 'Monthly', enableExpiryDate: true, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry." },
 ];
 
 
@@ -625,22 +629,34 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
     }
 };
 
-// --- License Management Mock Data ---
+let notifiedLicenseIdsThisSession: Set<string> = new Set();
+
 export const getLicenses = (): License[] => {
-  // Simulate checking for expiry notifications (console log for mock)
+  const notificationDays = mockSmtpSettings.licenseExpiryNotificationDays || 30;
+  const today = new Date();
+  
   mockLicenses.forEach(lic => {
     if (lic.isActive && lic.enableExpiryDate && lic.expiryDate) {
-      const expiry = new Date(lic.expiryDate);
-      const thirtyDaysFromNow = new Date();
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-      if (expiry <= thirtyDaysFromNow && expiry >= new Date()) {
-        // console.log(`MOCK EMAIL SIM: License "${lic.productName}" (ID: ${lic.id}) is expiring soon on ${expiry.toLocaleDateString()}.`);
-        // In a real system, you'd send an email and mark as notified.
+      const expiryDate = new Date(lic.expiryDate);
+      const diffTime = expiryDate.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 0 && diffDays <= notificationDays) {
+        if (!notifiedLicenseIdsThisSession.has(lic.id)) { // Check if already notified this session
+          toast({
+            title: "License Expiry Alert",
+            description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur.`,
+            variant: "default",
+            duration: 10000, // Longer duration for important alerts
+          });
+          notifiedLicenseIdsThisSession.add(lic.id); // Mark as notified for this session
+        }
       }
     }
   });
   return mockLicenses.sort((a, b) => a.productName.localeCompare(b.productName));
 };
+
 
 export const getLicenseById = (id: string): License | undefined => {
   return mockLicenses.find(lic => lic.id === id);
@@ -654,6 +670,7 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     updatedAt: new Date().toISOString(),
   };
   mockLicenses = [...mockLicenses, newLicense];
+  notifiedLicenseIdsThisSession.clear(); // Clear session notifications on add/update
   return newLicense;
 };
 
@@ -666,12 +683,14 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
     }
     return lic;
   });
+  notifiedLicenseIdsThisSession.clear(); // Clear session notifications on add/update
   return updatedLicense;
 };
 
 export const deleteLicenseFromMock = (id: string): boolean => {
   const initialLength = mockLicenses.length;
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
+  notifiedLicenseIdsThisSession.delete(id);
   return mockLicenses.length < initialLength;
 };
 
@@ -679,3 +698,4 @@ export const deleteLicenseFromMock = (id: string): boolean => {
 if (typeof window !== 'undefined') {
     // setInterval(simulateMonitorChecks, 30000);
 }
+

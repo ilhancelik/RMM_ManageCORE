@@ -118,6 +118,7 @@ export interface SMTPSettings {
   secure: boolean;
   fromEmail: string;
   defaultToEmail: string;
+  licenseExpiryNotificationDays?: number; // Days before expiry to notify
 }
 
 export interface AiProviderConfig {
@@ -153,3 +154,4 @@ export interface License {
   createdAt: string;
   updatedAt: string;
 }
+

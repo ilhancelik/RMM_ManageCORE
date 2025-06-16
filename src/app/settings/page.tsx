@@ -33,6 +33,7 @@ const initialSmtpSettingsState: SMTPSettings = {
   secure: true,
   fromEmail: '',
   defaultToEmail: '',
+  licenseExpiryNotificationDays: 30, // Default value
 };
 
 const initialAiSettingsState: AiSettings = {
@@ -103,7 +104,7 @@ export default function SettingsPage() {
     const { name, value, type, checked } = e.target;
     setSmtpSettings(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'port' ? parseInt(value) || 0 : value),
+      [name]: type === 'checkbox' ? checked : (name === 'port' || name === 'licenseExpiryNotificationDays' ? parseInt(value) || 0 : value),
     }));
   };
 
@@ -124,13 +125,16 @@ export default function SettingsPage() {
          setIsSubmittingSmtp(false);
          return;
       }
-      saveSmtpSettings(smtpSettings); // This now returns the saved (potentially modified) settings
+      if ((smtpSettings.licenseExpiryNotificationDays || 0) < 0) {
+        toast({ title: "Error", description: "License Expiry Notification Days cannot be negative.", variant: "destructive" });
+        setIsSubmittingSmtp(false);
+        return;
+      }
+      saveSmtpSettings(smtpSettings); 
       toast({
         title: 'Success!',
         description: 'SMTP settings have been saved to mock data.',
       });
-      // No need to call loadMockSettings if saveSmtpSettings returns the updated state and we use it.
-      // For simplicity with current mock structure, a reload or direct set might be okay.
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving SMTP settings (Mock).';
       setSmtpError(errorMessage);
@@ -146,7 +150,6 @@ export default function SettingsPage() {
 
   const handleGlobalAiEnableChange = (checkedValue: boolean) => {
     setAiSettings(prev => ({ ...prev, globalGenerationEnabled: checkedValue }));
-    // No direct save, will be saved with "Save Global AI Settings"
   };
   
   const handleAiProviderConfigChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -197,7 +200,6 @@ export default function SettingsPage() {
       updatedProvidersList = [...(aiSettings.providerConfigs || []), providerToSave];
     }
     
-    // Tentatively update local state. Final rationalization happens on global save.
     setAiSettings(prev => ({ ...prev, providerConfigs: updatedProvidersList }));
     
     toast({ title: "Provider Updated", description: `AI Provider configuration ${isEditingAiProvider ? 'updated' : 'added'}. Save global AI settings to persist all changes.` });
@@ -255,7 +257,6 @@ export default function SettingsPage() {
     } finally {
         setTimeout(() => {
           setIsSubmittingAi(false);
-          // loadMockSettings(); // Re-load to ensure UI consistency after saveAiSettings logic
         } , 500);
     }
   };
@@ -277,11 +278,11 @@ export default function SettingsPage() {
       <Card className="max-w-2xl mx-auto mb-6">
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Mail className="h-5 w-5"/>SMTP Configuration</CardTitle>
-          <CardDescription>Configure SMTP server settings for sending email notifications from monitors (Mock Data).</CardDescription>
+          <CardDescription>Configure SMTP server settings for sending email notifications (Mock Data).</CardDescription>
         </CardHeader>
         {isLoadingSmtp ? (
             <CardContent className="space-y-6 pt-2">
-                {[...Array(6)].map((_, i) => (
+                {[...Array(7)].map((_, i) => ( // Increased skeleton count
                 <div key={`smtp-skel-${i}`} className="space-y-1.5">
                     <Skeleton className="h-4 w-1/4" />
                     <Skeleton className="h-10 w-full" />
@@ -320,6 +321,20 @@ export default function SettingsPage() {
                 <div>
                 <Label htmlFor="defaultToEmail">Default Recipient Email</Label>
                 <Input id="defaultToEmail" name="defaultToEmail" type="email" value={smtpSettings.defaultToEmail} onChange={handleSmtpChange} placeholder="e.g., admin@yourdomain.com" required disabled={isSubmittingSmtp}/>
+                </div>
+                <div>
+                  <Label htmlFor="licenseExpiryNotificationDays">License Expiry Notification (Days Before)</Label>
+                  <Input 
+                    id="licenseExpiryNotificationDays" 
+                    name="licenseExpiryNotificationDays" 
+                    type="number" 
+                    value={smtpSettings.licenseExpiryNotificationDays || 30} 
+                    onChange={handleSmtpChange} 
+                    placeholder="e.g., 30"
+                    min="0"
+                    disabled={isSubmittingSmtp}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Set how many days before a license expires an email notification should be simulated.</p>
                 </div>
             </CardContent>
             <CardFooter>
