@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ComputerUserAssignment } from '@/types';
 import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
@@ -179,6 +179,13 @@ export let mockLicenses: License[] = [
   { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
 ];
 
+export let mockComputerUserAssignments: ComputerUserAssignment[] = [
+    { id: 'assign-1', computerId: 'comp-1', userName: 'Ali Veli', assignmentDate: new Date(Date.now() - 86400000 * 100).toISOString(), returnDate: new Date(Date.now() - 86400000 * 50).toISOString(), notes: 'İlk geliştirici ataması.' },
+    { id: 'assign-2', computerId: 'comp-1', userName: 'Ayşe Yılmaz', assignmentDate: new Date(Date.now() - 86400000 * 49).toISOString(), notes: 'Mevcut geliştirici.' },
+    { id: 'assign-3', computerId: 'comp-3', userName: 'Mehmet Öztürk', assignmentDate: new Date(Date.now() - 86400000 * 200).toISOString(), returnDate: new Date(Date.now() - 86400000 * 10).toISOString(), notes: 'Satış personeli, terfi etti.' },
+    { id: 'assign-4', computerId: 'comp-3', userName: 'Zeynep Kaya', assignmentDate: new Date(Date.now() - 86400000 * 9).toISOString(), notes: 'Yeni satış personeli.' },
+];
+
 
 // --- Helper Functions for Mock Data ---
 
@@ -239,7 +246,7 @@ export const deleteComputer = (id: string): boolean => {
     mockProcedureExecutions = mockProcedureExecutions.filter(exec => exec.computerId !== id);
     mockMonitorExecutionLogs = mockMonitorExecutionLogs.filter(log => log.computerId !== id);
     mockCustomCommands = mockCustomCommands.filter(cmd => cmd.targetType === 'computer' && cmd.targetId !==id);
-
+    mockComputerUserAssignments = mockComputerUserAssignments.filter(assign => assign.computerId !== id); // Also delete assignments
     return mockComputers.length < initialLength;
 }
 
@@ -641,12 +648,14 @@ export const getLicenses = (): License[] => {
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
         if (!notifiedLicenseIdsThisSession.has(lic.id)) { 
-          toast({
-            title: "License Expiry Alert",
-            description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before).`,
-            variant: "default",
-            duration: 10000, 
-          });
+          if (mockSmtpSettings.defaultToEmail) {
+            toast({
+              title: "License Expiry Alert",
+              description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
+              variant: "default",
+              duration: 10000, 
+            });
+          }
           notifiedLicenseIdsThisSession.add(lic.id); 
         }
       }
@@ -698,6 +707,21 @@ export const deleteLicenseFromMock = (id: string): boolean => {
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
   notifiedLicenseIdsThisSession.delete(id);
   return mockLicenses.length < initialLength;
+};
+
+export const getComputerUserAssignments = (computerId: string): ComputerUserAssignment[] => {
+  return mockComputerUserAssignments
+    .filter(assignment => assignment.computerId === computerId)
+    .sort((a, b) => new Date(b.assignmentDate).getTime() - new Date(a.assignmentDate).getTime());
+};
+
+export const addComputerUserAssignment = (assignmentData: Omit<ComputerUserAssignment, 'id'>): ComputerUserAssignment => {
+  const newAssignment: ComputerUserAssignment = {
+    ...assignmentData,
+    id: `assign-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  };
+  mockComputerUserAssignments = [newAssignment, ...mockComputerUserAssignments];
+  return newAssignment;
 };
 
 

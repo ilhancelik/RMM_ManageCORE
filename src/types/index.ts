@@ -156,4 +156,12 @@ export interface License {
   updatedAt: string;
 }
 
+export interface ComputerUserAssignment {
+  id: string;
+  computerId: string;
+  userName: string;
+  assignmentDate: string; // ISO date string
+  returnDate?: string | null; // ISO date string, null if not returned yet
+  notes?: string;
+}
     
