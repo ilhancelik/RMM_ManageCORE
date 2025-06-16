@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { getComputerById, getExecutions, getProcedureById, getComputerUserAssignments, addComputerUserAssignment, type ComputerUserAssignment } from '@/lib/mockData'; 
+import { getComputerById, getExecutions, getProcedureById } from '@/lib/mockData'; 
 import type { Computer, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO, differenceInDays, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -38,22 +33,12 @@ export default function ComputerDetailsPage() {
   const [relatedExecutions, setRelatedExecutions] = useState<ProcedureExecution[]>([]);
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(true);
 
-  const [assignmentHistory, setAssignmentHistory] = useState<ComputerUserAssignment[]>([]);
-  const [isLoadingAssignmentHistory, setIsLoadingAssignmentHistory] = useState(true);
-  const [isAssignmentModalOpen, setIsAssignmentModalOpen] = useState(false);
-  const [newAssignmentUserName, setNewAssignmentUserName] = useState('');
-  const [newAssignmentDate, setNewAssignmentDate] = useState<Date | undefined>(new Date());
-  const [newAssignmentReturnDate, setNewAssignmentReturnDate] = useState<Date | undefined>(undefined);
-  const [newAssignmentNotes, setNewAssignmentNotes] = useState('');
-  const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
-
 
   const loadComputerDetails = useCallback(() => {
     if (!id) return;
     setIsLoading(true);
     setError(null);
     setIsLoadingExecutions(true);
-    setIsLoadingAssignmentHistory(true);
 
     setTimeout(() => {
       try {
@@ -62,8 +47,6 @@ export default function ComputerDetailsPage() {
         if (fetchedComputer) {
           const executions = getExecutions({ computerId: id });
           setRelatedExecutions(executions);
-          const assignments = getComputerUserAssignments(id);
-          setAssignmentHistory(assignments);
         } else {
           setError('Computer not found in mock data.');
         }
@@ -78,7 +61,6 @@ export default function ComputerDetailsPage() {
       } finally {
         setIsLoading(false);
         setIsLoadingExecutions(false);
-        setIsLoadingAssignmentHistory(false);
       }
     }, 300);
   }, [id, toast]);
@@ -86,37 +68,6 @@ export default function ComputerDetailsPage() {
   useEffect(() => {
     loadComputerDetails();
   }, [loadComputerDetails]);
-
-  const handleAddAssignment = () => {
-    if (!computer || !newAssignmentUserName.trim() || !newAssignmentDate) {
-      toast({ title: "Error", description: "User Name and Assignment Date are required.", variant: "destructive" });
-      return;
-    }
-    setIsSubmittingAssignment(true);
-    try {
-      addComputerUserAssignment({
-        computerId: computer.id,
-        userName: newAssignmentUserName,
-        assignmentDate: newAssignmentDate.toISOString(),
-        returnDate: newAssignmentReturnDate ? newAssignmentReturnDate.toISOString() : null,
-        notes: newAssignmentNotes,
-      });
-      toast({ title: "Success", description: "New assignment added." });
-      setNewAssignmentUserName('');
-      setNewAssignmentDate(new Date());
-      setNewAssignmentReturnDate(undefined);
-      setNewAssignmentNotes('');
-      setIsAssignmentModalOpen(false);
-      // Refresh history
-      const updatedAssignments = getComputerUserAssignments(computer.id);
-      setAssignmentHistory(updatedAssignments);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to add assignment (Mock).";
-      toast({ title: "Error", description: msg, variant: "destructive" });
-    } finally {
-      setIsSubmittingAssignment(false);
-    }
-  };
 
 
   if (isLoading) {
@@ -293,113 +244,6 @@ export default function ComputerDetailsPage() {
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
-        <CardHeader className="flex flex-row justify-between items-center">
-          <div className="flex items-center gap-2">
-             <Users className="h-5 w-5 text-primary" />
-             <CardTitle>Kullanım Geçmişi (Assignment History)</CardTitle>
-          </div>
-          <Dialog open={isAssignmentModalOpen} onOpenChange={setIsAssignmentModalOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm"><PlusCircle className="mr-2 h-4 w-4" /> Yeni Atama Ekle</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Yeni Kullanıcı Ataması Ekle</DialogTitle>
-                <DialogDescription>Bu bilgisayar için yeni bir kullanıcı ataması kaydı oluşturun.</DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div>
-                  <Label htmlFor="userName">Kullanıcı Adı</Label>
-                  <Input id="userName" value={newAssignmentUserName} onChange={(e) => setNewAssignmentUserName(e.target.value)} disabled={isSubmittingAssignment} />
-                </div>
-                <div>
-                  <Label htmlFor="assignmentDate">Atama Tarihi</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn("w-full justify-start text-left font-normal", !newAssignmentDate && "text-muted-foreground")}
-                        disabled={isSubmittingAssignment}
-                      >
-                        <CalendarIconLucide className="mr-2 h-4 w-4" />
-                        {newAssignmentDate ? format(newAssignmentDate, "PPP") : <span>Tarih seçin</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={newAssignmentDate} onSelect={setNewAssignmentDate} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label htmlFor="returnDate">İade Tarihi (Opsiyonel)</Label>
-                   <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn("w-full justify-start text-left font-normal", !newAssignmentReturnDate && "text-muted-foreground")}
-                        disabled={isSubmittingAssignment}
-                      >
-                        <CalendarIconLucide className="mr-2 h-4 w-4" />
-                        {newAssignmentReturnDate ? format(newAssignmentReturnDate, "PPP") : <span>Tarih seçin</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={newAssignmentReturnDate} onSelect={setNewAssignmentReturnDate} />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div>
-                  <Label htmlFor="assignmentNotes">Notlar (Opsiyonel)</Label>
-                  <Textarea id="assignmentNotes" value={newAssignmentNotes} onChange={(e) => setNewAssignmentNotes(e.target.value)} disabled={isSubmittingAssignment} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAssignmentModalOpen(false)} disabled={isSubmittingAssignment}>İptal</Button>
-                <Button onClick={handleAddAssignment} disabled={isSubmittingAssignment}>
-                  {isSubmittingAssignment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {isSubmittingAssignment ? "Ekleniyor..." : "Atama Ekle"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </CardHeader>
-        <CardContent>
-          {isLoadingAssignmentHistory ? (
-            <div className="space-y-2 py-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ) : assignmentHistory.length > 0 ? (
-            <ScrollArea className="h-72">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Kullanıcı Adı</TableHead>
-                    <TableHead>Atama Tarihi</TableHead>
-                    <TableHead>İade Tarihi</TableHead>
-                    <TableHead>Notlar</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {assignmentHistory.map((assignment) => (
-                    <TableRow key={assignment.id}>
-                      <TableCell>{assignment.userName}</TableCell>
-                      <TableCell>{format(parseISO(assignment.assignmentDate), "PP")}</TableCell>
-                      <TableCell>{assignment.returnDate ? format(parseISO(assignment.returnDate), "PP") : 'Aktif Kullanımda'}</TableCell>
-                      <TableCell className="text-xs max-w-xs truncate">{assignment.notes || '-'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          ) : (
-            <p className="text-muted-foreground text-center py-8">Bu bilgisayar için kayıtlı kullanım geçmişi bulunmuyor.</p>
-          )}
-        </CardContent>
-      </Card>
-
-
       <Card>
         <CardHeader>
           <CardTitle>Recent Activity (Procedure Executions - Mock)</CardTitle>
@@ -459,4 +303,3 @@ export default function ComputerDetailsPage() {
     </div>
   );
 }
-

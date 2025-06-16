@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ComputerUserAssignment } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm } from '@/types';
 import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
@@ -189,19 +189,6 @@ export let mockLicenses: License[] = [
   { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
 ];
 
-export let mockComputerUserAssignments: ComputerUserAssignment[] = [
-    // Original assignments for comp-1
-    { id: 'assign-1', computerId: 'comp-1', userName: 'Ali Veli', assignmentDate: new Date(Date.now() - 86400000 * 150).toISOString(), returnDate: new Date(Date.now() - 86400000 * 100).toISOString(), notes: 'İlk geliştirici ataması.' },
-    // Update Ayşe Yılmaz to İlhan Çelik and set a return date
-    { id: 'assign-2', computerId: 'comp-1', userName: 'İlhan Çelik', assignmentDate: new Date(Date.now() - 86400000 * 99).toISOString(), returnDate: new Date(Date.now() - 86400000 * 1).toISOString(), notes: 'Önceki geliştirici, ayrıldı.' },
-    // Add Serpil Demir as the new current user for comp-1
-    { id: 'assign-serpil-demir', computerId: 'comp-1', userName: 'Serpil Demir', assignmentDate: new Date().toISOString(), returnDate: null, notes: 'Yeni aktif geliştirici.' },
-
-    // Other assignments remain unchanged
-    { id: 'assign-3', computerId: 'comp-3', userName: 'Mehmet Öztürk', assignmentDate: new Date(Date.now() - 86400000 * 200).toISOString(), returnDate: new Date(Date.now() - 86400000 * 10).toISOString(), notes: 'Satış personeli, terfi etti.' },
-    { id: 'assign-4', computerId: 'comp-3', userName: 'Zeynep Kaya', assignmentDate: new Date(Date.now() - 86400000 * 9).toISOString(), returnDate: null, notes: 'Yeni satış personeli.' },
-];
-
 
 // --- Helper Functions for Mock Data ---
 
@@ -263,7 +250,6 @@ export const deleteComputer = (id: string): boolean => {
     mockProcedureExecutions = mockProcedureExecutions.filter(exec => exec.computerId !== id);
     mockMonitorExecutionLogs = mockMonitorExecutionLogs.filter(log => log.computerId !== id);
     mockCustomCommands = mockCustomCommands.filter(cmd => cmd.targetType === 'computer' && cmd.targetId !==id);
-    mockComputerUserAssignments = mockComputerUserAssignments.filter(assign => assign.computerId !== id); // Also delete assignments
     return mockComputers.length < initialLength;
 }
 
@@ -725,22 +711,6 @@ export const deleteLicenseFromMock = (id: string): boolean => {
   notifiedLicenseIdsThisSession.delete(id);
   return mockLicenses.length < initialLength;
 };
-
-export const getComputerUserAssignments = (computerId: string): ComputerUserAssignment[] => {
-  return mockComputerUserAssignments
-    .filter(assignment => assignment.computerId === computerId)
-    .sort((a, b) => new Date(b.assignmentDate).getTime() - new Date(a.assignmentDate).getTime());
-};
-
-export const addComputerUserAssignment = (assignmentData: Omit<ComputerUserAssignment, 'id'>): ComputerUserAssignment => {
-  const newAssignment: ComputerUserAssignment = {
-    ...assignmentData,
-    id: `assign-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-  };
-  mockComputerUserAssignments = [newAssignment, ...mockComputerUserAssignments];
-  return newAssignment;
-};
-
 
 if (typeof window !== 'undefined') {
     // setInterval(simulateMonitorChecks, 30000);
