@@ -7,7 +7,7 @@ import type { Computer, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2, Smartphone, Wifi, Server, Settings, Globe, Fingerprint, Info, Users, PlusCircle, CalendarIcon as CalendarIconLucide, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2, Smartphone, Wifi, Server, Settings, Globe, Fingerprint, Info, Users, PlusCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -16,7 +16,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Label } from '@/components/ui/label';
-import { format, parseISO, differenceInDays, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 
@@ -139,21 +138,6 @@ export default function ComputerDetailsPage() {
     );
   };
   
-  const getWarrantyStatusText = (expiryDateString: string | null | undefined) => {
-    if (!expiryDateString) return { text: 'N/A', className: '' };
-    const expiryDate = parseISO(expiryDateString);
-    const today = new Date();
-    if (isPast(expiryDate)) {
-      return { text: `${format(expiryDate, "PP")} (Süresi Doldu)`, className: 'text-destructive font-semibold' };
-    }
-    const daysLeft = differenceInDays(expiryDate, today);
-    if (daysLeft <= 30) {
-      return { text: `${format(expiryDate, "PP")} (${daysLeft} gün kaldı)`, className: 'text-orange-500 font-semibold' };
-    }
-    return { text: format(expiryDate, "PP"), className: '' };
-  };
-  const warrantyInfo = getWarrantyStatusText(computer.warrantyExpiryDate);
-
 
   return (
     <div className="container mx-auto py-2">
@@ -194,18 +178,13 @@ export default function ComputerDetailsPage() {
                 <DetailItem icon={Info} label="Last Seen" value={new Date(computer.lastSeen).toLocaleString()} />
             </div>
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 pt-4 border-t">
                  <DetailItem icon={Info} label="Model" value={computer.model} />
                  <DetailItem icon={Cpu} label="Processor" value={computer.processor} />
                  <DetailItem icon={MemoryStick} label="RAM Size" value={computer.ramSize} />
                  <DetailItem icon={HardDrive} label="Storage" value={computer.storage} />
                  <DetailItem icon={Settings} label="Graphics Card" value={computer.graphicsCard} />
                  <DetailItem icon={Fingerprint} label="Serial Number" value={computer.serialNumber} />
-            </div>
-
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 pt-4 border-t">
-                <DetailItem icon={CalendarIconLucide} label="Satın Alma Tarihi" value={computer.purchaseDate ? format(parseISO(computer.purchaseDate), "PP") : 'N/A'} />
-                <DetailItem icon={ShieldCheck} label="Garanti Bitiş Tarihi" value={warrantyInfo.text} valueClassName={warrantyInfo.className} />
             </div>
             
             <CardTitle className="text-xl font-semibold mb-3 mt-6 pt-4 border-t">Resource Usage</CardTitle>
@@ -303,3 +282,4 @@ export default function ComputerDetailsPage() {
     </div>
   );
 }
+

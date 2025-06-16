@@ -19,8 +19,6 @@ export interface Computer {
   publicIpAddress?: string;
   macAddressLan?: string;
   macAddressWifi?: string;
-  purchaseDate?: string | null; // ISO date string
-  warrantyExpiryDate?: string | null; // ISO date string
 }
 
 export interface ScheduleConfig {
