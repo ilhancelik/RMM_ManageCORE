@@ -12,35 +12,45 @@ export let mockComputers: Computer[] = [
     lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'],
     model: 'Dell XPS 15', processor: 'Intel Core i7-11800H @ 2.30GHz, 8C/16T', ramSize: '32 GB RAM', storage: '1TB NVMe SSD',
     graphicsCard: 'NVIDIA GeForce RTX 3050 Ti', serialNumber: 'DEVXPS15001', publicIpAddress: '88.99.170.10',
-    macAddressLan: '00:1A:2B:3C:4D:5E', macAddressWifi: '00:1A:2B:3C:4D:5F'
+    macAddressLan: '00:1A:2B:3C:4D:5E', macAddressWifi: '00:1A:2B:3C:4D:5F',
+    purchaseDate: new Date(Date.now() - 365 * 2 * 24 * 60 * 60 * 1000).toISOString(), // Approx 2 years ago
+    warrantyExpiryDate: new Date(Date.now() + 365 * 1 * 24 * 60 * 60 * 1000).toISOString() // Approx 1 year left
   },
   { 
     id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5', 
     lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'],
     model: 'HP ProLiant DL380 Gen10', processor: 'Intel Xeon Silver 4210 @ 2.20GHz, 10C/20T', ramSize: '64 GB ECC RAM', storage: '2x 4TB SAS RAID 1',
     graphicsCard: 'Matrox G200eH2', serialNumber: 'PRODSERV002', publicIpAddress: '212.58.244.70',
-    macAddressLan: 'A0:B1:C2:D3:E4:F0', macAddressWifi: undefined // Servers often don't have WiFi
+    macAddressLan: 'A0:B1:C2:D3:E4:F0', macAddressWifi: undefined,
+    purchaseDate: new Date(Date.now() - 365 * 3 * 24 * 60 * 60 * 1000).toISOString(), // Approx 3 years ago
+    warrantyExpiryDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // Expired 30 days ago
   },
   { 
     id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153', 
     lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'],
     model: 'Lenovo ThinkPad X1 Carbon', processor: 'Intel Core i5-10210U @ 1.60GHz, 4C/8T', ramSize: '16 GB RAM', storage: '512GB NVMe SSD',
-    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20', // Might be dynamic
-    macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD'
+    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20', 
+    macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD',
+    purchaseDate: new Date(Date.now() - 365 * 1 * 24 * 60 * 60 * 1000).toISOString(), // Approx 1 year ago
+    warrantyExpiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // Expires in 30 days
   },
   { 
     id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20', 
     lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [],
     model: 'Advantech Kiosk TPC-1551T', processor: 'Intel Celeron J1900 @ 2.00GHz, 4C/4T', ramSize: '4 GB RAM', storage: '128GB SSD',
     graphicsCard: 'Intel HD Graphics', serialNumber: 'KIOSKLOBBY004', publicIpAddress: '91.101.190.30',
-    macAddressLan: 'DD:EE:FF:77:88:99', macAddressWifi: 'DD:EE:FF:77:88:9A'
+    macAddressLan: 'DD:EE:FF:77:88:99', macAddressWifi: 'DD:EE:FF:77:88:9A',
+    purchaseDate: new Date(Date.now() - 365 * 4 * 24 * 60 * 60 * 1000).toISOString(), // Approx 4 years ago
+    warrantyExpiryDate: null // No warranty info or already long expired
   },
   { 
     id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15', 
     lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'],
     model: 'VMware Virtual Platform', processor: 'Virtual CPU @ 2.50GHz, 2C/4T', ramSize: '8 GB RAM', storage: '250GB Virtual Disk',
     graphicsCard: 'VMware SVGA II Adapter', serialNumber: 'VMTESTENV005', publicIpAddress: '212.58.244.75',
-    macAddressLan: '00:0C:29:1A:2B:3C', macAddressWifi: undefined
+    macAddressLan: '00:0C:29:1A:2B:3C', macAddressWifi: undefined,
+    purchaseDate: null, // Virtual machine, no direct purchase date
+    warrantyExpiryDate: null // Virtual machine, no warranty
   },
 ];
 
@@ -181,9 +191,9 @@ export let mockLicenses: License[] = [
 
 export let mockComputerUserAssignments: ComputerUserAssignment[] = [
     { id: 'assign-1', computerId: 'comp-1', userName: 'Ali Veli', assignmentDate: new Date(Date.now() - 86400000 * 100).toISOString(), returnDate: new Date(Date.now() - 86400000 * 50).toISOString(), notes: 'İlk geliştirici ataması.' },
-    { id: 'assign-2', computerId: 'comp-1', userName: 'Ayşe Yılmaz', assignmentDate: new Date(Date.now() - 86400000 * 49).toISOString(), notes: 'Mevcut geliştirici.' },
+    { id: 'assign-2', computerId: 'comp-1', userName: 'Ayşe Yılmaz', assignmentDate: new Date(Date.now() - 86400000 * 49).toISOString(), returnDate: null, notes: 'Mevcut geliştirici.' },
     { id: 'assign-3', computerId: 'comp-3', userName: 'Mehmet Öztürk', assignmentDate: new Date(Date.now() - 86400000 * 200).toISOString(), returnDate: new Date(Date.now() - 86400000 * 10).toISOString(), notes: 'Satış personeli, terfi etti.' },
-    { id: 'assign-4', computerId: 'comp-3', userName: 'Zeynep Kaya', assignmentDate: new Date(Date.now() - 86400000 * 9).toISOString(), notes: 'Yeni satış personeli.' },
+    { id: 'assign-4', computerId: 'comp-3', userName: 'Zeynep Kaya', assignmentDate: new Date(Date.now() - 86400000 * 9).toISOString(), returnDate: null, notes: 'Yeni satış personeli.' },
 ];
 
 
@@ -221,6 +231,7 @@ export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'gr
     id: `comp-${Date.now()}`,
     lastSeen: new Date().toISOString(),
     groupIds: [],
+    // purchaseDate and warrantyExpiryDate can be undefined or null by default
   };
   mockComputers = [...mockComputers, newComputer];
   return newComputer;
@@ -229,7 +240,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; 
+      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as unknown as Computer; // Assuming Computer type has updatedAt
       return updatedComputer;
     }
     return c;

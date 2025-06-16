@@ -7,7 +7,7 @@ import type { Computer, ProcedureExecution } from '@/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2, Smartphone, Wifi, Server, Settings, Globe, Fingerprint, Info, Users, PlusCircle, CalendarIcon } from 'lucide-react';
+import { ArrowLeft, Cpu, HardDrive, MemoryStick, Terminal, ListChecks, Edit, Trash2, Loader2, Smartphone, Wifi, Server, Settings, Globe, Fingerprint, Info, Users, PlusCircle, CalendarIcon as CalendarIconLucide, ShieldCheck } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInDays, isPast } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 
@@ -175,18 +175,33 @@ export default function ComputerDetailsPage() {
     return getProcedureById(procedureId)?.name || 'Unknown Procedure';
   };
 
-  const DetailItem = ({ icon, label, value }: { icon?: React.ElementType, label: string, value?: string | number | null }) => {
+  const DetailItem = ({ icon, label, value, valueClassName }: { icon?: React.ElementType, label: string, value?: string | number | null, valueClassName?: string }) => {
     const IconComponent = icon;
     return (
         <div className="flex items-start space-x-2">
             {IconComponent && <IconComponent className="h-5 w-5 text-muted-foreground mt-0.5" />}
             <div>
                 <Label className="text-sm text-muted-foreground">{label}</Label>
-                <p className="font-semibold break-all">{value || 'N/A'}</p>
+                <p className={cn("font-semibold break-all", valueClassName)}>{value || 'N/A'}</p>
             </div>
         </div>
     );
   };
+  
+  const getWarrantyStatusText = (expiryDateString: string | null | undefined) => {
+    if (!expiryDateString) return { text: 'N/A', className: '' };
+    const expiryDate = parseISO(expiryDateString);
+    const today = new Date();
+    if (isPast(expiryDate)) {
+      return { text: `${format(expiryDate, "PP")} (Süresi Doldu)`, className: 'text-destructive font-semibold' };
+    }
+    const daysLeft = differenceInDays(expiryDate, today);
+    if (daysLeft <= 30) {
+      return { text: `${format(expiryDate, "PP")} (${daysLeft} gün kaldı)`, className: 'text-orange-500 font-semibold' };
+    }
+    return { text: format(expiryDate, "PP"), className: '' };
+  };
+  const warrantyInfo = getWarrantyStatusText(computer.warrantyExpiryDate);
 
 
   return (
@@ -235,6 +250,11 @@ export default function ComputerDetailsPage() {
                  <DetailItem icon={HardDrive} label="Storage" value={computer.storage} />
                  <DetailItem icon={Settings} label="Graphics Card" value={computer.graphicsCard} />
                  <DetailItem icon={Fingerprint} label="Serial Number" value={computer.serialNumber} />
+            </div>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6 pt-4 border-t">
+                <DetailItem icon={CalendarIconLucide} label="Satın Alma Tarihi" value={computer.purchaseDate ? format(parseISO(computer.purchaseDate), "PP") : 'N/A'} />
+                <DetailItem icon={ShieldCheck} label="Garanti Bitiş Tarihi" value={warrantyInfo.text} valueClassName={warrantyInfo.className} />
             </div>
             
             <CardTitle className="text-xl font-semibold mb-3 mt-6 pt-4 border-t">Resource Usage</CardTitle>
@@ -302,7 +322,7 @@ export default function ComputerDetailsPage() {
                         className={cn("w-full justify-start text-left font-normal", !newAssignmentDate && "text-muted-foreground")}
                         disabled={isSubmittingAssignment}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        <CalendarIconLucide className="mr-2 h-4 w-4" />
                         {newAssignmentDate ? format(newAssignmentDate, "PPP") : <span>Tarih seçin</span>}
                       </Button>
                     </PopoverTrigger>
@@ -320,7 +340,7 @@ export default function ComputerDetailsPage() {
                         className={cn("w-full justify-start text-left font-normal", !newAssignmentReturnDate && "text-muted-foreground")}
                         disabled={isSubmittingAssignment}
                       >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        <CalendarIconLucide className="mr-2 h-4 w-4" />
                         {newAssignmentReturnDate ? format(newAssignmentReturnDate, "PPP") : <span>Tarih seçin</span>}
                       </Button>
                     </PopoverTrigger>
