@@ -316,7 +316,7 @@ export default function LicensesPage() {
   return (
     <div className="container mx-auto py-2">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-        <h1 className="text-3xl font-bold text-foreground flex items-center"><KeyRound className="mr-3 h-8 w-8 text-primary"/>License Management</h1>
+        <h1 className="text-3xl font-bold text-foreground flex items-center"><KeyRound className="mr-3 h-8 w-8 text-primary"/>Software Licenses</h1>
         <div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto">
             <div className="relative flex-grow sm:flex-grow-0">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -344,7 +344,7 @@ export default function LicensesPage() {
 
       <Card>
         <CardHeader>
-            <CardTitle>All Licenses {searchTerm && `(Filtered by "${searchTerm}")`}</CardTitle>
+            <CardTitle>All Software Licenses {searchTerm && `(Filtered by "${searchTerm}")`}</CardTitle>
             <CardDescription>View and manage all software licenses. {filteredLicenses.length === 0 && !isLoading && 'No licenses match your current filters.'}</CardDescription>
         </CardHeader>
         <CardContent>

@@ -41,7 +41,7 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/procedures', label: 'Procedures', icon: FileCode },
   { href: '/monitors', label: 'Monitors', icon: Activity },
-  { href: '/licenses', label: 'Licenses', icon: KeyRound },
+  { href: '/licenses', label: 'Software Licenses', icon: KeyRound },
   { href: '/commands', label: 'Custom Commands', icon: TerminalSquare },
 ];
 
