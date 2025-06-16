@@ -149,7 +149,6 @@ export let mockSmtpSettings: SMTPSettings = {
   secure: true,
   fromEmail: 'noreply@example.com',
   defaultToEmail: 'admin@example.com',
-  licenseExpiryNotificationDays: 30, // Default notification days
 };
 
 export let mockAiSettings: AiSettings = {
@@ -169,15 +168,15 @@ export let mockAiSettings: AiSettings = {
 const thirtyDaysFromNow = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 const sixtyDaysFromNow = () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
 const ninetyDaysAgo = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(); // For testing expiry
+const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(); 
 
 export let mockLicenses: License[] = [
-  { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup' },
-  { id: 'lic-2', productName: 'Adobe Photoshop CC', quantity: 10, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: thirtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Auto-renewal active via procurement." },
-  { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: sixtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com' },
-  { id: 'lic-4', productName: 'WinRAR Archiver', quantity: 100, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: false, purchaseDate: new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Company wide old license, replaced by 7-Zip." },
-  { id: 'lic-5', productName: 'Zoom Pro Monthly', quantity: 20, licenseTerm: 'Monthly', enableExpiryDate: true, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
-  { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry." },
+  { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup', sendExpiryNotification: false, notificationDaysBefore: 30 },
+  { id: 'lic-2', productName: 'Adobe Photoshop CC', quantity: 10, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: thirtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Auto-renewal active via procurement.", sendExpiryNotification: true, notificationDaysBefore: 30 },
+  { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: sixtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com', sendExpiryNotification: true, notificationDaysBefore: 15 },
+  { id: 'lic-4', productName: 'WinRAR Archiver', quantity: 100, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: false, purchaseDate: new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Company wide old license, replaced by 7-Zip.", sendExpiryNotification: false, notificationDaysBefore: 30 },
+  { id: 'lic-5', productName: 'Zoom Pro Monthly', quantity: 20, licenseTerm: 'Monthly', enableExpiryDate: true, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), sendExpiryNotification: true, notificationDaysBefore: 7 },
+  { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
 ];
 
 
@@ -199,7 +198,7 @@ export const getComputers = (): Computer[] => {
 };
 export const getComputerById = (id: string): Computer | undefined => {
     const computer = mockComputers.find(c => c.id === id);
-    if (computer) { // Always return full details, even if offline, but update dynamic stats if online
+    if (computer) { 
       const onlineUpdate = computer.status === 'Online' ? {
         cpuUsage: computer.cpuUsage !== undefined ? computer.cpuUsage : Math.floor(Math.random() * 70) + 5,
         ramUsage: computer.ramUsage !== undefined ? computer.ramUsage : Math.floor(Math.random() * 60) + 20,
@@ -223,7 +222,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; // Assuming updatedAt for consistency if needed later
+      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; 
       return updatedComputer;
     }
     return c;
@@ -330,7 +329,7 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
   let updatedProcedure: Procedure | undefined;
   mockProcedures = mockProcedures.map(p => {
     if (p.id === id) {
-      updatedProcedure = { ...p, ...updates, runAsUser: updates.runAsUser || p.runAsUser || false, updatedAt: new Date().toISOString() };
+      updatedProcedure = { ...p, ...updates, runAsUser: updates.runAsUser ?? p.runAsUser ?? false, updatedAt: new Date().toISOString() };
       return updatedProcedure;
     }
     return p;
@@ -632,24 +631,23 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
 let notifiedLicenseIdsThisSession: Set<string> = new Set();
 
 export const getLicenses = (): License[] => {
-  const notificationDays = mockSmtpSettings.licenseExpiryNotificationDays || 30;
   const today = new Date();
   
   mockLicenses.forEach(lic => {
-    if (lic.isActive && lic.enableExpiryDate && lic.expiryDate) {
+    if (lic.isActive && lic.enableExpiryDate && lic.expiryDate && lic.sendExpiryNotification && lic.notificationDaysBefore) {
       const expiryDate = new Date(lic.expiryDate);
       const diffTime = expiryDate.getTime() - today.getTime();
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays >= 0 && diffDays <= notificationDays) {
-        if (!notifiedLicenseIdsThisSession.has(lic.id)) { // Check if already notified this session
+      if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
+        if (!notifiedLicenseIdsThisSession.has(lic.id)) { 
           toast({
             title: "License Expiry Alert",
-            description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur.`,
+            description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before).`,
             variant: "default",
-            duration: 10000, // Longer duration for important alerts
+            duration: 10000, 
           });
-          notifiedLicenseIdsThisSession.add(lic.id); // Mark as notified for this session
+          notifiedLicenseIdsThisSession.add(lic.id); 
         }
       }
     }
@@ -668,9 +666,11 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     id: `lic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    sendExpiryNotification: licenseData.sendExpiryNotification ?? false,
+    notificationDaysBefore: licenseData.notificationDaysBefore ?? 30,
   };
   mockLicenses = [...mockLicenses, newLicense];
-  notifiedLicenseIdsThisSession.clear(); // Clear session notifications on add/update
+  notifiedLicenseIdsThisSession.clear(); 
   return newLicense;
 };
 
@@ -678,12 +678,18 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
   let updatedLicense: License | undefined;
   mockLicenses = mockLicenses.map(lic => {
     if (lic.id === id) {
-      updatedLicense = { ...lic, ...updates, updatedAt: new Date().toISOString() };
+      updatedLicense = { 
+        ...lic, 
+        ...updates, 
+        updatedAt: new Date().toISOString(),
+        sendExpiryNotification: updates.sendExpiryNotification ?? lic.sendExpiryNotification,
+        notificationDaysBefore: updates.notificationDaysBefore ?? lic.notificationDaysBefore,
+      };
       return updatedLicense;
     }
     return lic;
   });
-  notifiedLicenseIdsThisSession.clear(); // Clear session notifications on add/update
+  notifiedLicenseIdsThisSession.clear(); 
   return updatedLicense;
 };
 
@@ -699,3 +705,4 @@ if (typeof window !== 'undefined') {
     // setInterval(simulateMonitorChecks, 30000);
 }
 
+    

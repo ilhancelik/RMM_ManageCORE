@@ -7,7 +7,7 @@ import { LicenseTable } from '@/components/licenses/LicenseTable';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Save, Loader2, Search, KeyRound, CalendarIcon } from 'lucide-react';
+import { PlusCircle, Edit, Save, Loader2, Search, KeyRound, CalendarIcon, MailWarning } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -39,6 +39,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 const initialLicenseFormState: Omit<License, 'id' | 'createdAt' | 'updatedAt'> = {
   productName: '',
@@ -48,6 +49,8 @@ const initialLicenseFormState: Omit<License, 'id' | 'createdAt' | 'updatedAt'> =
   purchaseDate: null,
   enableExpiryDate: true,
   expiryDate: null,
+  sendExpiryNotification: true,
+  notificationDaysBefore: 30,
   notes: '',
   isActive: true,
 };
@@ -99,8 +102,14 @@ export default function LicensesPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    const isNumber = type === 'number';
-    setFormState(prev => ({ ...prev, [name]: isNumber ? parseInt(value) || 0 : value }));
+    let parsedValue: string | number = value;
+    if (type === 'number') {
+        parsedValue = parseInt(value) || 0;
+        if (name === 'notificationDaysBefore') {
+            parsedValue = Math.max(1, Math.min(30, parsedValue as number));
+        }
+    }
+    setFormState(prev => ({ ...prev, [name]: parsedValue }));
   };
 
   const handleSelectChange = (name: keyof Omit<License, 'id' | 'createdAt' | 'updatedAt'>, value: string) => {
@@ -110,6 +119,7 @@ export default function LicensesPage() {
         if (value === 'Lifetime') {
           newState.enableExpiryDate = false;
           newState.expiryDate = null;
+          newState.sendExpiryNotification = false; // Also disable notification for lifetime
         } else {
           newState.enableExpiryDate = true;
         }
@@ -118,11 +128,15 @@ export default function LicensesPage() {
     });
   };
 
-  const handleCheckboxChange = (name: keyof Omit<License, 'id' | 'createdAt' | 'updatedAt'>, checked: boolean) => {
+  const handleSwitchChange = (name: keyof Omit<License, 'id' | 'createdAt' | 'updatedAt'>, checked: boolean) => {
      setFormState(prev => {
        const newState = { ...prev, [name]: checked };
        if (name === 'enableExpiryDate' && !checked) {
          newState.expiryDate = null;
+         newState.sendExpiryNotification = false; // If expiry is disabled, notification is also disabled
+       }
+       if (name === 'sendExpiryNotification' && !checked && newState.enableExpiryDate){
+        // If notification is disabled, but expiry is enabled, we don't clear notificationDaysBefore
        }
        return newState;
      });
@@ -156,6 +170,8 @@ export default function LicensesPage() {
       purchaseDate: license.purchaseDate || null,
       enableExpiryDate: license.enableExpiryDate,
       expiryDate: license.expiryDate || null,
+      sendExpiryNotification: license.sendExpiryNotification ?? (license.enableExpiryDate && !!license.expiryDate), // Default to true if expiry is set
+      notificationDaysBefore: license.notificationDaysBefore || 30,
       notes: license.notes || '',
       isActive: license.isActive,
     });
@@ -173,12 +189,18 @@ export default function LicensesPage() {
       toast({ title: "Validation Error", description: "Expiry Date is required for Annual/Monthly licenses when expiry is enabled.", variant: "destructive"});
       return;
     }
+    if (formState.sendExpiryNotification && (formState.notificationDaysBefore || 0) < 1 || (formState.notificationDaysBefore || 0) > 30) {
+        toast({ title: "Validation Error", description: "Notification Days Before must be between 1 and 30.", variant: "destructive"});
+        return;
+    }
 
     setIsSubmitting(true);
     try {
       const licenseData: Omit<License, 'id' | 'createdAt' | 'updatedAt'> = {
         ...formState,
         expiryDate: formState.enableExpiryDate ? formState.expiryDate : null,
+        sendExpiryNotification: formState.enableExpiryDate && !!formState.expiryDate ? formState.sendExpiryNotification : false,
+        notificationDaysBefore: formState.enableExpiryDate && !!formState.expiryDate && formState.sendExpiryNotification ? formState.notificationDaysBefore : undefined,
       };
 
       if (isEditMode && currentLicense) {
@@ -262,12 +284,19 @@ export default function LicensesPage() {
           </PopoverContent>
         </Popover>
       </div>
-      <div className="flex items-center space-x-2 pt-2">
-        <Checkbox id="enableExpiryDate" name="enableExpiryDate" checked={formState.enableExpiryDate} onCheckedChange={(checked) => handleCheckboxChange('enableExpiryDate', !!checked)} disabled={isSubmitting} />
-        <Label htmlFor="enableExpiryDate" className="font-normal">Set Expiry Date</Label>
+      
+      <Separator className="my-2"/>
+      <div className="space-y-1.5">
+        <div className="flex items-center space-x-2">
+          <Switch id="enableExpiryDate" name="enableExpiryDate" checked={formState.enableExpiryDate} onCheckedChange={(checked) => handleSwitchChange('enableExpiryDate', checked)} disabled={isSubmitting || formState.licenseTerm === 'Lifetime'} />
+          <Label htmlFor="enableExpiryDate" className="font-normal">Set Expiry Date</Label>
+        </div>
+         {formState.licenseTerm === 'Lifetime' && <p className="text-xs text-muted-foreground pl-8">Lifetime licenses do not have an expiry date.</p>}
       </div>
-      {formState.enableExpiryDate && (
-        <div className="space-y-1">
+
+      {formState.enableExpiryDate && formState.licenseTerm !== 'Lifetime' && (
+        <>
+          <div className="space-y-1 pl-2">
             <Label htmlFor="expiryDate">Expiry Date</Label>
             <Popover>
             <PopoverTrigger asChild>
@@ -277,21 +306,51 @@ export default function LicensesPage() {
                 disabled={isSubmitting}
                 >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formState.expiryDate ? format(new Date(formState.expiryDate), "PPP") : <span>Pick a date</span>}
+                {formState.expiryDate ? format(new Date(formState.expiryDate), "PPP") : <span>Pick expiry date</span>}
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
                 <Calendar mode="single" selected={formState.expiryDate ? new Date(formState.expiryDate) : undefined} onSelect={(date) => handleDateChange('expiryDate', date)} initialFocus />
             </PopoverContent>
             </Popover>
-        </div>
+          </div>
+          
+          {formState.expiryDate && (
+            <>
+             <div className="flex items-center space-x-2 pl-2 pt-2">
+                <Switch id="sendExpiryNotification" name="sendExpiryNotification" checked={formState.sendExpiryNotification} onCheckedChange={(checked) => handleSwitchChange('sendExpiryNotification', checked)} disabled={isSubmitting} />
+                <Label htmlFor="sendExpiryNotification" className="font-normal">Send Email Notification Before Expiry</Label>
+              </div>
+
+              {formState.sendExpiryNotification && (
+                <div className="space-y-1 pl-8">
+                  <Label htmlFor="notificationDaysBefore">Notify Days Before Expiry (1-30)</Label>
+                  <Input 
+                    id="notificationDaysBefore" 
+                    name="notificationDaysBefore" 
+                    type="number" 
+                    min="1" 
+                    max="30" 
+                    value={formState.notificationDaysBefore} 
+                    onChange={handleInputChange} 
+                    disabled={isSubmitting} 
+                    className="w-24"
+                  />
+                  <p className="text-xs text-muted-foreground">How many days before expiry to send a notification.</p>
+                </div>
+              )}
+            </>
+          )}
+        </>
       )}
+      <Separator className="my-2"/>
+
       <div className="space-y-1">
         <Label htmlFor="notes">Notes</Label>
         <Textarea id="notes" name="notes" value={formState.notes} onChange={handleInputChange} disabled={isSubmitting} rows={3} />
       </div>
       <div className="flex items-center space-x-2 pt-2">
-        <Switch id="isActive" name="isActive" checked={formState.isActive} onCheckedChange={(checked) => handleCheckboxChange('isActive', checked)} disabled={isSubmitting} />
+        <Switch id="isActive" name="isActive" checked={formState.isActive} onCheckedChange={(checked) => handleSwitchChange('isActive', checked)} disabled={isSubmitting} />
         <Label htmlFor="isActive" className="font-normal">License is Active</Label>
       </div>
     </div>
@@ -304,7 +363,7 @@ export default function LicensesPage() {
           <Skeleton className="h-10 w-48" /><div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto"><Skeleton className="h-10 w-full sm:w-[250px]" /><Skeleton className="h-10 w-36" /></div>
         </div>
         <Card><CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader><CardContent><div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div></CardContent></Card>
-        <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading licenses...</p></div>
+        <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading software licenses...</p></div>
       </div>
     );
   }
@@ -368,3 +427,5 @@ export default function LicensesPage() {
     </div>
   );
 }
+
+    

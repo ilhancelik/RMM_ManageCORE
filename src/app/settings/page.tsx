@@ -33,7 +33,6 @@ const initialSmtpSettingsState: SMTPSettings = {
   secure: true,
   fromEmail: '',
   defaultToEmail: '',
-  licenseExpiryNotificationDays: 30, // Default value
 };
 
 const initialAiSettingsState: AiSettings = {
@@ -104,7 +103,7 @@ export default function SettingsPage() {
     const { name, value, type, checked } = e.target;
     setSmtpSettings(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'port' || name === 'licenseExpiryNotificationDays' ? parseInt(value) || 0 : value),
+      [name]: type === 'checkbox' ? checked : (name === 'port' ? parseInt(value) || 0 : value),
     }));
   };
 
@@ -124,11 +123,6 @@ export default function SettingsPage() {
          toast({ title: "Error", description: "Server, Port, From Email, and Default To Email are required for SMTP.", variant: "destructive" });
          setIsSubmittingSmtp(false);
          return;
-      }
-      if ((smtpSettings.licenseExpiryNotificationDays || 0) < 0) {
-        toast({ title: "Error", description: "License Expiry Notification Days cannot be negative.", variant: "destructive" });
-        setIsSubmittingSmtp(false);
-        return;
       }
       saveSmtpSettings(smtpSettings); 
       toast({
@@ -282,7 +276,7 @@ export default function SettingsPage() {
         </CardHeader>
         {isLoadingSmtp ? (
             <CardContent className="space-y-6 pt-2">
-                {[...Array(7)].map((_, i) => ( 
+                {[...Array(6)].map((_, i) => ( 
                 <div key={`smtp-skel-${i}`} className="space-y-1.5">
                     <Skeleton className="h-4 w-1/4" />
                     <Skeleton className="h-10 w-full" />
@@ -321,20 +315,6 @@ export default function SettingsPage() {
                 <div>
                 <Label htmlFor="defaultToEmail">Default Recipient Email</Label>
                 <Input id="defaultToEmail" name="defaultToEmail" type="email" value={smtpSettings.defaultToEmail} onChange={handleSmtpChange} placeholder="e.g., admin@yourdomain.com" required disabled={isSubmittingSmtp}/>
-                </div>
-                <div>
-                  <Label htmlFor="licenseExpiryNotificationDays">License Expiry Notification (Days Before)</Label>
-                  <Input 
-                    id="licenseExpiryNotificationDays" 
-                    name="licenseExpiryNotificationDays" 
-                    type="number" 
-                    value={smtpSettings.licenseExpiryNotificationDays || 30} 
-                    onChange={handleSmtpChange} 
-                    placeholder="e.g., 30"
-                    min="0"
-                    disabled={isSubmittingSmtp}
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">Set how many days before a license expires an email notification should be simulated.</p>
                 </div>
             </CardContent>
             <CardFooter>
@@ -528,3 +508,5 @@ export default function SettingsPage() {
     
 
 }
+
+    

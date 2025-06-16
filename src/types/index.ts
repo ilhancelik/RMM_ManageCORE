@@ -118,7 +118,6 @@ export interface SMTPSettings {
   secure: boolean;
   fromEmail: string;
   defaultToEmail: string;
-  licenseExpiryNotificationDays?: number; // Days before expiry to notify
 }
 
 export interface AiProviderConfig {
@@ -149,9 +148,12 @@ export interface License {
   purchaseDate?: string | null; // ISO Date
   enableExpiryDate: boolean;
   expiryDate?: string | null; // ISO Date, null if enableExpiryDate is false or not set
+  sendExpiryNotification?: boolean;
+  notificationDaysBefore?: number; // e.g., 1-30 days
   notes?: string;
   isActive: boolean; 
   createdAt: string;
   updatedAt: string;
 }
 
+    
