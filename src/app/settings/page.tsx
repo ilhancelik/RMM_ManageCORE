@@ -282,7 +282,7 @@ export default function SettingsPage() {
         </CardHeader>
         {isLoadingSmtp ? (
             <CardContent className="space-y-6 pt-2">
-                {[...Array(7)].map((_, i) => ( // Increased skeleton count
+                {[...Array(7)].map((_, i) => ( 
                 <div key={`smtp-skel-${i}`} className="space-y-1.5">
                     <Skeleton className="h-4 w-1/4" />
                     <Skeleton className="h-10 w-full" />
@@ -526,3 +526,5 @@ export default function SettingsPage() {
   );
 
     
+
+}
