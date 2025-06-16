@@ -7,8 +7,8 @@ export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly',
 
 
 export let mockComputers: Computer[] = [
-  { 
-    id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101', 
+  {
+    id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101',
     lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'],
     model: 'Dell XPS 15', processor: 'Intel Core i7-11800H @ 2.30GHz, 8C/16T', ramSize: '32 GB RAM', storage: '1TB NVMe SSD',
     graphicsCard: 'NVIDIA GeForce RTX 3050 Ti', serialNumber: 'DEVXPS15001', publicIpAddress: '88.99.170.10',
@@ -16,8 +16,8 @@ export let mockComputers: Computer[] = [
     purchaseDate: new Date(Date.now() - 365 * 2 * 24 * 60 * 60 * 1000).toISOString(), // Approx 2 years ago
     warrantyExpiryDate: new Date(Date.now() + 365 * 1 * 24 * 60 * 60 * 1000).toISOString() // Approx 1 year left
   },
-  { 
-    id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5', 
+  {
+    id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5',
     lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'],
     model: 'HP ProLiant DL380 Gen10', processor: 'Intel Xeon Silver 4210 @ 2.20GHz, 10C/20T', ramSize: '64 GB ECC RAM', storage: '2x 4TB SAS RAID 1',
     graphicsCard: 'Matrox G200eH2', serialNumber: 'PRODSERV002', publicIpAddress: '212.58.244.70',
@@ -25,17 +25,17 @@ export let mockComputers: Computer[] = [
     purchaseDate: new Date(Date.now() - 365 * 3 * 24 * 60 * 60 * 1000).toISOString(), // Approx 3 years ago
     warrantyExpiryDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString() // Expired 30 days ago
   },
-  { 
-    id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153', 
+  {
+    id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153',
     lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'],
     model: 'Lenovo ThinkPad X1 Carbon', processor: 'Intel Core i5-10210U @ 1.60GHz, 4C/8T', ramSize: '16 GB RAM', storage: '512GB NVMe SSD',
-    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20', 
+    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20',
     macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD',
     purchaseDate: new Date(Date.now() - 365 * 1 * 24 * 60 * 60 * 1000).toISOString(), // Approx 1 year ago
     warrantyExpiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // Expires in 30 days
   },
-  { 
-    id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20', 
+  {
+    id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20',
     lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [],
     model: 'Advantech Kiosk TPC-1551T', processor: 'Intel Celeron J1900 @ 2.00GHz, 4C/4T', ramSize: '4 GB RAM', storage: '128GB SSD',
     graphicsCard: 'Intel HD Graphics', serialNumber: 'KIOSKLOBBY004', publicIpAddress: '91.101.190.30',
@@ -43,8 +43,8 @@ export let mockComputers: Computer[] = [
     purchaseDate: new Date(Date.now() - 365 * 4 * 24 * 60 * 60 * 1000).toISOString(), // Approx 4 years ago
     warrantyExpiryDate: null // No warranty info or already long expired
   },
-  { 
-    id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15', 
+  {
+    id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15',
     lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'],
     model: 'VMware Virtual Platform', processor: 'Virtual CPU @ 2.50GHz, 2C/4T', ramSize: '8 GB RAM', storage: '250GB Virtual Disk',
     graphicsCard: 'VMware SVGA II Adapter', serialNumber: 'VMTESTENV005', publicIpAddress: '212.58.244.75',
@@ -148,7 +148,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 
 export let mockCustomCommands: CustomCommand[] = [
   { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString(), computerId: 'comp-1' },
-  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, 
+  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' },
 ];
 
 export let mockSmtpSettings: SMTPSettings = {
@@ -178,7 +178,7 @@ export let mockAiSettings: AiSettings = {
 const thirtyDaysFromNow = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 const sixtyDaysFromNow = () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
 const ninetyDaysAgo = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(); 
+const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
 
 export let mockLicenses: License[] = [
   { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup', sendExpiryNotification: false, notificationDaysBefore: 30 },
@@ -190,8 +190,14 @@ export let mockLicenses: License[] = [
 ];
 
 export let mockComputerUserAssignments: ComputerUserAssignment[] = [
-    { id: 'assign-1', computerId: 'comp-1', userName: 'Ali Veli', assignmentDate: new Date(Date.now() - 86400000 * 100).toISOString(), returnDate: new Date(Date.now() - 86400000 * 50).toISOString(), notes: 'İlk geliştirici ataması.' },
-    { id: 'assign-2', computerId: 'comp-1', userName: 'Ayşe Yılmaz', assignmentDate: new Date(Date.now() - 86400000 * 49).toISOString(), returnDate: null, notes: 'Mevcut geliştirici.' },
+    // Original assignments for comp-1
+    { id: 'assign-1', computerId: 'comp-1', userName: 'Ali Veli', assignmentDate: new Date(Date.now() - 86400000 * 150).toISOString(), returnDate: new Date(Date.now() - 86400000 * 100).toISOString(), notes: 'İlk geliştirici ataması.' },
+    // Update Ayşe Yılmaz to İlhan Çelik and set a return date
+    { id: 'assign-2', computerId: 'comp-1', userName: 'İlhan Çelik', assignmentDate: new Date(Date.now() - 86400000 * 99).toISOString(), returnDate: new Date(Date.now() - 86400000 * 1).toISOString(), notes: 'Önceki geliştirici, ayrıldı.' },
+    // Add Serpil Demir as the new current user for comp-1
+    { id: 'assign-serpil-demir', computerId: 'comp-1', userName: 'Serpil Demir', assignmentDate: new Date().toISOString(), returnDate: null, notes: 'Yeni aktif geliştirici.' },
+
+    // Other assignments remain unchanged
     { id: 'assign-3', computerId: 'comp-3', userName: 'Mehmet Öztürk', assignmentDate: new Date(Date.now() - 86400000 * 200).toISOString(), returnDate: new Date(Date.now() - 86400000 * 10).toISOString(), notes: 'Satış personeli, terfi etti.' },
     { id: 'assign-4', computerId: 'comp-3', userName: 'Zeynep Kaya', assignmentDate: new Date(Date.now() - 86400000 * 9).toISOString(), returnDate: null, notes: 'Yeni satış personeli.' },
 ];
@@ -215,7 +221,7 @@ export const getComputers = (): Computer[] => {
 };
 export const getComputerById = (id: string): Computer | undefined => {
     const computer = mockComputers.find(c => c.id === id);
-    if (computer) { 
+    if (computer) {
       const onlineUpdate = computer.status === 'Online' ? {
         cpuUsage: computer.cpuUsage !== undefined ? computer.cpuUsage : Math.floor(Math.random() * 70) + 5,
         ramUsage: computer.ramUsage !== undefined ? computer.ramUsage : Math.floor(Math.random() * 60) + 20,
@@ -337,7 +343,7 @@ export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'upd
     id: `proc-${Date.now()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    runAsUser: procData.runAsUser || false, 
+    runAsUser: procData.runAsUser || false,
   };
   mockProcedures = [...mockProcedures, newProcedure];
   return newProcedure;
@@ -425,7 +431,7 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
                 status: 'Pending',
                 logs: `Executing "${proc.name}" on "${computer.name}"`,
                 startTime: new Date().toISOString(),
-                runAsUser: proc.runAsUser 
+                runAsUser: proc.runAsUser
             });
             executions.push(exec);
         }
@@ -513,8 +519,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId, 
-                targetId: group.id, 
+                computerId: compId,
+                targetId: group.id,
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
@@ -525,18 +531,18 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, 
+            computerId: group.id,
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
             output: "Command sent to group, but no online members found to execute immediately."
         };
         mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
-        return [groupSendCommand]; 
+        return [groupSendCommand];
     }
-    return commandsSent; 
+    return commandsSent;
 
-  } else { 
+  } else {
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
     if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
@@ -544,12 +550,12 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId, 
+        computerId: commandData.targetId,
         targetId: commandData.targetId,
         targetType: 'computer'
     };
     mockCustomCommands = [newCommand, ...mockCustomCommands];
-    return newCommand; 
+    return newCommand;
   }
 };
 
@@ -582,10 +588,10 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
     if (p.isDefault) {
       if (!explicitlySetDefaultExists) {
         defaultProviderId = p.id;
-        p.isEnabled = true; 
+        p.isEnabled = true;
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false; 
+        p.isDefault = false;
       }
     }
   });
@@ -609,7 +615,7 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, 
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled,
     }));
   }
 
@@ -636,7 +642,7 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
                         status: 'Pending',
                         logs: `Automatically triggered: "${procedure.name}" for new member "${computer.name}" in group "${group.name}".`,
                         startTime: new Date().toISOString(),
-                        runAsUser: procedure.runAsUser 
+                        runAsUser: procedure.runAsUser
                     });
                 } else if (procedure && computer.status !== 'Online') {
                      console.log(`AUTOMOCK: Skipped procedure "${procedure.name}" for new offline member "${computer.name}" in group "${group.name}"`);
@@ -650,7 +656,7 @@ let notifiedLicenseIdsThisSession: Set<string> = new Set();
 
 export const getLicenses = (): License[] => {
   const today = new Date();
-  
+
   mockLicenses.forEach(lic => {
     if (lic.isActive && lic.enableExpiryDate && lic.expiryDate && lic.sendExpiryNotification && lic.notificationDaysBefore) {
       const expiryDate = new Date(lic.expiryDate);
@@ -658,16 +664,16 @@ export const getLicenses = (): License[] => {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
-        if (!notifiedLicenseIdsThisSession.has(lic.id)) { 
+        if (!notifiedLicenseIdsThisSession.has(lic.id)) {
           if (mockSmtpSettings.defaultToEmail) {
             toast({
               title: "License Expiry Alert",
               description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
               variant: "default",
-              duration: 10000, 
+              duration: 10000,
             });
           }
-          notifiedLicenseIdsThisSession.add(lic.id); 
+          notifiedLicenseIdsThisSession.add(lic.id);
         }
       }
     }
@@ -690,7 +696,7 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     notificationDaysBefore: licenseData.notificationDaysBefore ?? 30,
   };
   mockLicenses = [...mockLicenses, newLicense];
-  notifiedLicenseIdsThisSession.clear(); 
+  notifiedLicenseIdsThisSession.clear();
   return newLicense;
 };
 
@@ -698,9 +704,9 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
   let updatedLicense: License | undefined;
   mockLicenses = mockLicenses.map(lic => {
     if (lic.id === id) {
-      updatedLicense = { 
-        ...lic, 
-        ...updates, 
+      updatedLicense = {
+        ...lic,
+        ...updates,
         updatedAt: new Date().toISOString(),
         sendExpiryNotification: updates.sendExpiryNotification ?? lic.sendExpiryNotification,
         notificationDaysBefore: updates.notificationDaysBefore ?? lic.notificationDaysBefore,
@@ -709,7 +715,7 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
     }
     return lic;
   });
-  notifiedLicenseIdsThisSession.clear(); 
+  notifiedLicenseIdsThisSession.clear();
   return updatedLicense;
 };
 
@@ -739,5 +745,3 @@ export const addComputerUserAssignment = (assignmentData: Omit<ComputerUserAssig
 if (typeof window !== 'undefined') {
     // setInterval(simulateMonitorChecks, 30000);
 }
-
-    
