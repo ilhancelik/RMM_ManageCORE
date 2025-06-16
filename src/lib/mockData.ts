@@ -48,6 +48,118 @@ export let mockProcedures: Procedure[] = [
   { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
   { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
   { id: 'proc-3', name: 'Apply Security Registry Fix (CMD)', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', runAsUser: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
+  {
+    id: 'proc-4',
+    name: 'Manage Windows Updates',
+    description: 'Checks for, downloads, and installs Windows updates. Optionally forces a reboot if required.',
+    scriptType: 'PowerShell',
+    scriptContent: `
+# Script to check, download, install Windows Updates and reboot if needed.
+
+function Write-Log {
+    param ([string]$Message)
+    Write-Host "LOG: $($Message)"
+}
+
+Write-Log "Starting Windows Update procedure..."
+
+try {
+    Write-Log "Creating Update Session and Searcher..."
+    $updateSession = New-Object -ComObject Microsoft.Update.Session
+    $updateSearcher = $updateSession.CreateUpdateSearcher()
+
+    Write-Log "Searching for available updates..."
+    # Search for all software updates, excluding drivers. Criteria: IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0
+    $searchResult = $updateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0")
+
+    if ($searchResult.Updates.Count -eq 0) {
+        Write-Log "No new software updates found."
+        Write-Host "OUTPUT: No new software updates found."
+        exit 0
+    }
+
+    Write-Log "$($searchResult.Updates.Count) update(s) found."
+    foreach ($update in $searchResult.Updates) {
+        Write-Log "  - $($update.Title)"
+    }
+
+    $updatesToDownload = New-Object -ComObject Microsoft.Update.UpdateColl
+    $updatesToInstall = New-Object -ComObject Microsoft.Update.UpdateColl
+
+    foreach ($update in $searchResult.Updates) {
+        if (-not $update.IsDownloaded) {
+            $updatesToDownload.Add($update) | Out-Null
+        }
+        $updatesToInstall.Add($update) | Out-Null
+    }
+
+    if ($updatesToDownload.Count -gt 0) {
+        Write-Log "Downloading $($updatesToDownload.Count) update(s)..."
+        $downloader = $updateSession.CreateUpdateDownloader()
+        $downloader.Updates = $updatesToDownload
+        $downloadResult = $downloader.Download()
+
+        if ($downloadResult.ResultCode -ne 2) { # 2 means Succeeded
+            Write-Log "Download failed. ResultCode: $($downloadResult.ResultCode)"
+            Write-Host "ERROR: Update download failed with code $($downloadResult.ResultCode)"
+            exit 1
+        }
+        Write-Log "Download completed successfully."
+    } else {
+        Write-Log "All applicable updates are already downloaded."
+    }
+
+    if ($updatesToInstall.Count -gt 0) {
+        Write-Log "Installing $($updatesToInstall.Count) update(s)..."
+        $installer = $updateSession.CreateUpdateInstaller()
+        $installer.Updates = $updatesToInstall
+        $installationResult = $installer.Install()
+
+        if ($installationResult.ResultCode -eq 2) { # 2 means Succeeded
+            Write-Log "Installation successful."
+            Write-Host "OUTPUT: Updates installed successfully."
+
+            if ($installationResult.RebootRequired) {
+                Write-Log "Reboot is required to complete the installation."
+                Write-Log "Initiating reboot in 5 minutes..."
+                # Consider using msg * for user notification if appropriate for your agent's execution context
+                # msg * "Windows Updates have been installed. The system will reboot in 5 minutes. Please save your work."
+                Start-Sleep -Seconds 300
+                Restart-Computer -Force
+            } else {
+                Write-Log "No reboot required after installation."
+            }
+        } elseif ($installationResult.ResultCode -eq 3) { # Succeeded with errors
+             Write-Log "Installation succeeded with errors. ResultCode: $($installationResult.ResultCode)"
+             Write-Host "OUTPUT: Updates installed with some errors. ResultCode: $($installationResult.ResultCode)"
+             if ($installationResult.RebootRequired) {
+                Write-Log "Reboot is required."
+                Write-Log "Initiating reboot in 5 minutes..."
+                Start-Sleep -Seconds 300
+                Restart-Computer -Force
+             }
+        } else { # Other failure codes
+            Write-Log "Installation failed. ResultCode: $($installationResult.ResultCode)"
+            Write-Host "ERROR: Update installation failed with code $($installationResult.ResultCode)"
+            exit 1
+        }
+    } else {
+        Write-Log "No updates to install (either none found or already installed)."
+        Write-Host "OUTPUT: No new updates were available to install."
+    }
+
+    Write-Log "Windows Update procedure finished."
+
+} catch {
+    Write-Log "An error occurred: $($_.Exception.Message)"
+    Write-Host "ERROR: $($_.Exception.Message)"
+    exit 1
+}
+`,
+    runAsUser: false, // Must run as SYSTEM
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
 ];
 
 const defaultProcedureSchedule: ScheduleConfig = { type: 'disabled' };
@@ -506,7 +618,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id,
+            computerId: group.id, // For group-level "sent" log, associate with group ID itself if no online members.
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
@@ -558,41 +670,46 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
   let newProviderConfigs = [...(settings.providerConfigs || [])];
   let defaultProviderId: string | null = null;
 
+  // Ensure only one default, and it must be enabled
   let explicitlySetDefaultExists = false;
   newProviderConfigs.forEach(p => {
     if (p.isDefault) {
-      if (!explicitlySetDefaultExists) {
+      if (!explicitlySetDefaultExists) { // First one encountered marked as default
         defaultProviderId = p.id;
-        p.isEnabled = true;
+        p.isEnabled = true; // Default must be enabled
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false;
+        p.isDefault = false; // Any other subsequent provider marked as default is unset
       }
     }
   });
 
+  // If no provider was explicitly set as default, try to set one
   if (!defaultProviderId) {
     const firstEnabledProvider = newProviderConfigs.find(p => p.isEnabled);
     if (firstEnabledProvider) {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
-      firstEnabledProvider.isEnabled = true;
+      firstEnabledProvider.isEnabled = true; // Ensure it's enabled
     }
   }
 
+   // Fallback: if still no default and list is not empty, make the first one default and enable it
    if (!defaultProviderId && newProviderConfigs.length > 0) {
     newProviderConfigs[0].isDefault = true;
     newProviderConfigs[0].isEnabled = true;
     defaultProviderId = newProviderConfigs[0].id;
   }
 
+  // Final pass to ensure consistency if a default was determined
   if (defaultProviderId) {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled,
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, // Default provider must be enabled
     }));
   }
+
 
   mockAiSettings = {
     ...settings,
@@ -627,6 +744,7 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
     }
 };
 
+// --- License Management Mock Data & Functions ---
 let notifiedLicenseIdsThisSession: Set<string> = new Set();
 
 export const getLicenses = (): License[] => {
@@ -640,15 +758,15 @@ export const getLicenses = (): License[] => {
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
         if (!notifiedLicenseIdsThisSession.has(lic.id)) {
-          if (mockSmtpSettings.defaultToEmail) {
+          if (mockSmtpSettings.defaultToEmail) { // Check if email can be "sent"
             toast({
               title: "License Expiry Alert",
               description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
-              variant: "default",
-              duration: 10000,
+              variant: "default", // Or a more attention-grabbing variant if you add one
+              duration: 10000, // Show for 10 seconds
             });
           }
-          notifiedLicenseIdsThisSession.add(lic.id);
+          notifiedLicenseIdsThisSession.add(lic.id); // Mark as notified for this session
         }
       }
     }
@@ -697,11 +815,50 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
 export const deleteLicenseFromMock = (id: string): boolean => {
   const initialLength = mockLicenses.length;
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
-  notifiedLicenseIdsThisSession.delete(id);
+  notifiedLicenseIdsThisSession.delete(id); // Remove from session notified set if deleted
   return mockLicenses.length < initialLength;
 };
 
-if (typeof window !== 'undefined') {
-    // setInterval(simulateMonitorChecks, 30000);
+// Simulate periodic monitor checks (very basic example)
+// This is a very crude simulation. In a real app, this would be backend driven.
+// This simulation is also disabled by default as it might be noisy during UI dev.
+function simulateMonitorChecks() {
+    // console.log("Simulating monitor checks for online computers...");
+    // const onlineComputers = mockComputers.filter(c => c.status === 'Online');
+    // onlineComputers.forEach(computer => {
+    //     mockComputerGroups.forEach(group => {
+    //         if (group.computerIds.includes(computer.id) && group.associatedMonitors) {
+    //             group.associatedMonitors.forEach(assocMon => {
+    //                 const monitor = getMonitorById(assocMon.monitorId);
+    //                 if (monitor && assocMon.schedule.type === 'interval') {
+    //                     // Extremely simplified: Randomly trigger alert or OK
+    //                     const isAlert = Math.random() < 0.1; // 10% chance of alert
+    //                     const status = isAlert ? 'ALERT' : 'OK';
+    //                     const message = isAlert ? `Simulated ALERT for ${monitor.name}` : `Simulated OK for ${monitor.name}`;
+                        
+    //                     addMonitorLog({
+    //                         monitorId: monitor.id,
+    //                         computerId: computer.id,
+    //                         status: status,
+    //                         message: message
+    //                     });
+    //                     if (isAlert && monitor.sendEmailOnAlert && mockSmtpSettings.defaultToEmail) {
+    //                         console.log(`SIMULATED EMAIL: Alert for ${monitor.name} on ${computer.name} to ${mockSmtpSettings.defaultToEmail}`);
+    //                         toast({title: `Simulated Email Alert`, description: `${monitor.name} on ${computer.name} triggered an alert. Email 'sent' to ${mockSmtpSettings.defaultToEmail}.`});
+    //                     }
+    //                 }
+    //             });
+    //         }
+    //     });
+    // });
 }
 
+if (typeof window !== 'undefined') {
+    // setInterval(simulateMonitorChecks, 30000); // Run every 30 seconds - currently commented out
+}
+
+
+// Ensure all procedures have a runAsUser property, defaulting to false if not present.
+mockProcedures = mockProcedures.map(p => ({ ...p, runAsUser: p.runAsUser || false }));
+mockCustomCommands = mockCustomCommands.map(c => ({...c, runAsUser: c.runAsUser || false }));
+mockProcedureExecutions = mockProcedureExecutions.map(e => ({...e, runAsUser: e.runAsUser || false }));
