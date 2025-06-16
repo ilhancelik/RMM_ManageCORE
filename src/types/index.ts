@@ -133,3 +133,23 @@ export interface AiSettings {
   globalGenerationEnabled: boolean;
   providerConfigs: AiProviderConfig[];
 }
+
+// License Management Types
+export type LicenseTerm = 'Lifetime' | 'Annual' | 'Monthly' | 'Other';
+
+export const licenseTerms: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
+
+export interface License {
+  id: string;
+  productName: string;
+  quantity: number;
+  websitePanelAddress?: string;
+  licenseTerm: LicenseTerm;
+  purchaseDate?: string | null; // ISO Date
+  enableExpiryDate: boolean;
+  expiryDate?: string | null; // ISO Date, null if enableExpiryDate is false or not set
+  notes?: string;
+  isActive: boolean; 
+  createdAt: string;
+  updatedAt: string;
+}

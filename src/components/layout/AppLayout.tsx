@@ -31,7 +31,7 @@ import {
   Sun,
   Bot,
   Activity, // For Monitors
-  Mail, // For Settings related to SMTP
+  KeyRound, // For Licenses
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
@@ -41,6 +41,7 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/procedures', label: 'Procedures', icon: FileCode },
   { href: '/monitors', label: 'Monitors', icon: Activity },
+  { href: '/licenses', label: 'Licenses', icon: KeyRound },
   { href: '/commands', label: 'Custom Commands', icon: TerminalSquare },
 ];
 
@@ -83,7 +84,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <Separator className="my-2 bg-sidebar-border" />
           <div className="flex-1 space-y-2 mt-4">
-            {[...Array(6)].map((_, i) => ( // Adjusted for new nav item
+            {[...Array(navItems.length)].map((_, i) => ( 
               <SidebarMenuSkeleton key={i} showIcon />
             ))}
           </div>
@@ -174,4 +175,3 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     </SidebarProvider>
   );
 }
-

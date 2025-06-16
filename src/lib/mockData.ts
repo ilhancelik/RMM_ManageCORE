@@ -1,7 +1,9 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm } from '@/types';
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
+export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
+
 
 export let mockComputers: Computer[] = [
   { 
@@ -101,14 +103,14 @@ export let mockMonitors: Monitor[] = [
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
-  {
+   {
     id: 'mon-6',
-    name: 'Yakın Zamanda Yönetici Hesabı Değişiklikleri İzleyicisi',
-    description: "Yerel yönetici hesabı oluşturulmalarını veya Administrators grubuna üye eklemelerini izler. Not: Bu monitörün etkili çalışması için Güvenlik Olay Günlüklerinde detaylı denetimin (Örn: Olay ID'leri 4720, 4728, 4732) etkinleştirilmesi ve olayların düzenli olarak kontrol edilmesi önerilir.",
+    name: 'Uygulama Kurulum/Kaldırma İzleyicisi',
+    description: "Yeni uygulama kurulumlarını veya kaldırılmalarını tespit eder ve uyarı gönderir. (Simüle edilmiş)",
     scriptType: 'PowerShell',
-    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR - GERÇEK OLAY GÜNLÜĞÜNÜ KONTROL ETMEZ.\n# Gerçek senaryoda, Get-WinEvent kullanarak Güvenlik günlüklerinden\n# 4720 (Kullanıcı Oluşturuldu), 4728 (Güvenlik Etkin Genel Gruba Üye Eklendi),\n# 4732 (Güvenlik Etkin Yerel Gruba Üye Eklendi) gibi olay ID\'lerini sorgularsınız.\n# Bu script, gösterim amacıyla rastgele bir olay "tespit eder".\n\n$adminUsernames = @("Administrator", "Admin", "SistemYoneticisi") # İzlenecek potansiyel admin kullanıcı adları\n$recentUsers = Get-LocalUser | Where-Object { $_.LastLogon -gt (Get-Date).AddMinutes(-60) -and $_.Enabled }\n$adminGroup = Get-LocalGroupMember -Group "Administrators"\n\n$alertMessage = ""\n\nforeach ($user in $recentUsers) {\n    if ($adminUsernames -contains $user.Name) {\n        $alertMessage += "Potansiyel yeni yönetici hesabı aktif: $($user.Name). "\n    }\n    if (($adminGroup | Where-Object {$_.SID -eq $user.SID}).Length -gt 0) {\n         # Yeni eklenmiş gibi değil de, genel bir kontrol yapıyor.\n         # Gerçek senaryoda bu daha çok olay bazlı olmalı.\n    }\n}\n\n# Bu kısım daha çok "yeni eklenen" senaryosu için olmalı, mock için basitleştirildi.\nif ((Get-Random -Minimum 1 -Maximum 20) -eq 1) { # %5 ihtimalle "yeni ekleme" simülasyonu\n    $alertMessage += "Simüle edilmiş yeni yönetici grup üyeliği tespiti. "\n}\n\nif ($alertMessage -ne "") {\n    "ALERT: $($alertMessage)Lütfen Güvenlik Olay Günlüklerini detaylı inceleyin."\n} else {\n    "OK: Yakın zamanda şüpheli yönetici hesabı aktivitesi veya değişikliği tespit edilmedi (simüle edilmiş)."\n}',
-    defaultIntervalValue: 1,
-    defaultIntervalUnit: 'hours',
+    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR.\n# Gerçek dünyada uygulama kurulum/kaldırma tespiti karmaşıktır ve\n# sistem olay günlüklerinin veya diğer gelişmiş tekniklerin izlenmesini gerektirir.\n\n$detectionChance = Get-Random -Minimum 1 -Maximum 100\n$installedApps = @("Microsoft Office Pro", "Adobe Photoshop", "Google Chrome", "Mozilla Firefox", "VLC Player", "7-Zip Archiver", "Notepad++ Editor")\n$appName = $installedApps[(Get-Random -Maximum $installedApps.Count)]\n$action = @("kuruldu", "kaldırıldı")[(Get-Random -Maximum 2)]\n\nif ($detectionChance -le 15) { # %15 ihtimalle bir şey "tespit et"\n    "ALERT: Simüle edilmiş tespit - \'$appName\' uygulaması yakın zamanda $action."\n} else {\n    "OK: Yeni uygulama kurulumu veya kaldırılması tespit edilmedi (simüle edilmiş)."\n}',
+    defaultIntervalValue: 60,
+    defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -120,18 +122,6 @@ export let mockMonitors: Monitor[] = [
     scriptType: 'PowerShell',
     scriptContent: 'param(\n    [int]$AttemptThreshold = 5,  # Kaç denemeden sonra uyarı verilsin\n    [int]$TimeWindowMinutes = 10 # Son kaç dakika içindeki denemeler sayılsın\n)\n\n$startTime = (Get-Date).AddMinutes(-$TimeWindowMinutes)\n\ntry {\n    # LogonType 10 for RemoteInteractive (RDP)\n    # EventData\'dan LogonType\'ı filtrelemek Get-WinEvent\'in FilterHashtable\'ında doğrudan zor olabilir,\n    # bu yüzden sonuçları aldıktan sonra filtreliyoruz.\n    $failedLogons = Get-WinEvent -FilterHashtable @{\n        LogName = \'Security\';\n        ID = 4625; # Başarısız Oturum Açma\n        StartTime = $startTime\n    } -ErrorAction SilentlyContinue | Where-Object { $_.Properties[8].Value -eq 10 } # Properties[8] genellikle LogonType\'dır 4625 için\n\n    if ($failedLogons.Count -ge $AttemptThreshold) {\n        "ALERT: Son $TimeWindowMinutes dakika içinde $($failedLogons.Count) adet başarısız RDP giriş denemesi tespit edildi (Eşik: $AttemptThreshold). Olası kaba kuvvet saldırısı."\n    } else {\n        "OK: Son $TimeWindowMinutes dakika içinde $($failedLogons.Count) adet başarısız RDP giriş denemesi (Eşik: $AttemptThreshold)."\n    }\n} catch {\n    "ERROR: Olay günlükleri sorgulanamadı. İzinleri ve günlük kullanılabilirliğini kontrol edin. Hata: $($_.Exception.Message)"\n}',
     defaultIntervalValue: 15,
-    defaultIntervalUnit: 'minutes',
-    sendEmailOnAlert: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'mon-8',
-    name: 'Uygulama Kurulum/Kaldırma İzleyicisi',
-    description: "Yeni uygulama kurulumlarını veya kaldırılmalarını tespit eder ve uyarı gönderir. (Simüle edilmiş)",
-    scriptType: 'PowerShell',
-    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR.\n# Gerçek dünyada uygulama kurulum/kaldırma tespiti karmaşıktır ve\n# sistem olay günlüklerinin veya diğer gelişmiş tekniklerin izlenmesini gerektirir.\n\n$detectionChance = Get-Random -Minimum 1 -Maximum 100\n$installedApps = @("Microsoft Office Pro", "Adobe Photoshop", "Google Chrome", "Mozilla Firefox", "VLC Player", "7-Zip Archiver", "Notepad++ Editor")\n$appName = $installedApps[(Get-Random -Maximum $installedApps.Count)]\n$action = @("kuruldu", "kaldırıldı")[(Get-Random -Maximum 2)]\n\nif ($detectionChance -le 15) { # %15 ihtimalle bir şey "tespit et"\n    "ALERT: Simüle edilmiş tespit - \'$appName\' uygulaması yakın zamanda $action."\n} else {\n    "OK: Yeni uygulama kurulumu veya kaldırılması tespit edilmedi (simüle edilmiş)."\n}',
-    defaultIntervalValue: 60,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
     createdAt: new Date().toISOString(),
@@ -173,6 +163,19 @@ export let mockAiSettings: AiSettings = {
     }
   ],
 };
+
+const thirtyDaysFromNow = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+const sixtyDaysFromNow = () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
+const ninetyDaysAgo = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+export let mockLicenses: License[] = [
+  { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup' },
+  { id: 'lic-2', productName: 'Adobe Photoshop CC', quantity: 10, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: thirtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Auto-renewal active via procurement." },
+  { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: sixtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com' },
+  { id: 'lic-4', productName: 'WinRAR Archiver', quantity: 100, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: false, purchaseDate: new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Company wide old license, replaced by 7-Zip." },
+  { id: 'lic-5', productName: 'Zoom Pro Monthly', quantity: 20, licenseTerm: 'Monthly', enableExpiryDate: true, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+];
+
 
 // --- Helper Functions for Mock Data ---
 
@@ -621,6 +624,57 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
         });
     }
 };
+
+// --- License Management Mock Data ---
+export const getLicenses = (): License[] => {
+  // Simulate checking for expiry notifications (console log for mock)
+  mockLicenses.forEach(lic => {
+    if (lic.isActive && lic.enableExpiryDate && lic.expiryDate) {
+      const expiry = new Date(lic.expiryDate);
+      const thirtyDaysFromNow = new Date();
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+      if (expiry <= thirtyDaysFromNow && expiry >= new Date()) {
+        // console.log(`MOCK EMAIL SIM: License "${lic.productName}" (ID: ${lic.id}) is expiring soon on ${expiry.toLocaleDateString()}.`);
+        // In a real system, you'd send an email and mark as notified.
+      }
+    }
+  });
+  return mockLicenses.sort((a, b) => a.productName.localeCompare(b.productName));
+};
+
+export const getLicenseById = (id: string): License | undefined => {
+  return mockLicenses.find(lic => lic.id === id);
+};
+
+export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' | 'updatedAt'>): License => {
+  const newLicense: License = {
+    ...licenseData,
+    id: `lic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  mockLicenses = [...mockLicenses, newLicense];
+  return newLicense;
+};
+
+export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, 'id' | 'createdAt' | 'updatedAt'>>): License | undefined => {
+  let updatedLicense: License | undefined;
+  mockLicenses = mockLicenses.map(lic => {
+    if (lic.id === id) {
+      updatedLicense = { ...lic, ...updates, updatedAt: new Date().toISOString() };
+      return updatedLicense;
+    }
+    return lic;
+  });
+  return updatedLicense;
+};
+
+export const deleteLicenseFromMock = (id: string): boolean => {
+  const initialLength = mockLicenses.length;
+  mockLicenses = mockLicenses.filter(lic => lic.id !== id);
+  return mockLicenses.length < initialLength;
+};
+
 
 if (typeof window !== 'undefined') {
     // setInterval(simulateMonitorChecks, 30000);
