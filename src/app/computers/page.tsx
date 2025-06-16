@@ -6,20 +6,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-// import {
-//   Select,
-//   SelectContent,
-//   SelectItem,
-//   SelectTrigger,
-//   SelectValue,
-// } from "@/components/ui/select"; Removed as per Combobox implementation
 import { 
   Dialog, 
   DialogContent, 
   DialogDescription, 
   DialogHeader, 
   DialogTitle, 
-  DialogTrigger, 
   DialogFooter 
 } from '@/components/ui/dialog';
 import {
@@ -35,15 +27,15 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { getComputers, getProcedures, getGroups, executeMockProcedure } from '@/lib/mockData'; 
+import { getComputers, getProcedures, getGroups, executeMockProcedure, getSmtpSettings } from '@/lib/mockData'; 
 import type { Computer, ComputerGroup, Procedure } from '@/types';
-import { PlusCircle, ListFilter, Search, Play, Loader2, ChevronsUpDown, Check } from 'lucide-react';
+import { PlusCircle, ListFilter, Search, Play, Loader2, ChevronsUpDown, Check, Mail } from 'lucide-react';
 import Link from 'next/link';
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils'; // Added missing import
+import { cn } from '@/lib/utils'; 
 
 const ALL_GROUPS_VALUE = "all-groups";
 
@@ -67,6 +59,7 @@ export default function ComputersPage() {
   const [isRunProcedureModalOpen, setIsRunProcedureModalOpen] = useState(false);
   const [selectedProcedureId, setSelectedProcedureId] = useState<string>('');
   const [isExecutingProcedure, setIsExecutingProcedure] = useState(false);
+  const [isSendingHardwareReport, setIsSendingHardwareReport] = useState(false);
 
   const [openGroupFilterPopover, setOpenGroupFilterPopover] = useState(false);
   const [openProcedureDialogPopover, setOpenProcedureDialogPopover] = useState(false);
@@ -164,7 +157,7 @@ export default function ComputersPage() {
   };
 
   const handleRunProcedureOnSelected = () => {
-    if (!selectedProcedureId) { // No need to check selectedComputerIds.length === 0 here as button is disabled
+    if (!selectedProcedureId) { 
       toast({
         title: "Error",
         description: "Please select a procedure.",
@@ -180,7 +173,6 @@ export default function ComputersPage() {
       });
       return;
     }
-
 
     const procedureToRun = allProcedures.find(p => p.id === selectedProcedureId);
     if (!procedureToRun) {
@@ -211,6 +203,40 @@ export default function ComputersPage() {
     } finally {
         setTimeout(() => setIsExecutingProcedure(false), 1000);
     }
+  };
+
+  const handleEmailHardwareReport = () => {
+    setIsSendingHardwareReport(true);
+    const currentComputers = filteredComputers; // Use currently filtered/displayed computers for the report
+    const smtp = getSmtpSettings();
+
+    if (!smtp.defaultToEmail) {
+      toast({
+        title: "Error Sending Report",
+        description: "Default recipient email is not configured in SMTP settings. Please configure it first.",
+        variant: "destructive",
+      });
+      setIsSendingHardwareReport(false);
+      return;
+    }
+    
+    if (currentComputers.length === 0) {
+        toast({ title: "Info", description: "No computers in the current list to report.", variant: "default" });
+        setIsSendingHardwareReport(false);
+        return;
+    }
+
+    // Simulate report generation 
+    const reportSummary = `Report for ${currentComputers.length} computer(s). Includes: Name, OS, IP, Model, CPU, RAM, Storage, Serial No.`;
+
+    setTimeout(() => { 
+      toast({
+        title: "Hardware Report Sent (Simulated)",
+        description: `An email with hardware details for ${currentComputers.length} computer(s) has been 'sent' to ${smtp.defaultToEmail}. (${reportSummary})`,
+        duration: 8000, 
+      });
+      setIsSendingHardwareReport(false);
+    }, 1000);
   };
 
 
@@ -311,6 +337,11 @@ export default function ComputersPage() {
               </PopoverContent>
             </Popover>
           </div>
+          <Button variant="outline" onClick={handleEmailHardwareReport} disabled={isSendingHardwareReport || isLoadingComputers || computers.length === 0}>
+            {isSendingHardwareReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+            <span className="hidden sm:inline">Email Report</span>
+            <span className="sm:hidden">Report</span>
+          </Button>
           <Button asChild>
             <Link href="/computers/new">
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -332,7 +363,7 @@ export default function ComputersPage() {
           <DialogTrigger asChild>
             <Button 
               variant="outline" 
-              disabled={isExecutingProcedure}
+              disabled={isExecutingProcedure || selectedComputerIds.length === 0}
             >
               <Play className="mr-2 h-4 w-4" /> Run Procedure on Selected ({selectedComputerIds.length})
             </Button>
