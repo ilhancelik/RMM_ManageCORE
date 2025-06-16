@@ -2,12 +2,12 @@
 "use client";
 
 import type { License, LicenseTerm } from '@/types';
-import { licenseTermsList, getLicenses, addLicenseToMock, updateLicenseInMock, deleteLicenseFromMock } from '@/lib/mockData';
+import { licenseTermsList, getLicenses, addLicenseToMock, updateLicenseInMock, deleteLicenseFromMock, getSmtpSettings } from '@/lib/mockData'; // Added getSmtpSettings
 import { LicenseTable } from '@/components/licenses/LicenseTable';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Save, Loader2, Search, KeyRound, CalendarIcon, MailWarning } from 'lucide-react';
+import { PlusCircle, Edit, Save, Loader2, Search, KeyRound, CalendarIcon, MailWarning, Mail } from 'lucide-react'; // Added Mail
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns'; // parseISO might be needed if formState dates are strings
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -65,6 +65,7 @@ export default function LicensesPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentLicense, setCurrentLicense] = useState<License | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingReport, setIsSendingReport] = useState(false); // New state for report sending
 
   const [formState, setFormState] = useState(initialLicenseFormState);
   const [searchTerm, setSearchTerm] = useState('');
@@ -119,7 +120,7 @@ export default function LicensesPage() {
         if (value === 'Lifetime') {
           newState.enableExpiryDate = false;
           newState.expiryDate = null;
-          newState.sendExpiryNotification = false; // Also disable notification for lifetime
+          newState.sendExpiryNotification = false;
         } else {
           newState.enableExpiryDate = true;
         }
@@ -133,10 +134,7 @@ export default function LicensesPage() {
        const newState = { ...prev, [name]: checked };
        if (name === 'enableExpiryDate' && !checked) {
          newState.expiryDate = null;
-         newState.sendExpiryNotification = false; // If expiry is disabled, notification is also disabled
-       }
-       if (name === 'sendExpiryNotification' && !checked && newState.enableExpiryDate){
-        // If notification is disabled, but expiry is enabled, we don't clear notificationDaysBefore
+         newState.sendExpiryNotification = false;
        }
        return newState;
      });
@@ -170,7 +168,7 @@ export default function LicensesPage() {
       purchaseDate: license.purchaseDate || null,
       enableExpiryDate: license.enableExpiryDate,
       expiryDate: license.expiryDate || null,
-      sendExpiryNotification: license.sendExpiryNotification ?? (license.enableExpiryDate && !!license.expiryDate), // Default to true if expiry is set
+      sendExpiryNotification: license.sendExpiryNotification ?? (license.enableExpiryDate && !!license.expiryDate),
       notificationDaysBefore: license.notificationDaysBefore || 30,
       notes: license.notes || '',
       isActive: license.isActive,
@@ -243,6 +241,34 @@ export default function LicensesPage() {
     }
   };
 
+  const handleEmailLicensesReport = () => {
+    setIsSendingReport(true);
+    const allLicenses = getLicenses();
+    const smtp = getSmtpSettings();
+
+    if (!smtp.defaultToEmail) {
+      toast({
+        title: "Error Sending Report",
+        description: "Default recipient email is not configured in SMTP settings. Please configure it first.",
+        variant: "destructive",
+      });
+      setIsSendingReport(false);
+      return;
+    }
+
+    // Simulate report generation (e.g., as a summary string for the toast)
+    const reportSummary = `Report contains ${allLicenses.length} license(s). Data includes Product Name, Quantity, Term, Expiry, Status.`;
+
+    setTimeout(() => { // Simulate network delay
+      toast({
+        title: "License Report Sent (Simulated)",
+        description: `An email with a report of ${allLicenses.length} licenses has been 'sent' to ${smtp.defaultToEmail}. (${reportSummary})`,
+        duration: 8000, 
+      });
+      setIsSendingReport(false);
+    }, 1000);
+  };
+
   const LicenseFormFields = (
     <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
       <div className="space-y-1">
@@ -276,11 +302,11 @@ export default function LicensesPage() {
               disabled={isSubmitting}
             >
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {formState.purchaseDate ? format(new Date(formState.purchaseDate), "PPP") : <span>Pick a date</span>}
+              {formState.purchaseDate ? format(parseISO(formState.purchaseDate), "PPP") : <span>Pick a date</span>}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0">
-            <Calendar mode="single" selected={formState.purchaseDate ? new Date(formState.purchaseDate) : undefined} onSelect={(date) => handleDateChange('purchaseDate', date)} initialFocus />
+            <Calendar mode="single" selected={formState.purchaseDate ? parseISO(formState.purchaseDate) : undefined} onSelect={(date) => handleDateChange('purchaseDate', date)} initialFocus />
           </PopoverContent>
         </Popover>
       </div>
@@ -306,11 +332,11 @@ export default function LicensesPage() {
                 disabled={isSubmitting}
                 >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {formState.expiryDate ? format(new Date(formState.expiryDate), "PPP") : <span>Pick expiry date</span>}
+                {formState.expiryDate ? format(parseISO(formState.expiryDate), "PPP") : <span>Pick expiry date</span>}
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0">
-                <Calendar mode="single" selected={formState.expiryDate ? new Date(formState.expiryDate) : undefined} onSelect={(date) => handleDateChange('expiryDate', date)} initialFocus />
+                <Calendar mode="single" selected={formState.expiryDate ? parseISO(formState.expiryDate) : undefined} onSelect={(date) => handleDateChange('expiryDate', date)} initialFocus />
             </PopoverContent>
             </Popover>
           </div>
@@ -347,7 +373,7 @@ export default function LicensesPage() {
 
       <div className="space-y-1">
         <Label htmlFor="notes">Notes</Label>
-        <Textarea id="notes" name="notes" value={formState.notes} onChange={handleInputChange} disabled={isSubmitting} rows={3} />
+        <Textarea id="notes" name="notes" value={formState.notes || ''} onChange={handleInputChange} disabled={isSubmitting} rows={3} />
       </div>
       <div className="flex items-center space-x-2 pt-2">
         <Switch id="isActive" name="isActive" checked={formState.isActive} onCheckedChange={(checked) => handleSwitchChange('isActive', checked)} disabled={isSubmitting} />
@@ -360,7 +386,7 @@ export default function LicensesPage() {
     return (
       <div className="container mx-auto py-2">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
-          <Skeleton className="h-10 w-48" /><div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto"><Skeleton className="h-10 w-full sm:w-[250px]" /><Skeleton className="h-10 w-36" /></div>
+          <Skeleton className="h-10 w-48" /><div className="flex items-center gap-2 sm:gap-4 w-full sm:w-auto"><Skeleton className="h-10 w-full sm:w-[250px]" /><Skeleton className="h-10 w-36" /><Skeleton className="h-10 w-36" /></div>
         </div>
         <Card><CardHeader><Skeleton className="h-8 w-1/3" /></CardHeader><CardContent><div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div></CardContent></Card>
         <div className="flex justify-center items-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /><p className="ml-2 text-muted-foreground">Loading software licenses...</p></div>
@@ -381,7 +407,11 @@ export default function LicensesPage() {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input type="search" placeholder="Search licenses..." className="pl-8 w-full sm:w-[200px] lg:w-[250px]" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
+            <Button onClick={handleEmailLicensesReport} variant="outline" disabled={isSubmitting || isSendingReport || licenses.length === 0}>
+                {isSendingReport ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mail className="mr-2 h-4 w-4" />}
+                Email Report
+            </Button>
+            <Button onClick={handleOpenCreateModal} disabled={isSubmitting || isSendingReport}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Create License
             </Button>
         </div>
@@ -417,15 +447,16 @@ export default function LicensesPage() {
                     {!searchTerm && (<Button onClick={handleOpenCreateModal} disabled={isSubmitting} className="mt-4"><PlusCircle className="mr-2 h-4 w-4" /> Create Your First License</Button>)}
                 </div>
             ) : (
-                <LicenseTable licenses={filteredLicenses} onEdit={handleOpenEditModal} onDelete={handleDelete} disabled={isSubmitting} />
+                <LicenseTable licenses={filteredLicenses} onEdit={handleOpenEditModal} onDelete={handleDelete} disabled={isSubmitting || isSendingReport} />
             )}
         </CardContent>
         {!isLoading && !error && filteredLicenses.length > 0 && (
-            <CardFooter className="text-sm text-muted-foreground">Showing {filteredLicenses.length} of {licenses.length} licenses.</CardFooter>
+            <CardFooter className="text-sm text-muted-foreground">Showing {filteredLicenses.length} of {licenses.length} licenses. Active: {licenses.filter(l=>l.isActive).length}, Inactive: {licenses.filter(l=>!l.isActive).length}</CardFooter>
         )}
       </Card>
     </div>
   );
 }
+    
 
     
