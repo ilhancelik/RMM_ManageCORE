@@ -51,10 +51,10 @@ export let mockProcedures: Procedure[] = [
   {
     id: 'proc-4',
     name: 'Manage Windows Updates',
-    description: 'Checks for, downloads, and installs Windows updates. Optionally forces a reboot if required.',
+    description: 'Checks for, downloads, and installs Windows updates. Logs if a reboot is required but does not force it.',
     scriptType: 'PowerShell',
     scriptContent: `
-# Script to check, download, install Windows Updates and reboot if needed.
+# Script to check, download, and install Windows Updates without rebooting.
 
 function Write-Log {
     param ([string]$Message)
@@ -120,12 +120,7 @@ try {
             Write-Host "OUTPUT: Updates installed successfully."
 
             if ($installationResult.RebootRequired) {
-                Write-Log "Reboot is required to complete the installation."
-                Write-Log "Initiating reboot in 5 minutes..."
-                # Consider using msg * for user notification if appropriate for your agent's execution context
-                # msg * "Windows Updates have been installed. The system will reboot in 5 minutes. Please save your work."
-                Start-Sleep -Seconds 300
-                Restart-Computer -Force
+                Write-Log "Reboot is required, but this script will not restart the system."
             } else {
                 Write-Log "No reboot required after installation."
             }
@@ -133,10 +128,7 @@ try {
              Write-Log "Installation succeeded with errors. ResultCode: $($installationResult.ResultCode)"
              Write-Host "OUTPUT: Updates installed with some errors. ResultCode: $($installationResult.ResultCode)"
              if ($installationResult.RebootRequired) {
-                Write-Log "Reboot is required."
-                Write-Log "Initiating reboot in 5 minutes..."
-                Start-Sleep -Seconds 300
-                Restart-Computer -Force
+                Write-Log "Reboot is required, but this script will not restart the system."
              }
         } else { # Other failure codes
             Write-Log "Installation failed. ResultCode: $($installationResult.ResultCode)"
@@ -862,3 +854,4 @@ if (typeof window !== 'undefined') {
 mockProcedures = mockProcedures.map(p => ({ ...p, runAsUser: p.runAsUser || false }));
 mockCustomCommands = mockCustomCommands.map(c => ({...c, runAsUser: c.runAsUser || false }));
 mockProcedureExecutions = mockProcedureExecutions.map(e => ({...e, runAsUser: e.runAsUser || false }));
+
