@@ -12,7 +12,8 @@ import {
   DialogDescription, 
   DialogHeader, 
   DialogTitle, 
-  DialogFooter 
+  DialogFooter,
+  DialogTrigger 
 } from '@/components/ui/dialog';
 import {
   Command,
