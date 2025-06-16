@@ -208,7 +208,7 @@ export default function ComputersPage() {
 
   const handleEmailHardwareReport = () => {
     setIsSendingHardwareReport(true);
-    const currentComputers = filteredComputers; // Use currently filtered/displayed computers for the report
+    const currentComputers = filteredComputers; 
     const smtp = getSmtpSettings();
 
     if (!smtp.defaultToEmail) {
@@ -226,9 +226,8 @@ export default function ComputersPage() {
         setIsSendingHardwareReport(false);
         return;
     }
-
-    // Simulate report generation 
-    const reportSummary = "Report includes: Name, Model, Processor, Serial Number, Storage, Graphics Card, RAM Size, LAN MAC, WiFi MAC";
+    
+    const reportSummary = "Report includes: Bilgisayar Adı, Model, İşlemci, Seri Numarası, Disk Bilgisi, Ekran Kartı, RAM Miktarı, İşletim Sistemi, LAN MAC Adresi, WiFi MAC Adresi.";
 
     setTimeout(() => { 
       toast({
