@@ -228,7 +228,7 @@ export default function ComputersPage() {
     }
 
     // Simulate report generation 
-    const reportSummary = `Report for ${currentComputers.length} computer(s). Includes: Name, OS, IP, Model, CPU, RAM, Storage, Serial No.`;
+    const reportSummary = "Report includes: Name, Model, Processor, Serial Number, Storage, Graphics Card, RAM Size, LAN MAC, WiFi MAC";
 
     setTimeout(() => { 
       toast({
@@ -499,3 +499,5 @@ export default function ComputersPage() {
   );
 }
 
+
+    
