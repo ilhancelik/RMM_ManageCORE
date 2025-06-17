@@ -12,20 +12,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock, Settings, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 const scheduleTypes: { value: ScheduleType; label: string }[] = [
   { value: 'disabled', label: 'Disabled' },
-  { value: 'runOnce', label: 'Run Once (at specified time)' },
-  { value: 'daily', label: 'Daily (at specified time)' },
-  { value: 'weekly', label: 'Weekly (on specific day/time)' },
-  { value: 'monthly', label: 'Monthly (on specific day/time)' },
+  { value: 'runOnce', label: 'Run Once' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
   { value: 'customInterval', label: 'Custom Interval' },
 ];
 
@@ -62,6 +63,9 @@ export default function ManageGroupProceduresPage() {
   const [isAddProceduresModalOpen, setIsAddProceduresModalOpen] = useState(false);
   const [addProcToGroupSearchTerm, setAddProcToGroupSearchTerm] = useState('');
   const [tempSelectedProcIdsForAddDialog, setTempSelectedProcIdsForAddDialog] = useState<Set<string>>(new Set());
+
+  const [editingScheduleForProcId, setEditingScheduleForProcId] = useState<string | null>(null);
+
 
   const loadData = useCallback(() => {
     if (!groupId) return;
@@ -132,10 +136,14 @@ export default function ManageGroupProceduresPage() {
           toast({ title: "Validation Error", description: `Procedure "${procName}" needs value and unit for 'Custom Interval' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
-        if (proc.schedule.type === 'customInterval' && proc.schedule.intervalValue && proc.schedule.intervalValue < 1) {
+         if (proc.schedule.type === 'customInterval' && proc.schedule.intervalValue && proc.schedule.intervalValue < 1) {
            toast({ title: "Validation Error", description: `Procedure "${procName}" custom interval value must be 1 or greater.`, variant: "destructive" });
            setIsSaving(false); return;
         }
+         if (proc.schedule.type === 'monthly' && proc.schedule.dayOfMonth && (proc.schedule.dayOfMonth < 1 || proc.schedule.dayOfMonth > 31)) {
+            toast({ title: "Validation Error", description: `Procedure "${procName}" day of month must be between 1 and 31.`, variant: "destructive" });
+            setIsSaving(false); return;
+         }
       }
 
       const updatedGroupData = { ...group, associatedProcedures: currentAssociatedProcedures };
@@ -183,15 +191,15 @@ export default function ManageGroupProceduresPage() {
             let newSchedule: ScheduleConfig = { ...(p.schedule || { type: 'disabled' as const }) };
 
             if (scheduleField === 'type') {
-              newSchedule = { type: value as ScheduleType }; // Reset schedule on type change
+              newSchedule = { type: value as ScheduleType }; 
               if (value === 'customInterval') {
-                newSchedule.intervalValue = 5;
-                newSchedule.intervalUnit = 'minutes';
-              } else if (value === 'daily' || value === 'runOnce' || value === 'weekly' || value === 'monthly') {
-                newSchedule.time = '09:00'; // Default time
+                newSchedule.intervalValue = p.schedule?.intervalValue || 5;
+                newSchedule.intervalUnit = p.schedule?.intervalUnit || 'minutes';
+              } else if (value === 'runOnce' || value === 'daily' || value === 'weekly' || value === 'monthly') {
+                newSchedule.time = p.schedule?.time || '09:00'; 
               }
-              if (value === 'weekly') newSchedule.dayOfWeek = 1; // Default to Monday
-              if (value === 'monthly') newSchedule.dayOfMonth = 1; // Default to 1st
+              if (value === 'weekly') newSchedule.dayOfWeek = p.schedule?.dayOfWeek ?? 1; 
+              if (value === 'monthly') newSchedule.dayOfMonth = p.schedule?.dayOfMonth ?? 1; 
             } else if (scheduleField === 'time') {
               newSchedule.time = value;
             } else if (scheduleField === 'dayOfWeek') {
@@ -243,6 +251,20 @@ export default function ManageGroupProceduresPage() {
         default: return <FileCode className="mr-1.5 h-3.5 w-3.5 opacity-80" />;
     }
   };
+  
+  const formatScheduleSummary = (schedule: ScheduleConfig): string => {
+    if (schedule.type === 'disabled') return 'Disabled';
+    if (schedule.type === 'runOnce') return `Once at ${schedule.time || 'N/A'}`;
+    if (schedule.type === 'daily') return `Daily at ${schedule.time || 'N/A'}`;
+    if (schedule.type === 'weekly') {
+        const day = daysOfWeek.find(d => d.value === schedule.dayOfWeek)?.label || 'N/A';
+        return `Weekly on ${day} at ${schedule.time || 'N/A'}`;
+    }
+    if (schedule.type === 'monthly') return `Monthly on day ${schedule.dayOfMonth || 'N/A'} at ${schedule.time || 'N/A'}`;
+    if (schedule.type === 'customInterval') return `Every ${schedule.intervalValue || 'N/A'} ${schedule.intervalUnit || 'N/A'}`;
+    return 'Not Configured';
+  };
+
 
   if (isLoading) {
     return (
@@ -354,6 +376,7 @@ export default function ManageGroupProceduresPage() {
                     </div>
                   );
                 }
+                const currentScheduleType = assocProc.schedule?.type || 'disabled';
                 return (
                   <Card key={assocProc.procedureId} className="p-3">
                     <div className="flex justify-between items-start mb-2.5">
@@ -381,8 +404,8 @@ export default function ManageGroupProceduresPage() {
                     
                     <Separator className="my-2.5"/>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-                        <div className="flex items-center space-x-1.5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3 items-start">
+                        <div className="flex items-center space-x-1.5 pt-1">
                             <Checkbox
                                 id={`runOnNew-${assocProc.procedureId}`}
                                 checked={assocProc.runOnNewMember}
@@ -396,7 +419,7 @@ export default function ManageGroupProceduresPage() {
                             <Label className="text-xs font-semibold text-muted-foreground">Schedule Execution</Label>
                             <div className="flex items-center gap-1.5">
                                 <Select
-                                    value={assocProc.schedule?.type || 'disabled'}
+                                    value={currentScheduleType}
                                     onValueChange={(value: ScheduleType) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.type', value)}
                                     disabled={isSaving}
                                 >
@@ -405,76 +428,90 @@ export default function ManageGroupProceduresPage() {
                                         {scheduleTypes.map(st => <SelectItem key={st.value} value={st.value} className="text-xs">{st.label}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
+                                {currentScheduleType !== 'disabled' && (
+                                    <Popover open={editingScheduleForProcId === assocProc.procedureId} onOpenChange={(isOpen) => setEditingScheduleForProcId(isOpen ? assocProc.procedureId : null)}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" size="icon" className="h-8 w-8" disabled={isSaving} title="Configure Schedule Details">
+                                                <Settings className="h-4 w-4" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-64 p-3 space-y-2">
+                                            <p className="text-sm font-medium mb-2 border-b pb-2">Details for: {scheduleTypes.find(s => s.value === currentScheduleType)?.label}</p>
+                                            {(currentScheduleType === 'runOnce' || currentScheduleType === 'daily' || currentScheduleType === 'weekly' || currentScheduleType === 'monthly') && (
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor={`time-${assocProc.procedureId}`} className="text-xs">Time (HH:MM)</Label>
+                                                    <Input
+                                                        id={`time-${assocProc.procedureId}`}
+                                                        type="time"
+                                                        value={assocProc.schedule.time || ''}
+                                                        onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.time', e.target.value)}
+                                                        disabled={isSaving} className="h-8 text-xs px-2"
+                                                    />
+                                                </div>
+                                            )}
+                                            {currentScheduleType === 'weekly' && (
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor={`dayOfWeek-${assocProc.procedureId}`} className="text-xs">Day of Week</Label>
+                                                    <Select
+                                                        value={assocProc.schedule.dayOfWeek?.toString() || '1'}
+                                                        onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfWeek', parseInt(value))}
+                                                        disabled={isSaving}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            {daysOfWeek.map(day => <SelectItem key={day.value} value={day.value.toString()} className="text-xs">{day.label}</SelectItem>)}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            )}
+                                            {currentScheduleType === 'monthly' && (
+                                                <div className="space-y-0.5">
+                                                    <Label htmlFor={`dayOfMonth-${assocProc.procedureId}`} className="text-xs">Day of Month (1-31)</Label>
+                                                    <Input
+                                                        id={`dayOfMonth-${assocProc.procedureId}`}
+                                                        type="number" min="1" max="31"
+                                                        value={assocProc.schedule.dayOfMonth || ''}
+                                                        onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfMonth', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                        disabled={isSaving} className="h-8 text-xs px-2"
+                                                    />
+                                                </div>
+                                            )}
+                                            {currentScheduleType === 'customInterval' && (
+                                                <>
+                                                    <div className="space-y-0.5">
+                                                        <Label htmlFor={`intervalValue-${assocProc.procedureId}`} className="text-xs">Value</Label>
+                                                        <Input
+                                                            id={`intervalValue-${assocProc.procedureId}`}
+                                                            type="number" placeholder="Val" min="1"
+                                                            value={assocProc.schedule.intervalValue || ''}
+                                                            onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                            disabled={isSaving} className="h-8 text-xs px-2"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-0.5">
+                                                        <Label htmlFor={`intervalUnit-${assocProc.procedureId}`} className="text-xs">Unit</Label>
+                                                        <Select
+                                                            value={assocProc.schedule.intervalUnit || 'minutes'}
+                                                            onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalUnit', value as CustomIntervalUnit)}
+                                                            disabled={isSaving}
+                                                        >
+                                                            <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
+                                                            <SelectContent>
+                                                                {customIntervalUnits.map(unit => <SelectItem key={unit.value} value={unit.value} className="text-xs">{unit.label}</SelectItem>)}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </>
+                                            )}
+                                            <Button size="xs" className="mt-2 w-full h-7 text-xs" onClick={() => setEditingScheduleForProcId(null)}>Done</Button>
+                                        </PopoverContent>
+                                    </Popover>
+                                )}
                             </div>
-                            {assocProc.schedule?.type && assocProc.schedule.type !== 'disabled' && (
-                                <div className="grid grid-cols-2 gap-1.5 items-end mt-1.5 pl-1">
-                                    {(assocProc.schedule.type === 'runOnce' || assocProc.schedule.type === 'daily' || assocProc.schedule.type === 'weekly' || assocProc.schedule.type === 'monthly') && (
-                                        <div className="space-y-0.5 col-span-2">
-                                            <Label htmlFor={`time-${assocProc.procedureId}`} className="text-xs">Time (HH:MM)</Label>
-                                            <Input
-                                                id={`time-${assocProc.procedureId}`}
-                                                type="time"
-                                                value={assocProc.schedule.time || ''}
-                                                onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.time', e.target.value)}
-                                                disabled={isSaving} className="h-8 text-xs px-2"
-                                            />
-                                        </div>
-                                    )}
-                                    {assocProc.schedule.type === 'weekly' && (
-                                        <div className="space-y-0.5 col-span-2">
-                                            <Label htmlFor={`dayOfWeek-${assocProc.procedureId}`} className="text-xs">Day of Week</Label>
-                                            <Select
-                                                value={assocProc.schedule.dayOfWeek?.toString() || '1'}
-                                                onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfWeek', parseInt(value))}
-                                                disabled={isSaving}
-                                            >
-                                                <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
-                                                <SelectContent>
-                                                    {daysOfWeek.map(day => <SelectItem key={day.value} value={day.value.toString()} className="text-xs">{day.label}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                    )}
-                                    {assocProc.schedule.type === 'monthly' && (
-                                        <div className="space-y-0.5 col-span-2">
-                                            <Label htmlFor={`dayOfMonth-${assocProc.procedureId}`} className="text-xs">Day of Month (1-31)</Label>
-                                            <Input
-                                                id={`dayOfMonth-${assocProc.procedureId}`}
-                                                type="number" min="1" max="31"
-                                                value={assocProc.schedule.dayOfMonth || ''}
-                                                onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfMonth', e.target.value ? parseInt(e.target.value) : undefined)}
-                                                disabled={isSaving} className="h-8 text-xs px-2"
-                                            />
-                                        </div>
-                                    )}
-                                    {assocProc.schedule.type === 'customInterval' && (
-                                        <>
-                                            <div className="space-y-0.5">
-                                                <Label htmlFor={`intervalValue-${assocProc.procedureId}`} className="text-xs">Value</Label>
-                                                <Input
-                                                    id={`intervalValue-${assocProc.procedureId}`}
-                                                    type="number" placeholder="Val" min="1"
-                                                    value={assocProc.schedule.intervalValue || ''}
-                                                    onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
-                                                    disabled={isSaving} className="h-8 text-xs px-2"
-                                                />
-                                            </div>
-                                            <div className="space-y-0.5">
-                                                 <Label htmlFor={`intervalUnit-${assocProc.procedureId}`} className="text-xs">Unit</Label>
-                                                <Select
-                                                    value={assocProc.schedule.intervalUnit || 'minutes'}
-                                                    onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalUnit', value as CustomIntervalUnit)}
-                                                    disabled={isSaving}
-                                                >
-                                                    <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
-                                                    <SelectContent>
-                                                        {customIntervalUnits.map(unit => <SelectItem key={unit.value} value={unit.value} className="text-xs">{unit.label}</SelectItem>)}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
+                            {currentScheduleType !== 'disabled' && (
+                                 <p className="text-xs text-muted-foreground pl-1 pt-0.5">
+                                    Current: {formatScheduleSummary(assocProc.schedule)}
+                                </p>
                             )}
                         </div>
                     </div>
@@ -488,3 +525,4 @@ export default function ManageGroupProceduresPage() {
     </div>
   );
 }
+
