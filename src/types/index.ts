@@ -55,12 +55,15 @@ export interface Procedure {
   id: string;
   name: string;
   description: string;
-  scriptType: ScriptType; // Remains for CustomScript, set internally for others
+  scriptType: ScriptType; 
   scriptContent: string;
   runAsUser?: boolean;
-  procedureSystemType?: ProcedureSystemType; // New field to differentiate
+  procedureSystemType?: ProcedureSystemType; 
   createdAt: string;
   updatedAt: string;
+  // Fields specific to SoftwareUpdate procedures
+  softwareUpdateMode?: 'all' | 'specific'; // 'all' or 'specific'
+  specificSoftwareToUpdate?: string; // Comma-separated list of package IDs/names
 }
 
 export interface ProcedureExecution {

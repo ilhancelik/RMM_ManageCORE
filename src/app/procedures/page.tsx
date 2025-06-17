@@ -7,7 +7,7 @@ import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-sc
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot, HardDrive, RefreshCw } from 'lucide-react'; // Added HardDrive, RefreshCw for new types
+import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot, HardDrive, RefreshCw } from 'lucide-react'; 
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,10 +50,12 @@ export default function ProceduresPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [procedureCreationSystemType, setProcedureCreationSystemType] = useState<ProcedureSystemType>('CustomScript');
+  const [softwareUpdateMode, setSoftwareUpdateMode] = useState<'all' | 'specific'>('all');
+  const [specificSoftwareToUpdate, setSpecificSoftwareToUpdate] = useState('');
 
   const [procedureName, setProcedureName] = useState('');
   const [procedureDescription, setProcedureDescription] = useState('');
-  const [procedureScriptType, setProcedureScriptType] = useState<ScriptType>('CMD');
+  const [procedureScriptType, setProcedureScriptType] = useState<ScriptType>('PowerShell');
   const [procedureScriptContent, setProcedureScriptContent] = useState('');
   const [procedureRunAsUser, setProcedureRunAsUser] = useState(false);
 
@@ -113,7 +116,7 @@ export default function ProceduresPage() {
   const resetForm = () => {
     setProcedureName('');
     setProcedureDescription('');
-    setProcedureScriptType('CMD');
+    setProcedureScriptType('PowerShell');
     setProcedureScriptContent('');
     setProcedureRunAsUser(false); 
     setCurrentProcedure(null);
@@ -124,7 +127,9 @@ export default function ProceduresPage() {
     setAiExplanation('');
     setIsGeneratingWithAi(false);
     setAiGenerationError(null);
-    setProcedureCreationSystemType('CustomScript'); // Reset to default
+    setProcedureCreationSystemType('CustomScript'); 
+    setSoftwareUpdateMode('all');
+    setSpecificSoftwareToUpdate('');
   };
 
   const handleOpenCreateModal = (systemType: ProcedureSystemType) => {
@@ -133,11 +138,12 @@ export default function ProceduresPage() {
     setIsEditMode(false);
     setCurrentProcedure(null);
     if (systemType === 'WindowsUpdate') {
-        setProcedureName('Windows Update Task');
-        setProcedureDescription('Installs all available Windows updates without forcing a reboot.');
+        setProcedureName('Managed Windows Updates');
+        setProcedureDescription('Installs all available Windows updates, including Microsoft products and feature updates. This procedure does not force a system reboot.');
     } else if (systemType === 'SoftwareUpdate') {
         setProcedureName('3rd Party Software Update Task');
-        setProcedureDescription('Updates all applicable 3rd party software using winget.');
+        setProcedureDescription('Updates 3rd party software using winget.');
+        setSoftwareUpdateMode('all'); 
     }
     setIsModalOpen(true);
   };
@@ -153,6 +159,9 @@ export default function ProceduresPage() {
         setProcedureScriptType(procedure.scriptType);
         setProcedureScriptContent(procedure.scriptContent);
         setProcedureRunAsUser(procedure.runAsUser || false);
+    } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
+        setSoftwareUpdateMode(procedure.softwareUpdateMode || 'all');
+        setSpecificSoftwareToUpdate(procedure.specificSoftwareToUpdate || '');
     }
     setIsModalOpen(true);
   };
@@ -166,16 +175,21 @@ export default function ProceduresPage() {
         toast({ title: "Validation Error", description: "Script Content is required for custom scripts.", variant: "destructive"});
         return;
     }
+    if (procedureCreationSystemType === 'SoftwareUpdate' && softwareUpdateMode === 'specific' && !specificSoftwareToUpdate.trim()) {
+        toast({ title: "Validation Error", description: "Please specify software packages to update or choose 'Update all'.", variant: "destructive"});
+        return;
+    }
+
 
     setIsSubmitting(true);
     try {
-      const baseProcData = {
+      const baseProcData: Partial<Procedure> = {
         name: procedureName,
         description: procedureDescription,
         procedureSystemType: procedureCreationSystemType,
       };
 
-      let procData;
+      let procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: ProcedureSystemType };
 
       if (procedureCreationSystemType === 'CustomScript') {
         procData = {
@@ -183,18 +197,32 @@ export default function ProceduresPage() {
           scriptType: procedureScriptType,
           scriptContent: procedureScriptContent,
           runAsUser: procedureRunAsUser,
-        };
-      } else {
-        // For WindowsUpdate and SoftwareUpdate, scriptType, content, and runAsUser are set by addProcedure/updateProcedureInMock
-        procData = baseProcData;
+        } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'CustomScript' };
+      } else if (procedureCreationSystemType === 'SoftwareUpdate') {
+        procData = {
+          ...baseProcData,
+          scriptType: 'PowerShell', // Fixed for SoftwareUpdate
+          scriptContent: '', // Will be set by addProcedure based on mode
+          runAsUser: false,    // Fixed for SoftwareUpdate
+          softwareUpdateMode: softwareUpdateMode,
+          specificSoftwareToUpdate: softwareUpdateMode === 'specific' ? specificSoftwareToUpdate : '',
+        } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'SoftwareUpdate' };
+      }
+       else { // WindowsUpdate
+        procData = {
+          ...baseProcData,
+          scriptType: 'PowerShell', // Fixed for WindowsUpdate
+          scriptContent: '', // Will be set by addProcedure
+          runAsUser: false,    // Fixed for WindowsUpdate
+        } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'WindowsUpdate' };
       }
       
 
       if (isEditMode && currentProcedure) {
-        updateProcedureInMock(currentProcedure.id, procData as Partial<Procedure>);
+        updateProcedureInMock(currentProcedure.id, procData);
         toast({title: "Success", description: `Procedure "${procedureName}" updated (Mock).`});
       } else {
-        addProcedure(procData as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: ProcedureSystemType });
+        addProcedure(procData);
         toast({title: "Success", description: `Procedure "${procedureName}" created (Mock).`});
       }
       
@@ -247,7 +275,7 @@ export default function ProceduresPage() {
 
     const input: GenerateScriptInput = {
         description: aiPrompt,
-        scriptType: procedureScriptType, // Use the selected script type for custom scripts
+        scriptType: procedureScriptType, 
         context: `This script is for a system administration procedure. Target OS is likely Windows. Ensure the script is safe and follows best practices for ${procedureScriptType}.`,
     };
     
@@ -271,6 +299,21 @@ export default function ProceduresPage() {
     });
   };
 
+  const getSystemProcedureInfoText = () => {
+    if (procedureCreationSystemType === 'WindowsUpdate') {
+      return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will install all available Windows updates (including MS products & feature updates) without forcing a reboot.";
+    }
+    if (procedureCreationSystemType === 'SoftwareUpdate') {
+      if (softwareUpdateMode === 'all') {
+        return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will attempt to update all applicable 3rd party software using winget.";
+      } else {
+        return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will attempt to update only the specified 3rd party software packages using winget.";
+      }
+    }
+    return "";
+  };
+
+
   const ProcedureFormFields = (
     <div className="space-y-4 py-4 max-h-[75vh] overflow-y-auto pr-2">
       <div className="grid grid-cols-4 items-center gap-4">
@@ -281,6 +324,40 @@ export default function ProceduresPage() {
         <Label htmlFor="description" className="text-right">Description</Label>
         <Textarea id="description" value={procedureDescription} onChange={(e) => setProcedureDescription(e.target.value)} className="col-span-3" disabled={isSubmitting} />
       </div>
+
+      {procedureCreationSystemType === 'SoftwareUpdate' && (
+        <div className="grid grid-cols-4 items-start gap-4 pt-2">
+            <Label className="text-right col-span-1 pt-2">Update Scope</Label>
+            <div className="col-span-3">
+                <RadioGroup value={softwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setSoftwareUpdateMode(value)} className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="all" id="scope-all" />
+                        <Label htmlFor="scope-all" className="font-normal">Update all applicable software</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="specific" id="scope-specific" />
+                        <Label htmlFor="scope-specific" className="font-normal">Update specific software packages</Label>
+                    </div>
+                </RadioGroup>
+                {softwareUpdateMode === 'specific' && (
+                    <div className="mt-3 space-y-1">
+                        <Label htmlFor="specificSoftwareToUpdate">Software Package IDs or Names (comma-separated)</Label>
+                        <Textarea
+                            id="specificSoftwareToUpdate"
+                            value={specificSoftwareToUpdate}
+                            onChange={(e) => setSpecificSoftwareToUpdate(e.target.value)}
+                            placeholder="e.g., Mozilla.Firefox, 7zip.7zip, Oracle.JavaRuntimeEnvironment"
+                            rows={3}
+                            disabled={isSubmitting}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Enter exact Winget package IDs or full names. The system does not validate these at creation time.
+                        </p>
+                    </div>
+                )}
+            </div>
+        </div>
+      )}
 
       {procedureCreationSystemType === 'CustomScript' && (
         <>
@@ -395,10 +472,7 @@ export default function ProceduresPage() {
             {procedureCreationSystemType === 'WindowsUpdate' ? <HardDrive className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
             <AlertTitle>System Procedure</AlertTitle>
             <AlertDescription>
-                This is a system-managed procedure. The script content and execution context are predefined.
-                You can only edit the Name and Description.
-                {procedureCreationSystemType === 'WindowsUpdate' && " It will install all available Windows updates without forcing a reboot."}
-                {procedureCreationSystemType === 'SoftwareUpdate' && " It will attempt to update all applicable 3rd party software using winget."}
+                {getSystemProcedureInfoText()}
             </AlertDescription>
         </Alert>
       )}
@@ -517,7 +591,7 @@ export default function ProceduresPage() {
                 : `Create New ${procedureCreationSystemType === 'CustomScript' ? 'Custom Script' : procedureCreationSystemType === 'WindowsUpdate' ? 'Windows Update' : 'Software Update'} Procedure`}
             </DialogTitle>
             <DialogDescription>
-              {isEditMode ? 'Update the details of your existing procedure.' : `Define a new ${procedureCreationSystemType.toLowerCase().replace('update', ' update')} procedure (Mock Data).`}
+              {isEditMode ? 'Update the details of your existing procedure.' : `Define a new ${procedureCreationSystemType === 'CustomScript' ? 'custom script' : procedureCreationSystemType === 'WindowsUpdate' ? 'Windows Update' : 'software update'} procedure (Mock Data).`}
             </DialogDescription>
           </DialogHeader>
           {ProcedureFormFields}
