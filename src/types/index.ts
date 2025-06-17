@@ -51,24 +51,24 @@ export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
 export type ProcedureSystemType = 'CustomScript' | 'WindowsUpdate' | 'SoftwareUpdate';
 
 export interface WindowsUpdateScopeOptions {
-  includeOsUpdates?: boolean;
-  includeMicrosoftProductUpdates?: boolean;
-  includeFeatureUpdates?: boolean;
+  includeOsUpdates?: boolean; // Temel OS, güvenlik, kalite güncellemeleri
+  includeMicrosoftProductUpdates?: boolean; // Office vb.
+  includeFeatureUpdates?: boolean; // 23H2 -> 24H2 gibi
 }
 
 export interface Procedure {
   id: string;
   name: string;
   description: string;
-  scriptType: ScriptType;
-  scriptContent: string;
-  runAsUser?: boolean;
-  procedureSystemType?: ProcedureSystemType;
-  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions;
+  scriptType: ScriptType; // Only for CustomScript
+  scriptContent: string; // Content for CustomScript, or system-defined script for others
+  runAsUser?: boolean; // Only for CustomScript
+  procedureSystemType: ProcedureSystemType;
+  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions; // Only for WindowsUpdate
+  softwareUpdateMode?: 'all' | 'specific'; // Only for SoftwareUpdate
+  specificSoftwareToUpdate?: string; // Only for SoftwareUpdate if mode is 'specific'
   createdAt: string;
   updatedAt: string;
-  softwareUpdateMode?: 'all' | 'specific';
-  specificSoftwareToUpdate?: string;
 }
 
 export interface ProcedureExecution {
@@ -86,9 +86,9 @@ export interface ProcedureExecution {
 
 export interface CustomCommand {
     id:string;
-    computerId: string;
+    computerId: string; // The computer ID on which the command was last known to execute or is targeted for.
     targetType?: 'computer' | 'group';
-    targetId: string;
+    targetId: string; // Can be computerId or groupId
     command: string;
     scriptType: ScriptType;
     runAsUser?: boolean;
@@ -134,8 +134,8 @@ export interface SMTPSettings {
 export interface AiProviderConfig {
   id: string;
   name: string;
-  providerType: 'googleAI';
-  apiKey?: string;
+  providerType: 'googleAI'; // For now, only Google AI
+  apiKey?: string; // Optional, Genkit can use env vars
   isEnabled: boolean;
   isDefault: boolean;
 }
