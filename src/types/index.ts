@@ -30,7 +30,7 @@ export interface ScheduleConfig {
 export interface AssociatedProcedureConfig {
   procedureId: string;
   runOnNewMember: boolean;
-  schedule?: ScheduleConfig;
+  schedule: ScheduleConfig;
 }
 
 export interface AssociatedMonitorConfig {
@@ -64,7 +64,7 @@ export interface Procedure {
   scriptContent: string;
   runAsUser?: boolean;
   procedureSystemType?: ProcedureSystemType;
-  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions; // Changed from windowsUpdateScope
+  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions;
   createdAt: string;
   updatedAt: string;
   softwareUpdateMode?: 'all' | 'specific';

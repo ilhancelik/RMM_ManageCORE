@@ -15,7 +15,7 @@ import {
 import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2, Search, Save, ListPlus } from 'lucide-react';
+import { ArrowLeft, Users, Settings, ListChecks, XCircle, Clock, ArrowUp, ArrowDown, Activity, Loader2, Search, Save, ListPlus, X } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -138,8 +138,8 @@ export default function GroupDetailsPage() {
             name: editName,
             description: editDescription,
             computerIds: editSelectedComputerIds, 
-            associatedProcedures: group.associatedProcedures, 
-            associatedMonitors: group.associatedMonitors,
+            associatedProcedures: currentAssociatedProcedures, // Use currentAssociatedProcedures from state
+            associatedMonitors: group.associatedMonitors, // Keep existing monitors for now
         };
         const updatedGroup = updateComputerGroup(group.id, payload);
         if (updatedGroup) {
@@ -147,6 +147,7 @@ export default function GroupDetailsPage() {
             setEditName(updatedGroup.name);
             setEditDescription(updatedGroup.description);
             setEditSelectedComputerIds([...updatedGroup.computerIds]);
+            setCurrentAssociatedProcedures([...(updatedGroup.associatedProcedures || [])]); // Update local state
             
             updatedGroup.computerIds.forEach(compId => {
                 if (!oldComputerIds.has(compId)) { 
@@ -266,16 +267,10 @@ export default function GroupDetailsPage() {
 
   const handleSaveAssociatedProcedures = () => { 
     if (!group) return; 
-    setIsSaving(true);
-    try {
-      const updatedGroupData = updateComputerGroup(group.id, { associatedProcedures: currentAssociatedProcedures });
-      if (updatedGroupData) setGroup(prevGroup => ({...prevGroup!, associatedProcedures: updatedGroupData.associatedProcedures })); 
-      setIsManageProceduresModalOpen(false); setProcedureSearchTerm('');
-      toast({ title: "Success", description: "Associated procedures updated (Mock)." });
-    } catch (err) { 
-      const errorMessage = err instanceof Error ? err.message : 'Failed to save associated procedures (Mock).';
-      toast({ title: "Error Saving Procedures", description: errorMessage, variant: "destructive" });
-    } finally { setTimeout(() => setIsSaving(false), 500); }
+    // No need for setIsSaving(true) here, as it's handled by the main Save All Changes button
+    setGroup(prevGroup => ({...prevGroup!, associatedProcedures: currentAssociatedProcedures })); 
+    setIsManageProceduresModalOpen(false); setProcedureSearchTerm('');
+    toast({ title: "Associated Procedures Staged", description: "Changes to associated procedures are staged. Click 'Save All Changes' to persist." });
   };
 
   const openManageProceduresModal = () => { 
@@ -335,16 +330,10 @@ export default function GroupDetailsPage() {
   
   const handleSaveAssociatedMonitors = () => { 
     if (!group) return; 
-    setIsSaving(true);
-    try {
-      const updatedGroupData = updateComputerGroup(group.id, { associatedMonitors: currentAssociatedMonitors });
-      if (updatedGroupData) setGroup(prevGroup => ({...prevGroup!, associatedMonitors: updatedGroupData.associatedMonitors}));
-      setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');
-      toast({ title: "Success", description: "Associated monitors updated (Mock)." });
-    } catch (err) { 
-       const errorMessage = err instanceof Error ? err.message : 'Failed to save associated monitors (Mock).';
-       toast({ title: "Error Saving Monitors", description: errorMessage, variant: "destructive" });
-    } finally { setTimeout(() => setIsSaving(false), 500); }
+    // No setIsSaving here, handled by main button
+    setGroup(prevGroup => ({...prevGroup!, associatedMonitors: currentAssociatedMonitors}));
+    setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');
+    toast({ title: "Associated Monitors Staged", description: "Changes to associated monitors are staged. Click 'Save All Changes' to persist." });
   };
   
   const openManageMonitorsModal = () => { 
@@ -359,6 +348,23 @@ export default function GroupDetailsPage() {
 
   const getProcedureNameFromMock = (procedureId: string): string => getProcedureById(procedureId)?.name || 'Unknown Procedure';
   const getMonitorDetailsFromMock = (monitorId: string): Monitor | undefined => getMonitorById(monitorId);
+  const getProcedureTypeLabel = (procId: string): string => {
+    const proc = getProcedureById(procId);
+    if (!proc) return 'Unknown';
+    switch (proc.procedureSystemType) {
+        case 'CustomScript': return 'Custom Script';
+        case 'WindowsUpdate': return 'Windows Update';
+        case 'SoftwareUpdate': return 'Software Update';
+        default: return 'Custom Script';
+    }
+  };
+  const formatSchedule = (schedule: ScheduleConfig): string => {
+    if (schedule.type === 'disabled') return 'Disabled';
+    if (schedule.type === 'interval' && schedule.intervalValue && schedule.intervalUnit) {
+        return `Every ${schedule.intervalValue} ${schedule.intervalUnit}`;
+    }
+    return 'Not Configured';
+  };
 
 
   if (isLoading) { 
@@ -394,7 +400,8 @@ export default function GroupDetailsPage() {
           <ArrowLeft className="mr-2 h-4 w-4" /> Back to Groups
         </Button>
         <Button onClick={handleSaveChanges} disabled={isSaving || isLoading}>
-            <Save className="mr-2 h-4 w-4" /> {isSaving ? 'Saving...' : 'Save All Changes'}
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" /> }
+            {isSaving ? 'Saving...' : 'Save All Changes'}
         </Button>
       </div>
 
@@ -466,13 +473,13 @@ export default function GroupDetailsPage() {
                                     <Button variant="outline" onClick={() => { setIsManageComputersModalOpen(false); setComputerSearchTerm(''); }} disabled={isSaving}>Cancel</Button>
                                     <Button onClick={handleSaveComputerMembership} disabled={isSaving}>
                                         {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Save Membership
+                                        Apply Membership Changes
                                     </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
                     </div>
-                    <CardDescription>Computers currently part of this group. Click "Manage Members" to change.</CardDescription>
+                    <CardDescription>Computers currently part of this group. Click "Manage Members" to change. Changes require "Save All Changes" to persist.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {editSelectedComputerIds.length === 0 ? (
@@ -524,16 +531,17 @@ export default function GroupDetailsPage() {
                                 <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
                                     {filteredProceduresForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allProcedures.length === 0 ? 'No procedures available.' : 'No procedures match your search.'}</p>}
-                                    {filteredProceduresForDialog.map(proc => {
-                                        const assocIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
-                                        const isAssociated = assocIndex !== -1;
-                                        const config = isAssociated ? currentAssociatedProcedures[assocIndex] : undefined;
+                                    {allProcedures.map(proc => { // Show all procedures to select from
+                                        const assocConfigIndex = currentAssociatedProcedures.findIndex(ap => ap.procedureId === proc.id);
+                                        const isAssociated = assocConfigIndex !== -1;
+                                        const config = isAssociated ? currentAssociatedProcedures[assocConfigIndex] : undefined;
                                         
                                         return (
                                             <div key={`proc-dialog-${proc.id}`} className="rounded-md border p-4">
                                                 <div className="flex items-start justify-between">
                                                     <div>
                                                         <Label htmlFor={`proc-assoc-${proc.id}`} className="font-medium text-base">{proc.name}</Label>
+                                                         <p className="text-xs text-muted-foreground">{getProcedureTypeLabel(proc.id)}</p>
                                                     </div>
                                                     <Checkbox
                                                         id={`proc-assoc-${proc.id}`}
@@ -603,26 +611,19 @@ export default function GroupDetailsPage() {
                                                         </div>
                                                         )}
                                                     </div>
-                                                    <div className="pt-3 border-t">
-                                                      <Label className="text-sm font-semibold text-muted-foreground">Order</Label>
-                                                        <div className="flex gap-1 mt-1">
-                                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(currentAssociatedProcedures.findIndex(p=>p.procedureId === proc.id), 'up')} disabled={isSaving || currentAssociatedProcedures.findIndex(p=>p.procedureId === proc.id) === 0}><ArrowUp className="h-4 w-4" /></Button>
-                                                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(currentAssociatedProcedures.findIndex(p=>p.procedureId === proc.id), 'down')} disabled={isSaving || currentAssociatedProcedures.findIndex(p=>p.procedureId === proc.id) === currentAssociatedProcedures.length - 1}><ArrowDown className="h-4 w-4" /></Button>
-                                                        </div>
-                                                    </div>
                                                 </div>
                                                 )}
                                             </div>
                                         );
                                     })}
-                                    {currentAssociatedProcedures.length > 0 && filteredProceduresForDialog.length > 0 && <Separator className="my-4"/> }
-                                    {filteredProceduresForDialog.length > 0 && <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Execution Order</Label>}
+                                    {currentAssociatedProcedures.length > 0 && <Separator className="my-4"/> }
+                                    {currentAssociatedProcedures.length > 0 && <Label className="text-sm font-semibold text-muted-foreground mb-2 block">Procedure Execution Order (Drag to reorder - Not implemented)</Label>}
                                     {currentAssociatedProcedures.map((assocProc, index) => {
-                                        const procedureName = getProcedureNameFromMock(assocProc.procedureId);
-                                        if (!procedureName || procedureName === 'Unknown Procedure') return null;
+                                        const procedureDetails = getProcedureById(assocProc.procedureId);
+                                        if (!procedureDetails) return null;
                                         return (
                                             <div key={`order-proc-${assocProc.procedureId}`} className="flex items-center justify-between p-2 border rounded-md mb-2">
-                                                <span className="text-sm">{index + 1}. {procedureName}</span>
+                                                <span className="text-sm">{index + 1}. {procedureDetails.name}</span>
                                                 <div className="flex gap-1">
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(index, 'up')} disabled={isSaving || index === 0}><ArrowUp className="h-4 w-4" /></Button>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleMoveProcedure(index, 'down')} disabled={isSaving || index === currentAssociatedProcedures.length - 1}><ArrowDown className="h-4 w-4" /></Button>
@@ -634,15 +635,15 @@ export default function GroupDetailsPage() {
                                 </ScrollArea>
                                 <DialogFooter>
                                 <Button variant="outline" onClick={() => {setIsManageProceduresModalOpen(false); setProcedureSearchTerm('');}} disabled={isSaving}>Cancel</Button>
-                                <Button onClick={handleSaveAssociatedProcedures} disabled={isSaving || allProcedures.length === 0}>
+                                <Button onClick={handleSaveAssociatedProcedures} disabled={isSaving}>
                                   {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                  Save Associations
+                                  Apply Procedure Associations
                                 </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
                     </div>
-                     <CardDescription>Procedures linked to this group, their automation settings, schedule, and order.</CardDescription>
+                     <CardDescription>Procedures linked to this group, their automation settings, schedule, and order. Changes require "Save All Changes" to persist.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      {(!group.associatedProcedures || group.associatedProcedures.length === 0) ? (
@@ -655,12 +656,12 @@ export default function GroupDetailsPage() {
                                     if (!procedureName  || procedureName === 'Unknown Procedure') return <li key={`proc-display-unknown-${index}`} className="text-sm p-3 border rounded-md space-y-1 text-muted-foreground">Unknown Procedure (ID: {assocProc.procedureId}) - May have been deleted.</li>;
                                     return (
                                         <li key={`proc-display-${assocProc.procedureId}`} className="text-sm p-3 border rounded-md space-y-1">
-                                            <div className="font-medium">{index + 1}. {procedureName}</div>
+                                            <div className="font-medium">{index + 1}. {procedureName} ({getProcedureTypeLabel(assocProc.procedureId)})</div>
                                             {assocProc.runOnNewMember && (<div className="flex items-center text-xs text-green-600"><ListPlus className="mr-1 h-3 w-3" /> Runs on new members</div>)}
-                                            {assocProc.schedule && assocProc.schedule.type === 'interval' && (
+                                            {assocProc.schedule && (
                                                 <div className="flex items-center text-xs text-blue-600">
                                                     <Clock className="mr-1 h-3 w-3" />
-                                                    Runs every {assocProc.schedule.intervalValue || 'N/A'} {assocProc.schedule.intervalUnit || ''}
+                                                    {formatSchedule(assocProc.schedule)}
                                                 </div>
                                             )}
                                             {(!assocProc.schedule || assocProc.schedule.type === 'disabled') && !assocProc.runOnNewMember && (
@@ -703,7 +704,7 @@ export default function GroupDetailsPage() {
                                 <ScrollArea className="max-h-[calc(70vh-250px)] p-1">
                                 <div className="space-y-3 py-2">
                                      {filteredMonitorsForDialog.length === 0 && <p className="text-muted-foreground p-2 text-center">{allMonitors.length === 0 ? 'No monitors available.' : 'No monitors match your search.'}</p>}
-                                    {filteredMonitorsForDialog.map(mon => { 
+                                    {allMonitors.map(mon => { 
                                         const isAssociated = currentAssociatedMonitors.some(am => am.monitorId === mon.id);
                                         const config = currentAssociatedMonitors.find(am => am.monitorId === mon.id);
                                         
@@ -780,13 +781,13 @@ export default function GroupDetailsPage() {
                                 <Button variant="outline" onClick={() => { setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');}} disabled={isSaving}>Cancel</Button>
                                 <Button onClick={handleSaveAssociatedMonitors} disabled={isSaving || allMonitors.length === 0}>
                                    {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                  Save Monitor Associations
+                                  Apply Monitor Associations
                                 </Button>
                                 </DialogFooter>
                             </DialogContent>
                         </Dialog>
                     </div>
-                     <CardDescription>Monitors linked to this group and their group-specific schedules.</CardDescription>
+                     <CardDescription>Monitors linked to this group and their group-specific schedules. Changes require "Save All Changes" to persist.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {(!group.associatedMonitors || group.associatedMonitors.length === 0) ? (
@@ -800,10 +801,10 @@ export default function GroupDetailsPage() {
                                     return (
                                         <li key={`mon-display-${assocMon.monitorId}`} className="text-sm p-3 border rounded-md space-y-1">
                                             <div className="font-medium">{monitor.name} {monitor.sendEmailOnAlert && <span className="text-xs text-blue-500">(Email Alert Active)</span>}</div>
-                                            {assocMon.schedule && assocMon.schedule.type === 'interval' && (
+                                            {assocMon.schedule && (
                                                 <div className="flex items-center text-xs text-blue-600">
                                                     <Clock className="mr-1 h-3 w-3" />
-                                                    Runs for this group every {assocMon.schedule.intervalValue || 'N/A'} {assocMon.schedule.intervalUnit || ''}
+                                                    {formatSchedule(assocMon.schedule)}
                                                 </div>
                                             )}
                                             {assocMon.schedule && assocMon.schedule.type === 'disabled' && (

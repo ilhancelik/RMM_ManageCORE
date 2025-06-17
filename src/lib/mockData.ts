@@ -160,11 +160,11 @@ try {
     
     if (\$upgradeOutput) {
         Write-Log "Winget Standard Output:"
-        \$upgradeOutput.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  \$_" }
+        \$upgradeOutput.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  \$\_" }
     }
     if (\$upgradeErrors) {
         Write-Log "Winget Standard Error:"
-        \$upgradeErrors.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  \$_" }
+        \$upgradeErrors.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  \$\_" }
     }
 
     if (\$exitCode -eq 0 -or \$exitCode -eq -1978334889 -or \$upgradeOutput -match "No applicable update found" -or \$upgradeOutput -match "No installed package found matching input criteria.") {
@@ -319,25 +319,37 @@ export let mockProcedures: Procedure[] = [
   {
     id: 'proc-4',
     name: 'Manage Windows Updates',
-    description: 'Installs Windows updates. Does not force a system reboot.',
+    description: 'Installs selected categories of Windows updates. Does not force a system reboot.',
     scriptType: 'PowerShell',
     scriptContent: windowsUpdateScriptContent,
     runAsUser: false,
     procedureSystemType: 'WindowsUpdate',
-    windowsUpdateScopeOptions: { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true }, // Default to all
+    windowsUpdateScopeOptions: { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
 ];
 
-const defaultProcedureSchedule: ScheduleConfig = { type: 'disabled' };
-const defaultMonitorSchedule: ScheduleConfig = { type: 'interval', intervalValue: 15, intervalUnit: 'minutes' };
+const defaultSchedule: ScheduleConfig = { type: 'disabled' };
 
 export let mockComputerGroups: ComputerGroup[] = [
-  { id: 'group-1', name: 'Development Machines', description: 'All computers used by the development team.', computerIds: ['comp-1', 'comp-3'], associatedProcedures: [{ procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'interval', intervalValue: 24, intervalUnit: 'hours'} }], associatedMonitors: [{monitorId: 'mon-1', schedule: defaultMonitorSchedule}] },
-  { id: 'group-2', name: 'Production Servers', description: 'Critical production servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [{ procedureId: 'proc-2', runOnNewMember: false, schedule: defaultProcedureSchedule }, { procedureId: 'proc-4', runOnNewMember: false, schedule: {type: 'interval', intervalValue: 7, intervalUnit: 'days'}}], associatedMonitors: [] },
+  { id: 'group-1', name: 'Development Machines', description: 'All computers used by the development team.', computerIds: ['comp-1', 'comp-3'],
+    associatedProcedures: [
+        { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'interval', intervalValue: 24, intervalUnit: 'hours'} },
+        { procedureId: 'proc-4', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 7, intervalUnit: 'days'} }
+    ],
+    associatedMonitors: [{monitorId: 'mon-1', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes'}}]
+  },
+  { id: 'group-2', name: 'Production Servers', description: 'Critical production servers.', computerIds: ['comp-2', 'comp-5'],
+    associatedProcedures: [
+        { procedureId: 'proc-2', runOnNewMember: false, schedule: defaultSchedule },
+        { procedureId: 'proc-4', runOnNewMember: true, schedule: {type: 'interval', intervalValue: 1, intervalUnit: 'days'}}
+    ],
+    associatedMonitors: []
+  },
   { id: 'group-3', name: 'Sales Laptops', description: 'Laptops for the sales department.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] },
 ];
+
 
 export let mockProcedureExecutions: ProcedureExecution[] = [
   { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '1.2GB freed.', runAsUser: false },
@@ -530,8 +542,8 @@ export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): Computer
   const newGroup: ComputerGroup = {
     ...groupData,
     id: `group-${Date.now()}`,
-    associatedProcedures: groupData.associatedProcedures || [],
-    associatedMonitors: groupData.associatedMonitors || [],
+    associatedProcedures: (groupData.associatedProcedures || []).map(ap => ({...ap, schedule: ap.schedule || { type: 'disabled' }})),
+    associatedMonitors: (groupData.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'interval', intervalValue: 15, intervalUnit: 'minutes' }})),
   };
   mockComputerGroups = [...mockComputerGroups, newGroup];
   newGroup.computerIds.forEach(compId => {
@@ -551,7 +563,12 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
 
   const oldGroup = { ...mockComputerGroups[oldGroupIndex] };
 
-  updatedGroup = { ...oldGroup, ...updates };
+  updatedGroup = {
+     ...oldGroup,
+     ...updates,
+     associatedProcedures: (updates.associatedProcedures || oldGroup.associatedProcedures || []).map(ap => ({...ap, schedule: ap.schedule || { type: 'disabled' }})),
+     associatedMonitors: (updates.associatedMonitors || oldGroup.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'interval', intervalValue: 15, intervalUnit: 'minutes'}})),
+  };
   mockComputerGroups[oldGroupIndex] = updatedGroup;
 
   const oldComputerIdsSet = new Set(oldGroup.computerIds);
@@ -579,6 +596,7 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
   });
   return updatedGroup;
 };
+
 
 export const deleteComputerGroup = (id: string): boolean => {
   const initialLength = mockComputerGroups.length;
@@ -647,12 +665,13 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
   let updatedProcedure: Procedure | undefined;
   mockProcedures = mockProcedures.map(p => {
     if (p.id === id) {
+      const currentSystemType = p.procedureSystemType || 'CustomScript';
       let newSoftwareUpdateMode = updates.softwareUpdateMode ?? p.softwareUpdateMode;
       let newSpecificSoftware = updates.specificSoftwareToUpdate ?? p.specificSoftwareToUpdate;
       let newScriptContent = updates.scriptContent ?? p.scriptContent;
       let newWindowsUpdateScopeOptions = updates.windowsUpdateScopeOptions ?? p.windowsUpdateScopeOptions;
 
-      if (p.procedureSystemType === 'WindowsUpdate') {
+      if (currentSystemType === 'WindowsUpdate') {
          updatedProcedure = {
            ...p,
            name: updates.name || p.name,
@@ -660,7 +679,7 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
            windowsUpdateScopeOptions: newWindowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true },
            updatedAt: new Date().toISOString()
          };
-      } else if (p.procedureSystemType === 'SoftwareUpdate') {
+      } else if (currentSystemType === 'SoftwareUpdate') {
           newSoftwareUpdateMode = updates.softwareUpdateMode || p.softwareUpdateMode || 'all';
           newSpecificSoftware = updates.specificSoftwareToUpdate || p.specificSoftwareToUpdate || '';
           if (newSoftwareUpdateMode === 'all') {
@@ -722,7 +741,7 @@ export const getProcedureExecutionsForProcedure = (procedureId: string): Procedu
 }
 
 const getWindowsUpdateScopeLogText = (options?: WindowsUpdateScopeOptions): string => {
-    if (!options) return "Kapsam: Belirtilmemiş";
+    if (!options) return "Kapsam: Belirtilmemiş (varsayılan olarak tümü)";
     const scopes: string[] = [];
     if (options.includeOsUpdates) scopes.push("OS Güncellemeleri");
     if (options.includeMicrosoftProductUpdates) scopes.push("MS Ürünleri");
@@ -1118,7 +1137,7 @@ if (proc4Index !== -1) {
     mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent;
     mockProcedures[proc4Index].scriptType = 'PowerShell';
     mockProcedures[proc4Index].runAsUser = false;
-    mockProcedures[proc4Index].description = mockProcedures[proc4Index].description || 'Installs Windows updates. Does not force a system reboot.';
+    mockProcedures[proc4Index].description = mockProcedures[proc4Index].description || 'Installs selected categories of Windows updates. Does not force a system reboot.';
 }
 
 
