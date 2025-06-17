@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScope } from '@/types';
 import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
@@ -7,7 +7,7 @@ export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly',
 
 const windowsUpdateScriptContent = `
 # Script to check, download, and install Windows Updates without rebooting.
-# This targets software updates, including Microsoft products and feature updates.
+# This targets software updates, including Microsoft products and feature updates based on scope.
 
 function Write-Log {
     param ([string]\$Message)
@@ -15,17 +15,25 @@ function Write-Log {
 }
 
 Write-Log "Starting Windows Update procedure..."
+# The actual search criteria might need to be adjusted in a real system based on the selected scope (all, microsoftProducts, osFeatureUpdates)
+# For this mock, the script is generic but the intent is logged.
+# Example for "All": "IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0"
+# Example for "OS/Feature Updates": "IsInstalled=0 and Type='Software' and CategoryIDs contains '...GUID for OS...' or UpdateClassificationTitle = 'Upgrades'"
+# Example for "Microsoft Products": "IsInstalled=0 and Type='Software' and CategoryIDs contains '...GUID for MS Products...'"
 
 try {
     Write-Log "Creating Update Session and Searcher..."
     \$updateSession = New-Object -ComObject Microsoft.Update.Session
     \$updateSearcher = \$updateSession.CreateUpdateSearcher()
 
-    Write-Log "Searching for available updates (IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0)..."
-    \$searchResult = \$updateSearcher.Search("IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0")
+    # This search criteria is broad and typically covers OS, Feature, and MS Product updates.
+    # In a real scenario, this query might be dynamically adjusted based on the procedure's windowsUpdateScope.
+    \$searchCriteria = "IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0"
+    Write-Log "Searching for available updates using criteria: \$searchCriteria (Scope intent will refine this in a real agent)"
+    \$searchResult = \$updateSearcher.Search(\$searchCriteria)
 
     if (\$searchResult.Updates.Count -eq 0) {
-        Write-Log "No new software updates found."
+        Write-Log "No new software updates found matching the criteria."
         Write-Host "OUTPUT: No new software updates found."
         exit 0
     }
@@ -145,7 +153,7 @@ try {
     \$process.WaitForExit()
     
     \$exitCode = \$process.ExitCode
-    Write-Log "Winget process exit code: \$exitCode"
+    Write-Log "Winget process exit code: \$(\$exitCode)"
     
     if (\$upgradeOutput) {
         Write-Log "Winget Standard Output:"
@@ -164,16 +172,16 @@ try {
             Write-Host "OUTPUT: Application updates attempted. Review logs for details. Summary: \$(\$upgradeOutput.Split([System.Environment]::NewLine) | Select-Object -First 5 -Last 5 | Out-String)"
         }
     } else {
-        Write-Log "Winget upgrade process failed or completed with errors. Exit Code: \$exitCode."
-        Write-Host "ERROR: Winget upgrade failed or had issues. Exit Code: \$exitCode. Errors: \$upgradeErrors Output: \$upgradeOutput"
+        Write-Log "Winget upgrade process failed or completed with errors. Exit Code: \$(\$exitCode)."
+        Write-Host "ERROR: Winget upgrade failed or had issues. Exit Code: \$(\$exitCode). Errors: \$(\$upgradeErrors) Output: \$(\$upgradeOutput)"
         exit 1 
     }
 
 } catch {
     Write-Log "An error occurred while trying to run winget: \$(\$_.Exception.Message)"
     Write-Log "Stack Trace: \$(\$_.ScriptStackTrace)"
-    if(\$upgradeOutput) { Write-Log "Partial Output: \$upgradeOutput" }
-    if(\$upgradeErrors) { Write-Log "Partial Error: \$upgradeErrors" }
+    if(\$upgradeOutput) { Write-Log "Partial Output: \$(\$upgradeOutput)" }
+    if(\$upgradeErrors) { Write-Log "Partial Error: \$(\$upgradeErrors)" }
     Write-Host "ERROR: Script error during winget execution: \$(\$_.Exception.Message)"
     exit 1
 }
@@ -214,44 +222,48 @@ Write-Log "winget found at: \$(\$wingetPath.Source)"
 
 foreach (\$pkgId in \$packages) {
     if (-not \$pkgId) { continue }
-    Write-Log "Attempting to upgrade package: \$pkgId"
+    Write-Log "Attempting to upgrade package: \$(\$pkgId)"
     \$upgradeOutput = ""
     \$upgradeErrors = ""
     \$exitCode = 1 # Default to error
 
     try {
-        \$processInfoArgs = "upgrade --id \$pkgId --silent --accept-source-agreements --accept-package-agreements"
-        Write-Log "Executing: winget \$processInfoArgs"
+        \$processInfoArgs = "upgrade --id \$(\$pkgId) --silent --accept-source-agreements --accept-package-agreements"
+        Write-Log "Executing: winget \$(\$processInfoArgs)"
 
-        \$process = Start-Process winget -ArgumentList \$processInfoArgs -PassThru -Wait -RedirectStandardOutput (\$outputFile = New-TemporaryFile) -RedirectStandardError (\$errorFile = New-TemporaryFile) -WindowStyle Hidden
+        # Using a temporary file for output redirection as it's more robust with Start-Process
+        \$outputFile = New-TemporaryFile
+        \$errorFile = New-TemporaryFile
+        
+        \$process = Start-Process winget -ArgumentList \$processInfoArgs -PassThru -Wait -RedirectStandardOutput \$outputFile.FullName -RedirectStandardError \$errorFile.FullName -WindowStyle Hidden
         \$exitCode = \$process.ExitCode
         \$upgradeOutput = Get-Content \$outputFile.FullName -Raw
         \$upgradeErrors = Get-Content \$errorFile.FullName -Raw
-        Remove-Item \$outputFile, \$errorFile -Force
+        Remove-Item \$outputFile.FullName, \$errorFile.FullName -Force -ErrorAction SilentlyContinue
         
-        Write-Log "Package '\$pkgId' upgrade attempt. Exit Code: \$exitCode"
-        if (\$upgradeOutput) { Write-Log "Output for \$pkgId: \$upgradeOutput" }
-        if (\$upgradeErrors) { Write-Log "Error for \$pkgId: \$upgradeErrors" }
+        Write-Log "Package '\$(\$pkgId)' upgrade attempt. Exit Code: \$(\$exitCode)"
+        if (\$upgradeOutput) { Write-Log "Output for \$(\$pkgId): \$(\$upgradeOutput)" }
+        if (\$upgradeErrors) { Write-Log "Error for \$(\$pkgId): \$(\$upgradeErrors)" }
 
         if (\$exitCode -ne 0 -and \$exitCode -ne -1978334889) { # -1978334889 is often "no update found"
             \$overallSuccess = \$false
         }
-         \$allOutputs += "--- \$pkgId Output (Exit Code: \$exitCode) ---\\n\$upgradeOutput"
-         \$allErrors += "--- \$pkgId Errors ---\\n\$upgradeErrors"
+         \$allOutputs += "--- \$(\$pkgId) Output (Exit Code: \$(\$exitCode)) ---\`n\$(\$upgradeOutput)"
+         \$allErrors += "--- \$(\$pkgId) Errors ---\`n\$(\$upgradeErrors)"
 
     } catch {
-        Write-Log "Error processing package \$pkgId: \$(\$_.Exception.Message)"
-        \$allErrors += "--- \$pkgId Script Error ---\\n\$(\$_.Exception.Message)"
+        Write-Log "Error processing package \$(\$pkgId): \$(\$_.Exception.Message)"
+        \$allErrors += "--- \$(\$pkgId) Script Error ---\`n\$(\$_.Exception.Message)"
         \$overallSuccess = \$false
     }
 }
 
 if (\$overallSuccess) {
     Write-Log "All specified application updates completed successfully or no updates were needed for them."
-    Write-Host "OUTPUT: Specified application updates attempted. Review logs. Summary:\\n\$(\$allOutputs -join "\\\`n")"
+    Write-Host "OUTPUT: Specified application updates attempted. Review logs. Summary:\`n\$(\$allOutputs -join "\`\`n")"
 } else {
     Write-Log "One or more specified application updates failed or had issues."
-    Write-Host "ERROR: One or more specified application updates failed. Review logs. Summary:\\n\$(\$allOutputs -join "\\\`n\\\`n")\\nErrors:\\n\$(\$allErrors -join "\\\`n\\\`n")"
+    Write-Host "ERROR: One or more specified application updates failed. Review logs. Summary:\`n\$(\$allOutputs -join "\`\`n\`\`n")\`nErrors:\`n\$(\$allErrors -join "\`\`n\`\`n")"
     # exit 1 # Decide if partial success is an overall failure for the RMM
 }
 
@@ -304,11 +316,12 @@ export let mockProcedures: Procedure[] = [
   {
     id: 'proc-4',
     name: 'Manage Windows Updates',
-    description: 'Checks for, downloads, and installs Windows updates (including MS products and feature updates). Does not force reboot.',
+    description: 'Installs all available Windows updates, including Microsoft products and feature updates. This procedure does not force a system reboot.',
     scriptType: 'PowerShell',
     scriptContent: windowsUpdateScriptContent,
     runAsUser: false, 
     procedureSystemType: 'WindowsUpdate',
+    windowsUpdateScope: 'all', // Default scope
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -319,7 +332,7 @@ const defaultMonitorSchedule: ScheduleConfig = { type: 'interval', intervalValue
 
 export let mockComputerGroups: ComputerGroup[] = [
   { id: 'group-1', name: 'Development Machines', description: 'All computers used by the development team.', computerIds: ['comp-1', 'comp-3'], associatedProcedures: [{ procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'interval', intervalValue: 24, intervalUnit: 'hours'} }], associatedMonitors: [{monitorId: 'mon-1', schedule: defaultMonitorSchedule}] },
-  { id: 'group-2', name: 'Production Servers', description: 'Critical production servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [{ procedureId: 'proc-2', runOnNewMember: false, schedule: defaultProcedureSchedule }], associatedMonitors: [] },
+  { id: 'group-2', name: 'Production Servers', description: 'Critical production servers.', computerIds: ['comp-2', 'comp-5'], associatedProcedures: [{ procedureId: 'proc-2', runOnNewMember: false, schedule: defaultProcedureSchedule }, { procedureId: 'proc-4', runOnNewMember: false, schedule: {type: 'interval', intervalValue: 7, intervalUnit: 'days'}}], associatedMonitors: [] },
   { id: 'group-3', name: 'Sales Laptops', description: 'Laptops for the sales department.', computerIds: ['comp-3'], associatedProcedures: [], associatedMonitors: [] },
 ];
 
@@ -327,17 +340,18 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
   { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '1.2GB freed.', runAsUser: false },
   { id: 'exec-2', procedureId: 'proc-2', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Failed', startTime: new Date(Date.now() - 7200000).toISOString(), endTime: new Date(Date.now() - 7200000 + 30000).toISOString(), logs: 'Restarting Spooler (as SYSTEM)...\\nError: Access Denied.', output: 'Failed with exit code 5', runAsUser: false },
   { id: 'exec-3', procedureId: 'proc-1', computerId: 'comp-5', computerName: 'VM-Test-Environment', status: 'Running', startTime: new Date().toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '', runAsUser: false },
+  { id: 'exec-4', procedureId: 'proc-4', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Success', startTime: new Date(Date.now() - 86400000).toISOString(), endTime: new Date(Date.now() - 86400000 + 1200000).toISOString(), logs: 'Windows Update (Scope: All) initiated (as SYSTEM)... Search found 3 updates. Downloading... Installing... Success. Reboot required: No.', output: '3 updates installed successfully.', runAsUser: false },
 ];
 
 export let mockMonitors: Monitor[] = [
   { id: 'mon-1', name: 'CPU Usage Monitor', description: 'Alerts if CPU usage is high.', scriptType: 'PowerShell', scriptContent: 'if ((Get-Counter "\\\\Processor(_Total)\\\\% Processor Time").CounterSamples[0].CookedValue -gt 80) { "ALERT: CPU Usage High" } else { "OK: CPU Usage Normal" }', defaultIntervalValue: 5, defaultIntervalUnit: 'minutes', sendEmailOnAlert: true, createdAt: new Date(Date.now() - 86400000 * 3).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 1).toISOString() },
-  { id: 'mon-2', name: 'Disk Space Monitor (C:)', description: 'Checks free disk space on C:. Alerts if < 10% free.', scriptType: 'PowerShell', scriptContent: '\$disk = Get-PSDrive C; if ((\$disk.Free / \$disk.Size) * 100 -lt 10) { "ALERT: Low Disk Space on C:" } else { "OK: Disk space sufficient on C:" }', defaultIntervalValue: 1, defaultIntervalUnit: 'hours', sendEmailOnAlert: false, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date().toISOString() },
+  { id: 'mon-2', name: 'Disk Space Monitor (C:)', description: 'Checks free disk space on C:. Alerts if < 10% free.', scriptType: 'PowerShell', scriptContent: '\\$disk = Get-PSDrive C; if ((\\$disk.Free / \$disk.Size) * 100 -lt 10) { "ALERT: Low Disk Space on C:" } else { "OK: Disk space sufficient on C:" }', defaultIntervalValue: 1, defaultIntervalUnit: 'hours', sendEmailOnAlert: false, createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), updatedAt: new Date().toISOString() },
   {
     id: 'mon-3',
     name: 'Print Spooler Service Monitor',
     description: 'Checks if the Print Spooler service is running.',
     scriptType: 'PowerShell',
-    scriptContent: '\$serviceName = "Spooler"\nif ((Get-Service -Name \$serviceName -ErrorAction SilentlyContinue).Status -eq "Running") { \n    "OK: Service \$serviceName is running." \n} else { \n    "ALERT: Service \$serviceName is NOT running." \n}',
+    scriptContent: '\\$serviceName = "Spooler"\nif ((Get-Service -Name \\$serviceName -ErrorAction SilentlyContinue).Status -eq "Running") { \n    "OK: Service \\$serviceName is running." \n} else { \n    "ALERT: Service \\$serviceName is NOT running." \n}',
     defaultIntervalValue: 15,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
@@ -361,7 +375,7 @@ export let mockMonitors: Monitor[] = [
     name: 'Pending Reboot Check',
     description: 'Checks if the system has a pending reboot state.',
     scriptType: 'PowerShell',
-    scriptContent: '\$RebootRequired = \$false\n# Component-Based Servicing kontrolü\nif (Test-Path "HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Component Based Servicing\\\\RebootPending") { \$RebootRequired = \$true }\n# Windows Update kontrolü\nif (Test-Path "HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\WindowsUpdate\\\\Auto Update\\\\RebootRequired") { \$RebootRequired = \$true }\n\nif (\$RebootRequired) { \n    "ALERT: System requires a reboot." \n} else { \n    "OK: No pending reboot found." \n}',
+    scriptContent: '\\$RebootRequired = \\$false\n# Component-Based Servicing kontrolü\nif (Test-Path "HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Component Based Servicing\\\\RebootPending") { \\$RebootRequired = \\$true }\n# Windows Update kontrolü\nif (Test-Path "HKLM:\\\\SOFTWARE\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\WindowsUpdate\\\\Auto Update\\\\RebootRequired") { \\$RebootRequired = \\$true }\n\nif (\\$RebootRequired) { \n    "ALERT: System requires a reboot." \n} else { \n    "OK: No pending reboot found." \n}',
     defaultIntervalValue: 4,
     defaultIntervalUnit: 'hours',
     sendEmailOnAlert: true,
@@ -373,7 +387,7 @@ export let mockMonitors: Monitor[] = [
     name: 'Uygulama Kurulum/Kaldırma İzleyicisi',
     description: "Yeni uygulama kurulumlarını veya kaldırılmalarını tespit eder ve uyarı gönderir. (Simüle edilmiş)",
     scriptType: 'PowerShell',
-    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR.\\n# Gerçek dünyada uygulama kurulum/kaldırma tespiti karmaşıktır ve\\n# sistem olay günlüklerinin veya diğer gelişmiş tekniklerin izlenmesini gerektirir.\\n\\n\$detectionChance = Get-Random -Minimum 1 -Maximum 100\\n\$installedApps = @("Microsoft Office Pro", "Adobe Photoshop", "Google Chrome", "Mozilla Firefox", "VLC Player", "7-Zip Archiver", "Notepad++ Editor")\\n\$appName = \$installedApps[(Get-Random -Maximum \$installedApps.Count)]\\n\$action = @("kuruldu", "kaldırıldı")[(Get-Random -Maximum 2)]\\n\\nif (\$detectionChance -le 15) { # %15 ihtimalle bir şey "tespit et"\\n    "ALERT: Simüle edilmiş tespit - \'\$appName\' uygulaması yakın zamanda \$action."\\n} else {\\n    "OK: Yeni uygulama kurulumu veya kaldırılması tespit edilmedi (simüle edilmiş)."\\n}',
+    scriptContent: '# BU SCRIPT SİMÜLASYON AMAÇLIDIR.\\n# Gerçek dünyada uygulama kurulum/kaldırma tespiti karmaşıktır ve\\n# sistem olay günlüklerinin veya diğer gelişmiş tekniklerin izlenmesini gerektirir.\\n\\n\\$detectionChance = Get-Random -Minimum 1 -Maximum 100\\n\\$installedApps = @("Microsoft Office Pro", "Adobe Photoshop", "Google Chrome", "Mozilla Firefox", "VLC Player", "7-Zip Archiver", "Notepad++ Editor")\\n\\$appName = \\$installedApps[(Get-Random -Maximum \\$installedApps.Count)]\\n\\$action = @("kuruldu", "kaldırıldı")[(Get-Random -Maximum 2)]\\n\\nif (\\$detectionChance -le 15) { # %15 ihtimalle bir şey "tespit et"\\n    "ALERT: Simüle edilmiş tespit - \'\$appName\' uygulaması yakın zamanda \\$action."\\n} else {\\n    "OK: Yeni uygulama kurulumu veya kaldırılması tespit edilmedi (simüle edilmiş)."\\n}',
     defaultIntervalValue: 60,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
@@ -385,7 +399,7 @@ export let mockMonitors: Monitor[] = [
     name: 'Başarısız RDP Giriş Denemeleri İzleyicisi',
     description: "Kısa bir süre içinde belirli bir eşiği aşan başarısız RDP (Uzak Masaüstü Bağlantısı) giriş denemelerini (Olay ID 4625) izler. Eşik ve zaman aralığı script içinde ayarlanabilir. Not: Bu monitör için Group Policy'de 'Oturum Açma Olaylarını Denetle' (Başarılı ve Başarısız) ayarının (Bilgisayar Yapılandırması -> Windows Ayarları -> Güvenlik Ayarları -> Gelişmiş Denetim İlkesi Yapılandırması -> Oturum Açma/Kapatma) etkinleştirilmiş olması gerekir.",
     scriptType: 'PowerShell',
-    scriptContent: 'param(\\n    [int]\$AttemptThreshold = 5,  # Kaç denemeden sonra uyarı verilsin\\n    [int]\$TimeWindowMinutes = 10 # Son kaç dakika içindeki denemeler sayılsın\\n)\\n\\n\$startTime = (Get-Date).AddMinutes(-\$TimeWindowMinutes)\\n\\ntry {\\n    # LogonType 10 for RemoteInteractive (RDP)\\n    # EventData\\\'dan LogonType\\\'ı filtrelemek Get-WinEvent\\\'in FilterHashtable\\\'ında doğrudan zor olabilir,\\n    # bu yüzden sonuçları aldıktan sonra filtreliyoruz.\\n    \$failedLogons = Get-WinEvent -FilterHashtable @{\\n        LogName = \\\'Security\\\';\\n        ID = 4625; # Başarısız Oturum Açma\\n        StartTime = \$startTime\\n    } -ErrorAction SilentlyContinue | Where-Object { \$\_.Properties[8].Value -eq 10 } # Properties[8] genellikle LogonType\\\'dır 4625 için\\n\\n    if (\$failedLogons.Count -ge \$AttemptThreshold) {\\n        "ALERT: Son \$TimeWindowMinutes dakika içinde \$(\$failedLogons.Count) adet başarısız RDP giriş denemesi tespit edildi (Eşik: \$AttemptThreshold). Olası kaba kuvvet saldırısı."\\n    } else {\\n        "OK: Son \$TimeWindowMinutes dakika içinde \$(\$failedLogons.Count) adet başarısız RDP giriş denemesi (Eşik: \$AttemptThreshold)."\\n    }\\n} catch {\\n    "ERROR: Olay günlükleri sorgulanamadı. İzinleri ve günlük kullanılabilirliğini kontrol edin. Hata: \$(\$_.Exception.Message)"\\n}',
+    scriptContent: 'param(\\n    [int]\\$AttemptThreshold = 5,  # Kaç denemeden sonra uyarı verilsin\\n    [int]\\$TimeWindowMinutes = 10 # Son kaç dakika içindeki denemeler sayılsın\\n)\\n\\n\\$startTime = (Get-Date).AddMinutes(-\\$TimeWindowMinutes)\\n\\ntry {\\n    # LogonType 10 for RemoteInteractive (RDP)\\n    # EventData\\\'dan LogonType\\\'ı filtrelemek Get-WinEvent\\\'in FilterHashtable\\\'ında doğrudan zor olabilir,\\n    # bu yüzden sonuçları aldıktan sonra filtreliyoruz.\\n    \\$failedLogons = Get-WinEvent -FilterHashtable @{\\n        LogName = \\\'Security\\\';\\n        ID = 4625; # Başarısız Oturum Açma\\n        StartTime = \\$startTime\\n    } -ErrorAction SilentlyContinue | Where-Object { \$\_.Properties[8].Value -eq 10 } # Properties[8] genellikle LogonType\\\'dır 4625 için\\n\\n    if (\\$failedLogons.Count -ge \\$AttemptThreshold) {\\n        "ALERT: Son \\$TimeWindowMinutes dakika içinde \$(\\$failedLogons.Count) adet başarısız RDP giriş denemesi tespit edildi (Eşik: \\$AttemptThreshold). Olası kaba kuvvet saldırısı."\\n    } else {\\n        "OK: Son \\$TimeWindowMinutes dakika içinde \$(\\$failedLogons.Count) adet başarısız RDP giriş denemesi (Eşik: \\$AttemptThreshold)."\\n    }\\n} catch {\\n    "ERROR: Olay günlükleri sorgulanamadı. İzinleri ve günlük kullanılabilirliğini kontrol edin. Hata: \$(\$_.Exception.Message)"\\n}',
     defaultIntervalValue: 15,
     defaultIntervalUnit: 'minutes',
     sendEmailOnAlert: true,
@@ -475,7 +489,7 @@ export const getComputerById = (id: string): Computer | undefined => {
 export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds'>): Computer => {
   const newComputer: Computer = {
     ...computerData,
-    id: `comp-\${Date.now()}`,
+    id: `comp-${Date.now()}`,
     lastSeen: new Date().toISOString(),
     groupIds: [],
   };
@@ -512,7 +526,7 @@ export const getGroupById = (id: string): ComputerGroup | undefined => mockCompu
 export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): ComputerGroup => {
   const newGroup: ComputerGroup = {
     ...groupData,
-    id: `group-\${Date.now()}`,
+    id: `group-${Date.now()}`,
     associatedProcedures: groupData.associatedProcedures || [],
     associatedMonitors: groupData.associatedMonitors || [],
   };
@@ -584,11 +598,13 @@ export const addProcedure = (
   let finalRunAsUser = procData.runAsUser || false;
   let finalSoftwareUpdateMode = procData.softwareUpdateMode;
   let finalSpecificSoftware = procData.specificSoftwareToUpdate;
+  let finalWindowsUpdateScope = procData.windowsUpdateScope;
 
   if (procData.procedureSystemType === 'WindowsUpdate') {
-    finalScriptContent = windowsUpdateScriptContent;
+    finalScriptContent = windowsUpdateScriptContent; // Standard script for all Windows Update scopes in mock
     finalScriptType = 'PowerShell';
     finalRunAsUser = false;
+    finalWindowsUpdateScope = procData.windowsUpdateScope || 'all'; // Default to 'all' if not specified
   } else if (procData.procedureSystemType === 'SoftwareUpdate') {
     finalScriptType = 'PowerShell';
     finalRunAsUser = false;
@@ -613,9 +629,10 @@ export const addProcedure = (
     scriptContent: finalScriptContent,
     runAsUser: finalRunAsUser,
     procedureSystemType: procData.procedureSystemType,
+    windowsUpdateScope: finalWindowsUpdateScope,
     softwareUpdateMode: finalSoftwareUpdateMode,
     specificSoftwareToUpdate: finalSpecificSoftware,
-    id: `proc-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
+    id: `proc-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -630,12 +647,15 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
       let newSoftwareUpdateMode = updates.softwareUpdateMode ?? p.softwareUpdateMode;
       let newSpecificSoftware = updates.specificSoftwareToUpdate ?? p.specificSoftwareToUpdate;
       let newScriptContent = updates.scriptContent ?? p.scriptContent;
+      let newWindowsUpdateScope = updates.windowsUpdateScope ?? p.windowsUpdateScope;
 
       if (p.procedureSystemType === 'WindowsUpdate') {
          updatedProcedure = { 
            ...p, 
            name: updates.name || p.name,
            description: updates.description || p.description,
+           windowsUpdateScope: newWindowsUpdateScope || 'all', // Ensure scope is set
+           // scriptContent remains windowsUpdateScriptContent for mock simplicity
            updatedAt: new Date().toISOString() 
          };
       } else if (p.procedureSystemType === 'SoftwareUpdate') {
@@ -703,16 +723,24 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
   const computer = getComputerById(executionData.computerId);
   const procedure = getProcedureById(executionData.procedureId);
   const runContext = executionData.runAsUser ?? procedure?.runAsUser ?? false;
-
-  let logs = `\${executionData.logs} (as \${runContext ? 'User' : 'SYSTEM'})`;
-  if (procedure?.procedureSystemType === 'SoftwareUpdate' && procedure.softwareUpdateMode === 'specific') {
-    logs += `\\nAttempting to update specific software: \${procedure.specificSoftwareToUpdate || "None specified"}`;
+  
+  let logs = `Executing "${procedure?.name || 'Unknown Procedure'}" on "${computer?.name || executionData.computerId}" (as ${runContext ? 'User' : 'SYSTEM'}).`;
+  if (procedure?.procedureSystemType === 'WindowsUpdate') {
+    logs += `\nWindows Update Scope: ${procedure.windowsUpdateScope || 'all'}.`;
+  } else if (procedure?.procedureSystemType === 'SoftwareUpdate') {
+    logs += `\nSoftware Update Mode: ${procedure.softwareUpdateMode || 'all'}.`;
+    if (procedure.softwareUpdateMode === 'specific') {
+      logs += `\nTargeted software: ${procedure.specificSoftwareToUpdate || "None specified"}.`;
+    }
+  } else {
+     logs += `\nCustom Script: ${procedure?.scriptContent.substring(0, 50)}...`;
   }
+  logs += `\n${executionData.logs || ''}`;
 
 
   const newExecution: ProcedureExecution = {
     ...executionData,
-    id: `exec-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
+    id: `exec-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     computerName: computer?.name || executionData.computerId,
     startTime: executionData.startTime || new Date().toISOString(),
     status: executionData.status || 'Pending',
@@ -726,12 +754,19 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
         const finalStatus = Math.random() > 0.3 ? 'Success' : 'Failed';
         newExecution.status = finalStatus;
         newExecution.endTime = new Date().toISOString();
-        newExecution.logs += `\\nExecution finished with status: \${finalStatus}`;
-        if (procedure?.procedureSystemType === 'SoftwareUpdate' && procedure.softwareUpdateMode === 'specific') {
-           newExecution.output = finalStatus === 'Success' ? `Mock output: Specified software update process completed. (\${procedure.specificSoftwareToUpdate})` : 'Mock output: Specified software update process failed.';
-        } else {
-           newExecution.output = finalStatus === 'Success' ? 'Mock output: Operation completed.' : 'Mock output: Operation failed.';
+        newExecution.logs += `\nExecution finished with status: ${finalStatus}`;
+        
+        let mockOutput = finalStatus === 'Success' ? 'Mock output: Operation completed successfully.' : 'Mock output: Operation failed.';
+        if (procedure?.procedureSystemType === 'WindowsUpdate') {
+            mockOutput = finalStatus === 'Success' ? `Mock output: Windows Updates (Scope: ${procedure.windowsUpdateScope || 'all'}) installed.` : `Mock output: Windows Update (Scope: ${procedure.windowsUpdateScope || 'all'}) failed.`;
+        } else if (procedure?.procedureSystemType === 'SoftwareUpdate') {
+            if (procedure.softwareUpdateMode === 'specific') {
+                 mockOutput = finalStatus === 'Success' ? `Mock output: Specified software update process completed for: ${procedure.specificSoftwareToUpdate || "N/A"}` : 'Mock output: Specified software update process failed.';
+            } else {
+                 mockOutput = finalStatus === 'Success' ? `Mock output: All applicable software updated via winget.` : 'Mock output: Winget update all process failed.';
+            }
         }
+        newExecution.output = mockOutput;
         mockProcedureExecutions = mockProcedureExecutions.map(e => e.id === newExecution.id ? newExecution : e);
     }, 1500 + Math.random() * 2500);
   }
@@ -749,7 +784,7 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
                 procedureId,
                 computerId: compId,
                 status: 'Pending',
-                logs: `Executing "\${proc.name}" on "\${computer.name}"`,
+                logs: ``, // Initial log message will be constructed in addProcedureExecution
                 startTime: new Date().toISOString(),
                 runAsUser: proc.runAsUser
             });
@@ -764,7 +799,7 @@ export const getMonitorById = (id: string): Monitor | undefined => mockMonitors.
 export const addMonitorToMock = (monitorData: Omit<Monitor, 'id' | 'createdAt' | 'updatedAt'>): Monitor => {
   const newMonitor: Monitor = {
     ...monitorData,
-    id: `mon-\${Date.now()}`,
+    id: `mon-${Date.now()}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -798,7 +833,7 @@ export const addMonitorLog = (logData: Omit<MonitorExecutionLog, 'id' | 'compute
   const computer = getComputerById(logData.computerId);
   const newLog: MonitorExecutionLog = {
     ...logData,
-    id: `mlog-\${Date.now()}`,
+    id: `mlog-${Date.now()}`,
     computerName: computer?.name || logData.computerId,
     timestamp: new Date().toISOString(),
     notified: logData.status === 'ALERT' ? mockSmtpSettings.fromEmail && mockSmtpSettings.defaultToEmail : false,
@@ -814,7 +849,7 @@ export const getCommandHistory = (): CustomCommand[] => {
   mockCustomCommands.forEach(cmd => {
     if (cmd.status === 'Sent' && Math.random() < 0.2) {
       cmd.status = Math.random() < 0.7 ? 'Success' : 'Failed';
-      cmd.output = cmd.status === 'Success' ? `Mock Success: \${cmd.command}` : `Mock Fail: \${cmd.command}`;
+      cmd.output = cmd.status === 'Success' ? `Mock Success: ${cmd.command}` : `Mock Fail: ${cmd.command}`;
     }
   });
   return mockCustomCommands.sort((a,b) => new Date(b.executedAt || 0).getTime() - new Date(a.executedAt || 0).getTime());
@@ -838,7 +873,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
         if (computer && computer.status === 'Online') {
             const newCommand: CustomCommand = {
                 ...baseCommand,
-                id: `cmd-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
+                id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
                 computerId: compId,
                 targetId: group.id,
                 targetType: 'group'
@@ -850,8 +885,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
      if (commandsSent.length === 0 && group.computerIds.length > 0) {
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
-            id: `cmd-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, // For group-level "sent" log, associate with group ID itself if no online members.
+            id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+            computerId: group.id, 
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
@@ -869,7 +904,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
 
     const newCommand: CustomCommand = {
         ...baseCommand,
-        id: `cmd-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
+        id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         computerId: commandData.targetId,
         targetId: commandData.targetId,
         targetType: 'computer'
@@ -903,43 +938,39 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
   let newProviderConfigs = [...(settings.providerConfigs || [])];
   let defaultProviderId: string | null = null;
 
-  // Ensure only one default, and it must be enabled
   let explicitlySetDefaultExists = false;
   newProviderConfigs.forEach(p => {
     if (p.isDefault) {
-      if (!explicitlySetDefaultExists) { // First one encountered marked as default
+      if (!explicitlySetDefaultExists) { 
         defaultProviderId = p.id;
-        p.isEnabled = true; // Default must be enabled
+        p.isEnabled = true; 
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false; // Any other subsequent provider marked as default is unset
+        p.isDefault = false; 
       }
     }
   });
 
-  // If no provider was explicitly set as default, try to set one
   if (!defaultProviderId) {
     const firstEnabledProvider = newProviderConfigs.find(p => p.isEnabled);
     if (firstEnabledProvider) {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
-      firstEnabledProvider.isEnabled = true; // Ensure it's enabled
+      firstEnabledProvider.isEnabled = true; 
     }
   }
 
-   // Fallback: if still no default and list is not empty, make the first one default and enable it
    if (!defaultProviderId && newProviderConfigs.length > 0) {
     newProviderConfigs[0].isDefault = true;
     newProviderConfigs[0].isEnabled = true;
     defaultProviderId = newProviderConfigs[0].id;
   }
 
-  // Final pass to ensure consistency if a default was determined
   if (defaultProviderId) {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, // Default provider must be enabled
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, 
     }));
   }
 
@@ -960,17 +991,17 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
             if (assocProc.runOnNewMember) {
                 const procedure = getProcedureById(assocProc.procedureId);
                 if (procedure && computer.status === 'Online') {
-                    console.log(`AUTOMOCK: Triggering procedure "\${procedure.name}" for new member "\${computer.name}" in group "\${group.name}" (as \${procedure.runAsUser ? 'User' : 'SYSTEM'})`);
+                    console.log(`AUTOMOCK: Triggering procedure "${procedure.name}" for new member "${computer.name}" in group "${group.name}" (as ${procedure.runAsUser ? 'User' : 'SYSTEM'})`);
                     addProcedureExecution({
                         procedureId: procedure.id,
                         computerId: computer.id,
                         status: 'Pending',
-                        logs: `Automatically triggered: "\${procedure.name}" for new member "\${computer.name}" in group "\${group.name}".`,
+                        logs: `Automatically triggered: "${procedure.name}" for new member "${computer.name}" in group "${group.name}".`,
                         startTime: new Date().toISOString(),
                         runAsUser: procedure.runAsUser
                     });
                 } else if (procedure && computer.status !== 'Online') {
-                     console.log(`AUTOMOCK: Skipped procedure "\${procedure.name}" for new offline member "\${computer.name}" in group "\${group.name}"`);
+                     console.log(`AUTOMOCK: Skipped procedure "${procedure.name}" for new offline member "${computer.name}" in group "${group.name}"`);
                 }
             }
         });
@@ -991,10 +1022,10 @@ export const getLicenses = (): License[] => {
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
         if (!notifiedLicenseIdsThisSession.has(lic.id)) {
-          if (mockSmtpSettings.defaultToEmail) { // Check if email can be "sent"
+          if (mockSmtpSettings.defaultToEmail) { 
             toast({
               title: "License Expiry Alert",
-              description: `License "\${lic.productName}" will expire in \${diffDays} day(s) (on \${expiryDate.toLocaleDateString()}). An email simulation to \${mockSmtpSettings.defaultToEmail} would occur. (Configured for \${lic.notificationDaysBefore} days before for this license).`,
+              description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
               variant: "default", 
               duration: 10000, 
             });
@@ -1015,7 +1046,7 @@ export const getLicenseById = (id: string): License | undefined => {
 export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' | 'updatedAt'>): License => {
   const newLicense: License = {
     ...licenseData,
-    id: `lic-\${Date.now()}-\${Math.random().toString(16).slice(2)}`,
+    id: `lic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     sendExpiryNotification: licenseData.sendExpiryNotification ?? false,
@@ -1063,16 +1094,17 @@ if (typeof window !== 'undefined') {
 mockProcedures = mockProcedures.map(p => ({ 
     ...p, 
     runAsUser: p.runAsUser || false,
-    procedureSystemType: p.procedureSystemType || 'CustomScript' // Default to CustomScript if not set
+    procedureSystemType: p.procedureSystemType || 'CustomScript' 
 }));
-// Ensure proc-4 is correctly typed and has the right script
+
 const proc4Index = mockProcedures.findIndex(p => p.id === 'proc-4');
 if (proc4Index !== -1) {
     mockProcedures[proc4Index].procedureSystemType = 'WindowsUpdate';
+    mockProcedures[proc4Index].windowsUpdateScope = mockProcedures[proc4Index].windowsUpdateScope || 'all';
     mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent; 
     mockProcedures[proc4Index].scriptType = 'PowerShell';
     mockProcedures[proc4Index].runAsUser = false;
-    mockProcedures[proc4Index].description = 'Installs all available Windows updates, including Microsoft products and feature updates. This procedure does not force a system reboot.';
+    mockProcedures[proc4Index].description = mockProcedures[proc4Index].description || 'Installs Windows updates. Does not force a system reboot.';
 }
 
 

@@ -1,7 +1,7 @@
 
 "use client";
 
-import type { Procedure, ScriptType, AiSettings, ProcedureSystemType } from '@/types';
+import type { Procedure, ScriptType, AiSettings, ProcedureSystemType, WindowsUpdateScope } from '@/types';
 import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock, getAiSettings } from '@/lib/mockData'; 
 import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-script-flow';
 
@@ -50,6 +50,7 @@ export default function ProceduresPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [procedureCreationSystemType, setProcedureCreationSystemType] = useState<ProcedureSystemType>('CustomScript');
+  const [windowsUpdateScope, setWindowsUpdateScope] = useState<WindowsUpdateScope>('all');
   const [softwareUpdateMode, setSoftwareUpdateMode] = useState<'all' | 'specific'>('all');
   const [specificSoftwareToUpdate, setSpecificSoftwareToUpdate] = useState('');
 
@@ -128,6 +129,7 @@ export default function ProceduresPage() {
     setIsGeneratingWithAi(false);
     setAiGenerationError(null);
     setProcedureCreationSystemType('CustomScript'); 
+    setWindowsUpdateScope('all');
     setSoftwareUpdateMode('all');
     setSpecificSoftwareToUpdate('');
   };
@@ -139,10 +141,11 @@ export default function ProceduresPage() {
     setCurrentProcedure(null);
     if (systemType === 'WindowsUpdate') {
         setProcedureName('Managed Windows Updates');
-        setProcedureDescription('Installs all available Windows updates, including Microsoft products and feature updates. This procedure does not force a system reboot.');
+        setProcedureDescription('Installs Windows updates based on selected scope. Does not force reboot.');
+        setWindowsUpdateScope('all');
     } else if (systemType === 'SoftwareUpdate') {
         setProcedureName('3rd Party Software Update Task');
-        setProcedureDescription('Updates 3rd party software using winget.');
+        setProcedureDescription('Updates 3rd party software using winget based on selected scope.');
         setSoftwareUpdateMode('all'); 
     }
     setIsModalOpen(true);
@@ -159,6 +162,8 @@ export default function ProceduresPage() {
         setProcedureScriptType(procedure.scriptType);
         setProcedureScriptContent(procedure.scriptContent);
         setProcedureRunAsUser(procedure.runAsUser || false);
+    } else if (procedure.procedureSystemType === 'WindowsUpdate') {
+        setWindowsUpdateScope(procedure.windowsUpdateScope || 'all');
     } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
         setSoftwareUpdateMode(procedure.softwareUpdateMode || 'all');
         setSpecificSoftwareToUpdate(procedure.specificSoftwareToUpdate || '');
@@ -198,23 +203,28 @@ export default function ProceduresPage() {
           scriptContent: procedureScriptContent,
           runAsUser: procedureRunAsUser,
         } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'CustomScript' };
+      } else if (procedureCreationSystemType === 'WindowsUpdate') {
+        procData = {
+            ...baseProcData,
+            scriptType: 'PowerShell', // Fixed
+            scriptContent: '', // Will be set by addProcedure
+            runAsUser: false,    // Fixed
+            windowsUpdateScope: windowsUpdateScope,
+        } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'WindowsUpdate' };
       } else if (procedureCreationSystemType === 'SoftwareUpdate') {
         procData = {
           ...baseProcData,
-          scriptType: 'PowerShell', // Fixed for SoftwareUpdate
-          scriptContent: '', // Will be set by addProcedure based on mode
-          runAsUser: false,    // Fixed for SoftwareUpdate
+          scriptType: 'PowerShell', 
+          scriptContent: '', 
+          runAsUser: false,    
           softwareUpdateMode: softwareUpdateMode,
           specificSoftwareToUpdate: softwareUpdateMode === 'specific' ? specificSoftwareToUpdate : '',
         } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'SoftwareUpdate' };
       }
-       else { // WindowsUpdate
-        procData = {
-          ...baseProcData,
-          scriptType: 'PowerShell', // Fixed for WindowsUpdate
-          scriptContent: '', // Will be set by addProcedure
-          runAsUser: false,    // Fixed for WindowsUpdate
-        } as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: 'WindowsUpdate' };
+       else { 
+        toast({title: "Error", description: "Invalid procedure system type.", variant: "destructive"});
+        setIsSubmitting(false);
+        return;
       }
       
 
@@ -301,13 +311,16 @@ export default function ProceduresPage() {
 
   const getSystemProcedureInfoText = () => {
     if (procedureCreationSystemType === 'WindowsUpdate') {
-      return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will install all available Windows updates (including MS products & feature updates) without forcing a reboot.";
+      const scopeText = windowsUpdateScope === 'all' ? 'Tüm Güncellemeler (Microsoft Ürünleri ve Özellik Güncellemeleri dahil)' 
+                      : windowsUpdateScope === 'microsoftProducts' ? 'Sadece Microsoft Ürünleri Güncellemeleri' 
+                      : 'Sadece Windows İşletim Sistemi ve Özellik Güncellemeleri';
+      return `Bu, Windows güncellemelerini yöneten bir sistem prosedürüdür. Kapsam: ${scopeText}. Script içeriği ve çalıştırma bağlamı önceden tanımlanmıştır. Sistem otomatik olarak yeniden başlatılmaz.`;
     }
     if (procedureCreationSystemType === 'SoftwareUpdate') {
       if (softwareUpdateMode === 'all') {
-        return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will attempt to update all applicable 3rd party software using winget.";
+        return "Bu, tüm uygun 3. parti yazılımları winget kullanarak güncelleyen bir sistem prosedürüdür. Script içeriği ve çalıştırma bağlamı önceden tanımlanmıştır.";
       } else {
-        return "This is a system-managed procedure. The script content and execution context are predefined. You can only edit the Name and Description. It will attempt to update only the specified 3rd party software packages using winget.";
+        return "Bu, belirtilen 3. parti yazılımları winget kullanarak güncelleyen bir sistem prosedürüdür. Script içeriği ve çalıştırma bağlamı önceden tanımlanmıştır.";
       }
     }
     return "";
@@ -325,18 +338,40 @@ export default function ProceduresPage() {
         <Textarea id="description" value={procedureDescription} onChange={(e) => setProcedureDescription(e.target.value)} className="col-span-3" disabled={isSubmitting} />
       </div>
 
+      {procedureCreationSystemType === 'WindowsUpdate' && (
+         <div className="grid grid-cols-4 items-start gap-4 pt-2">
+            <Label className="text-right col-span-1 pt-2">Güncelleme Kapsamı</Label>
+            <div className="col-span-3">
+                <RadioGroup value={windowsUpdateScope} onValueChange={(value: WindowsUpdateScope) => setWindowsUpdateScope(value)} className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="all" id="scope-wu-all" />
+                        <Label htmlFor="scope-wu-all" className="font-normal">Tüm Güncellemeler (MS Ürünleri & Özellik Günc. dahil)</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="microsoftProducts" id="scope-wu-msproducts" />
+                        <Label htmlFor="scope-wu-msproducts" className="font-normal">Sadece Microsoft Ürünleri Güncellemeleri</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="osFeatureUpdates" id="scope-wu-osfeature" />
+                        <Label htmlFor="scope-wu-osfeature" className="font-normal">Sadece Windows OS ve Özellik Güncellemeleri</Label>
+                    </div>
+                </RadioGroup>
+            </div>
+        </div>
+      )}
+
       {procedureCreationSystemType === 'SoftwareUpdate' && (
         <div className="grid grid-cols-4 items-start gap-4 pt-2">
             <Label className="text-right col-span-1 pt-2">Update Scope</Label>
             <div className="col-span-3">
                 <RadioGroup value={softwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setSoftwareUpdateMode(value)} className="space-y-2">
                     <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="all" id="scope-all" />
-                        <Label htmlFor="scope-all" className="font-normal">Update all applicable software</Label>
+                        <RadioGroupItem value="all" id="scope-su-all" />
+                        <Label htmlFor="scope-su-all" className="font-normal">Update all applicable software</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="specific" id="scope-specific" />
-                        <Label htmlFor="scope-specific" className="font-normal">Update specific software packages</Label>
+                        <RadioGroupItem value="specific" id="scope-su-specific" />
+                        <Label htmlFor="scope-su-specific" className="font-normal">Update specific software packages</Label>
                     </div>
                 </RadioGroup>
                 {softwareUpdateMode === 'specific' && (
@@ -351,7 +386,7 @@ export default function ProceduresPage() {
                             disabled={isSubmitting}
                         />
                         <p className="text-xs text-muted-foreground">
-                            Enter exact Winget package IDs or full names. The system does not validate these at creation time.
+                            Enter exact Winget package IDs or full names. System does not validate at creation.
                         </p>
                     </div>
                 )}

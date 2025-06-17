@@ -49,6 +49,7 @@ export interface ComputerGroup {
 
 export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
 export type ProcedureSystemType = 'CustomScript' | 'WindowsUpdate' | 'SoftwareUpdate';
+export type WindowsUpdateScope = 'all' | 'microsoftProducts' | 'osFeatureUpdates';
 
 
 export interface Procedure {
@@ -59,11 +60,11 @@ export interface Procedure {
   scriptContent: string;
   runAsUser?: boolean;
   procedureSystemType?: ProcedureSystemType; 
+  windowsUpdateScope?: WindowsUpdateScope; // Added for Windows Update procedure type
   createdAt: string;
   updatedAt: string;
-  // Fields specific to SoftwareUpdate procedures
-  softwareUpdateMode?: 'all' | 'specific'; // 'all' or 'specific'
-  specificSoftwareToUpdate?: string; // Comma-separated list of package IDs/names
+  softwareUpdateMode?: 'all' | 'specific'; 
+  specificSoftwareToUpdate?: string; 
 }
 
 export interface ProcedureExecution {

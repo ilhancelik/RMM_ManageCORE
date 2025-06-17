@@ -4,12 +4,12 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useTransition, useCallback } from 'react';
 import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure } from '@/lib/mockData';
-import type { Procedure, Computer, ProcedureExecution, ScriptType } from '@/types';
+import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScope } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +43,7 @@ export default function ProcedureDetailPage() {
   const [editScriptType, setEditScriptType] = useState<ScriptType>('PowerShell');
   const [editScriptContent, setEditScriptContent] = useState('');
   const [editRunAsUser, setEditRunAsUser] = useState(false);
+  const [editWindowsUpdateScope, setEditWindowsUpdateScope] = useState<WindowsUpdateScope>('all');
   const [editSoftwareUpdateMode, setEditSoftwareUpdateMode] = useState<'all' | 'specific'>('all');
   const [editSpecificSoftware, setEditSpecificSoftware] = useState('');
 
@@ -82,6 +83,8 @@ export default function ProcedureDetailPage() {
             setEditScriptType(fetchedProcedure.scriptType);
             setEditScriptContent(fetchedProcedure.scriptContent);
             setEditRunAsUser(fetchedProcedure.runAsUser || false);
+          } else if (fetchedProcedure.procedureSystemType === 'WindowsUpdate') {
+            setEditWindowsUpdateScope(fetchedProcedure.windowsUpdateScope || 'all');
           } else if (fetchedProcedure.procedureSystemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(fetchedProcedure.softwareUpdateMode || 'all');
             setEditSpecificSoftware(fetchedProcedure.specificSoftwareToUpdate || '');
@@ -131,6 +134,12 @@ export default function ProcedureDetailPage() {
           scriptContent: editScriptContent,
           runAsUser: editRunAsUser,
         };
+      } else if (procedure.procedureSystemType === 'WindowsUpdate') {
+        updatedData = {
+            name: editName,
+            description: editDescription,
+            windowsUpdateScope: editWindowsUpdateScope,
+        };
       } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
         updatedData = {
           name: editName,
@@ -138,7 +147,7 @@ export default function ProcedureDetailPage() {
           softwareUpdateMode: editSoftwareUpdateMode,
           specificSoftwareToUpdate: editSoftwareUpdateMode === 'specific' ? editSpecificSoftware : '',
         };
-      } else { // WindowsUpdate
+      } else { 
         updatedData = { 
           name: editName,
           description: editDescription,
@@ -154,6 +163,8 @@ export default function ProcedureDetailPage() {
             setEditScriptType(updatedProc.scriptType);
             setEditScriptContent(updatedProc.scriptContent);
             setEditRunAsUser(updatedProc.runAsUser || false);
+        } else if (updatedProc.procedureSystemType === 'WindowsUpdate') {
+            setEditWindowsUpdateScope(updatedProc.windowsUpdateScope || 'all');
         } else if (updatedProc.procedureSystemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(updatedProc.softwareUpdateMode || 'all');
             setEditSpecificSoftware(updatedProc.specificSoftwareToUpdate || '');
@@ -177,6 +188,8 @@ export default function ProcedureDetailPage() {
             setEditScriptType(procedure.scriptType);
             setEditScriptContent(procedure.scriptContent);
             setEditRunAsUser(procedure.runAsUser || false);
+        } else if (procedure.procedureSystemType === 'WindowsUpdate') {
+            setEditWindowsUpdateScope(procedure.windowsUpdateScope || 'all');
         } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(procedure.softwareUpdateMode || 'all');
             setEditSpecificSoftware(procedure.specificSoftwareToUpdate || '');
@@ -273,6 +286,16 @@ export default function ProcedureDetailPage() {
       default: return 'Custom Script';
     }
   };
+
+  const getWindowsUpdateScopeLabel = (scope?: WindowsUpdateScope) => {
+    switch (scope) {
+      case 'all': return 'Tüm Güncellemeler (MS Ürünleri & Özellik Günc. dahil)';
+      case 'microsoftProducts': return 'Sadece Microsoft Ürünleri Güncellemeleri';
+      case 'osFeatureUpdates': return 'Sadece Windows OS ve Özellik Güncellemeleri';
+      default: return 'Bilinmeyen Kapsam';
+    }
+  };
+  
 
   if (isLoading) {
     return (
@@ -376,18 +399,39 @@ export default function ProcedureDetailPage() {
                         <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" disabled={isSaving} />
                     </div>
                     
+                    {procedure.procedureSystemType === 'WindowsUpdate' && (
+                         <div className="grid grid-cols-4 items-start gap-4 pt-2">
+                            <Label className="text-right col-span-1 pt-2">Güncelleme Kapsamı</Label>
+                            <div className="col-span-3">
+                                <RadioGroup value={editWindowsUpdateScope} onValueChange={(value: WindowsUpdateScope) => setEditWindowsUpdateScope(value)} className="space-y-2" disabled={isSaving}>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="all" id="edit-scope-wu-all" />
+                                        <Label htmlFor="edit-scope-wu-all" className="font-normal">Tüm Güncellemeler (MS Ürünleri & Özellik Günc. dahil)</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="microsoftProducts" id="edit-scope-wu-msproducts" />
+                                        <Label htmlFor="edit-scope-wu-msproducts" className="font-normal">Sadece Microsoft Ürünleri Güncellemeleri</Label>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <RadioGroupItem value="osFeatureUpdates" id="edit-scope-wu-osfeature" />
+                                        <Label htmlFor="edit-scope-wu-osfeature" className="font-normal">Sadece Windows OS ve Özellik Güncellemeleri</Label>
+                                    </div>
+                                </RadioGroup>
+                            </div>
+                        </div>
+                    )}
                     {procedure.procedureSystemType === 'SoftwareUpdate' && (
                          <div className="grid grid-cols-4 items-start gap-4 pt-2">
                             <Label className="text-right col-span-1 pt-2">Update Scope</Label>
                             <div className="col-span-3">
-                                <RadioGroup value={editSoftwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setEditSoftwareUpdateMode(value)} className="space-y-2">
+                                <RadioGroup value={editSoftwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setEditSoftwareUpdateMode(value)} className="space-y-2" disabled={isSaving}>
                                     <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="all" id="edit-scope-all" />
-                                        <Label htmlFor="edit-scope-all" className="font-normal">Update all applicable software</Label>
+                                        <RadioGroupItem value="all" id="edit-scope-su-all" />
+                                        <Label htmlFor="edit-scope-su-all" className="font-normal">Update all applicable software</Label>
                                     </div>
                                     <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="specific" id="edit-scope-specific" />
-                                        <Label htmlFor="edit-scope-specific" className="font-normal">Update specific software packages</Label>
+                                        <RadioGroupItem value="specific" id="edit-scope-su-specific" />
+                                        <Label htmlFor="edit-scope-su-specific" className="font-normal">Update specific software packages</Label>
                                     </div>
                                 </RadioGroup>
                                 {editSoftwareUpdateMode === 'specific' && (
@@ -452,13 +496,13 @@ export default function ProcedureDetailPage() {
                             </div>
                         </>
                     )}
-                     {procedure.procedureSystemType === 'WindowsUpdate' && (
+                     {procedure.procedureSystemType === 'WindowsUpdate' && isEditing && (
                          <Alert variant="default" className="col-span-4">
                             <Terminal className="h-4 w-4" />
                             <AlertTitle>System Procedure: Windows Update</AlertTitle>
                             <AlertDescription>
-                                Only Name and Description can be edited. The script and execution context are system-managed.
-                                It installs Windows updates without forcing a reboot.
+                                Script içeriği ve çalıştırma bağlamı sistem tarafından yönetilir.
+                                Seçilen kapsama göre Windows güncellemelerini yükler ve yeniden başlatma yapmaz.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -467,7 +511,8 @@ export default function ProcedureDetailPage() {
                             <Terminal className="h-4 w-4" />
                             <AlertTitle>System Procedure: Software Update (winget)</AlertTitle>
                             <AlertDescription>
-                                Only Name, Description, and Update Scope can be edited. Script content is system-managed based on scope.
+                                Script içeriği ve çalıştırma bağlamı sistem tarafından yönetilir.
+                                Seçilen kapsama göre 3. parti yazılım güncellemelerini winget ile yapar.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -493,6 +538,13 @@ export default function ProcedureDetailPage() {
                 <Label className="text-sm text-muted-foreground">System Type</Label>
                 <p className="font-semibold">{getSystemTypeLabel(procedure.procedureSystemType)}</p>
               </div>
+
+              {procedure.procedureSystemType === 'WindowsUpdate' && (
+                <div>
+                    <Label className="text-sm text-muted-foreground">Windows Update Scope</Label>
+                    <p className="font-semibold">{getWindowsUpdateScopeLabel(procedure.windowsUpdateScope)}</p>
+                </div>
+              )}
               
               {procedure.procedureSystemType === 'SoftwareUpdate' && (
                 <>
@@ -525,12 +577,14 @@ export default function ProcedureDetailPage() {
                 </>
               )}
                <div>
-                <Label className="text-sm text-muted-foreground">Script Content</Label>
+                <Label className="text-sm text-muted-foreground">Script Content / Behavior</Label>
                 <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
                   <pre className="text-sm font-code whitespace-pre-wrap">
-                    {procedure.procedureSystemType === 'WindowsUpdate' ? `# This is a system-managed script for Windows Updates.\n# It installs all available software updates, including Microsoft products and feature updates, without forcing a reboot.` 
-                     : procedure.procedureSystemType === 'SoftwareUpdate' ? `# This is a system-managed script for 3rd Party Software Updates using winget.\n# Mode: ${procedure.softwareUpdateMode || 'all'}${procedure.softwareUpdateMode === 'specific' ? `\n# Target Packages: ${procedure.specificSoftwareToUpdate || 'NONE'}` : ''}\n${procedure.scriptContent}`
-                     : procedure.scriptContent}
+                    {procedure.procedureSystemType === 'WindowsUpdate' 
+                     ? `This is a system-managed procedure for Windows Updates.\nScope: ${getWindowsUpdateScopeLabel(procedure.windowsUpdateScope)}\nIt installs updates without forcing a reboot.`
+                     : procedure.procedureSystemType === 'SoftwareUpdate' 
+                       ? `This is a system-managed procedure for 3rd Party Software Updates using winget.\nMode: ${procedure.softwareUpdateMode || 'all'}${procedure.softwareUpdateMode === 'specific' ? `\nTarget Packages: ${procedure.specificSoftwareToUpdate || 'NONE'}` : ''}\n(Underlying script uses winget and runs as SYSTEM)`
+                       : procedure.scriptContent}
                   </pre>
                 </ScrollArea>
               </div>
