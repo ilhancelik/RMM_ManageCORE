@@ -5,10 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import {
     getGroupById,
     updateComputerGroup,
-    getAllComputersFromMock, // Renamed from getComputers to avoid conflict if a local 'getComputers' exists
+    getComputers, // Corrected import name
     getProcedureById,
     getMonitorById,
-    triggerAutomatedProceduresForNewMember
+    triggerAutomatedProceduresForNewMember,
+    getMonitors // Assuming this is the correct function to get all monitors
 } from '@/lib/mockData';
 import type { ComputerGroup, Computer, Procedure, Monitor, AssociatedProcedureConfig, AssociatedMonitorConfig, ScheduleConfig, ProcedureSystemType } from '@/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,13 +46,12 @@ export default function GroupDetailsPage() {
 
   const [group, setGroup] = useState<ComputerGroup | null>(null);
   const [allComputersForMembership, setAllComputersForMembership] = useState<Computer[]>([]);
-  const [allMonitors, setAllMonitors] = useState<Monitor[]>([]); // For Associated Monitors
+  const [allMonitors, setAllMonitors] = useState<Monitor[]>([]); 
 
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editSelectedComputerIds, setEditSelectedComputerIds] = useState<string[]>([]);
   
-  // State for Associated Monitors modal
   const [currentAssociatedMonitors, setCurrentAssociatedMonitors] = useState<AssociatedMonitorConfig[]>([]);
   const [isManageMonitorsModalOpen, setIsManageMonitorsModalOpen] = useState(false);
   const [monitorSearchTerm, setMonitorSearchTerm] = useState('');
@@ -72,12 +72,12 @@ export default function GroupDetailsPage() {
     setTimeout(() => {
       try {
         const fetchedGroup = getGroupById(id);
-        const fetchedAllComputers = getAllComputersFromMock();
-        const fetchedMonitors = getMonitors(); // Fetch all monitors
+        const fetchedAllComputers = getComputers(); 
+        const fetchedMonitors = getMonitors(); 
 
         setGroup(fetchedGroup || null);
         setAllComputersForMembership(fetchedAllComputers);
-        setAllMonitors(fetchedMonitors); // Store all monitors
+        setAllMonitors(fetchedMonitors); 
 
         if (fetchedGroup) {
           setEditName(fetchedGroup.name);
@@ -147,20 +147,17 @@ export default function GroupDetailsPage() {
             name: editName,
             description: editDescription,
             computerIds: editSelectedComputerIds,
-            // associatedProcedures are now managed on a separate page
-            // but we need to pass the existing ones if not touched
             associatedProcedures: group.associatedProcedures || [], 
             associatedMonitors: currentAssociatedMonitors, 
         };
         const updatedGroup = updateComputerGroup(group.id, payload);
         
         if (updatedGroup) {
-            setGroup(updatedGroup); // Re-set the local group state with potentially updated basic details
+            setGroup(updatedGroup); 
             setEditName(updatedGroup.name);
             setEditDescription(updatedGroup.description);
             setEditSelectedComputerIds([...updatedGroup.computerIds]);
 
-            // Logic for associated monitors remains here
             const defaultMonitorSchedule = (monitorId?: string): ScheduleConfig => {
                 const monitorDetails = allMonitors.find(m => m.id === monitorId);
                 return {
@@ -202,13 +199,11 @@ export default function GroupDetailsPage() {
   const handleSaveComputerMembershipDialog = () => {
     setIsManageComputersModalOpen(false);
     setComputerSearchTerm('');
-    toast({ title: "Membership Updated", description: "Computer selections staged. Click 'Save All Changes' to persist." });
+    toast({ title: "Membership Updated", description: "Computer selections staged. Click 'Save Group Details' to persist." });
   };
 
-  // === Associated Monitors Modal Logic ===
   const openManageMonitorsModal = () => {
     if (!group) return;
-    // Use group from state to initialize modal's monitor list
     const initialMonitors = (group.associatedMonitors || []).map(am => { 
         const md = allMonitors.find(m => m.id === am.monitorId);
         return {...am, schedule: am.schedule || { type: 'interval', intervalValue: md?.defaultIntervalValue || 15, intervalUnit: md?.defaultIntervalUnit || 'minutes'}}
@@ -268,9 +263,8 @@ export default function GroupDetailsPage() {
 
   const handleModalApplyAssociatedMonitors = () => {
     setIsManageMonitorsModalOpen(false); setMonitorSearchTerm('');
-    toast({ title: "Associated Monitors Staged", description: "Changes to associated monitors are staged. Click 'Save All Changes' to persist these monitor settings along with group details." });
+    toast({ title: "Associated Monitors Staged", description: "Changes to associated monitors are staged. Click 'Save Group Details' to persist these monitor settings along with group details." });
   };
-  // === End Associated Monitors Modal Logic ===
 
 
   const getProcedureNameFromMock = (procedureId: string): string => getProcedureById(procedureId)?.name || 'Unknown Procedure';
@@ -459,7 +453,6 @@ export default function GroupDetailsPage() {
                 </CardContent>
             </Card>
 
-            {/* ASSOCIATED MONITORS - Stays as modal for now */}
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -609,3 +602,4 @@ export default function GroupDetailsPage() {
     </div>
   );
 }
+
