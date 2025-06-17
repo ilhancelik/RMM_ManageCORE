@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock } from 'lucide-react';
+import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
@@ -110,25 +110,31 @@ export default function ManageGroupProceduresPage() {
     try {
       // Validate schedules
       for (const proc of currentAssociatedProcedures) {
+        const procDetails = getProcedureById(proc.procedureId);
+        const procName = procDetails?.name || `ID: ${proc.procedureId}`;
         if (proc.schedule.type === 'runOnce' && !proc.schedule.time) {
-          toast({ title: "Validation Error", description: `Procedure "${getProcedureById(proc.procedureId)?.name}" needs a time for 'Run Once' schedule.`, variant: "destructive" });
+          toast({ title: "Validation Error", description: `Procedure "${procName}" needs a time for 'Run Once' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
         if (proc.schedule.type === 'daily' && !proc.schedule.time) {
-          toast({ title: "Validation Error", description: `Procedure "${getProcedureById(proc.procedureId)?.name}" needs a time for 'Daily' schedule.`, variant: "destructive" });
+          toast({ title: "Validation Error", description: `Procedure "${procName}" needs a time for 'Daily' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
         if (proc.schedule.type === 'weekly' && (!proc.schedule.time || proc.schedule.dayOfWeek === undefined)) {
-          toast({ title: "Validation Error", description: `Procedure "${getProcedureById(proc.procedureId)?.name}" needs a time and day for 'Weekly' schedule.`, variant: "destructive" });
+          toast({ title: "Validation Error", description: `Procedure "${procName}" needs a time and day for 'Weekly' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
         if (proc.schedule.type === 'monthly' && (!proc.schedule.time || !proc.schedule.dayOfMonth)) {
-          toast({ title: "Validation Error", description: `Procedure "${getProcedureById(proc.procedureId)?.name}" needs a time and day of month for 'Monthly' schedule.`, variant: "destructive" });
+          toast({ title: "Validation Error", description: `Procedure "${procName}" needs a time and day of month for 'Monthly' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
         if (proc.schedule.type === 'customInterval' && (!proc.schedule.intervalValue || !proc.schedule.intervalUnit)) {
-          toast({ title: "Validation Error", description: `Procedure "${getProcedureById(proc.procedureId)?.name}" needs value and unit for 'Custom Interval' schedule.`, variant: "destructive" });
+          toast({ title: "Validation Error", description: `Procedure "${procName}" needs value and unit for 'Custom Interval' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
+        }
+        if (proc.schedule.type === 'customInterval' && proc.schedule.intervalValue && proc.schedule.intervalValue < 1) {
+           toast({ title: "Validation Error", description: `Procedure "${procName}" custom interval value must be 1 or greater.`, variant: "destructive" });
+           setIsSaving(false); return;
         }
       }
 
@@ -356,9 +362,9 @@ export default function ManageGroupProceduresPage() {
                           <span className="font-mono text-xs text-muted-foreground mr-1.5">{(index + 1)}.</span>
                           {getProcedureSystemTypeIcon(procedureDetails.procedureSystemType)}
                           {procedureDetails.name}
-                          <Badge variant="outline" className="ml-1.5 text-xs px-1.5 py-0.5 h-5">{getProcedureSystemTypeLabel(procedureDetails.procedureSystemType)}</Badge>
+                          <Badge variant="outline" className="ml-2 text-xs">{getProcedureSystemTypeLabel(procedureDetails.procedureSystemType)}</Badge>
                         </h4>
-                        <p className="text-xs text-muted-foreground ml-6">{procedureDetails.description}</p>
+                        <p className="text-xs text-muted-foreground ml-7">{procedureDetails.description}</p>
                       </div>
                        <div className="flex items-center gap-0.5">
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleMoveAssociatedProcedure(index, 'up')} disabled={isSaving || index === 0} title="Move Up">
