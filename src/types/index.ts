@@ -21,10 +21,17 @@ export interface Computer {
   macAddressWifi?: string;
 }
 
+export type ScheduleType = 'disabled' | 'runOnce' | 'daily' | 'weekly' | 'monthly' | 'customInterval';
+export type CustomIntervalUnit = 'minutes' | 'hours';
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6; // Sunday to Saturday
+
 export interface ScheduleConfig {
-  type: 'disabled' | 'interval';
-  intervalValue?: number;
-  intervalUnit?: 'minutes' | 'hours' | 'days';
+  type: ScheduleType;
+  time?: string; // HH:MM, for runOnce, daily, weekly, monthly
+  dayOfWeek?: DayOfWeek; // For weekly
+  dayOfMonth?: number; // 1-31, for monthly
+  intervalValue?: number; // For customInterval
+  intervalUnit?: CustomIntervalUnit; // For customInterval
 }
 
 export interface AssociatedProcedureConfig {
@@ -35,7 +42,7 @@ export interface AssociatedProcedureConfig {
 
 export interface AssociatedMonitorConfig {
   monitorId: string;
-  schedule: ScheduleConfig;
+  schedule: ScheduleConfig; // Re-using ScheduleConfig for monitors too
 }
 
 export interface ComputerGroup {
@@ -51,22 +58,22 @@ export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
 export type ProcedureSystemType = 'CustomScript' | 'WindowsUpdate' | 'SoftwareUpdate';
 
 export interface WindowsUpdateScopeOptions {
-  includeOsUpdates?: boolean; // Temel OS, güvenlik, kalite güncellemeleri
-  includeMicrosoftProductUpdates?: boolean; // Office vb.
-  includeFeatureUpdates?: boolean; // 23H2 -> 24H2 gibi
+  includeOsUpdates?: boolean;
+  includeMicrosoftProductUpdates?: boolean;
+  includeFeatureUpdates?: boolean;
 }
 
 export interface Procedure {
   id: string;
   name: string;
   description: string;
-  scriptType: ScriptType; // Only for CustomScript
-  scriptContent: string; // Content for CustomScript, or system-defined script for others
-  runAsUser?: boolean; // Only for CustomScript
+  scriptType: ScriptType;
+  scriptContent: string;
+  runAsUser?: boolean;
   procedureSystemType: ProcedureSystemType;
-  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions; // Only for WindowsUpdate
-  softwareUpdateMode?: 'all' | 'specific'; // Only for SoftwareUpdate
-  specificSoftwareToUpdate?: string; // Only for SoftwareUpdate if mode is 'specific'
+  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions;
+  softwareUpdateMode?: 'all' | 'specific';
+  specificSoftwareToUpdate?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -86,9 +93,9 @@ export interface ProcedureExecution {
 
 export interface CustomCommand {
     id:string;
-    computerId: string; // The computer ID on which the command was last known to execute or is targeted for.
+    computerId: string;
     targetType?: 'computer' | 'group';
-    targetId: string; // Can be computerId or groupId
+    targetId: string;
     command: string;
     scriptType: ScriptType;
     runAsUser?: boolean;
@@ -103,8 +110,8 @@ export interface Monitor {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
-  defaultIntervalValue: number;
-  defaultIntervalUnit: 'minutes' | 'hours' | 'days';
+  defaultIntervalValue: number; // For customInterval type if not overridden by group
+  defaultIntervalUnit: CustomIntervalUnit; // For customInterval type
   sendEmailOnAlert: boolean;
   createdAt: string;
   updatedAt: string;
@@ -134,8 +141,8 @@ export interface SMTPSettings {
 export interface AiProviderConfig {
   id: string;
   name: string;
-  providerType: 'googleAI'; // For now, only Google AI
-  apiKey?: string; // Optional, Genkit can use env vars
+  providerType: 'googleAI';
+  apiKey?: string;
   isEnabled: boolean;
   isDefault: boolean;
 }
@@ -145,7 +152,6 @@ export interface AiSettings {
   providerConfigs: AiProviderConfig[];
 }
 
-// License Management Types
 export type LicenseTerm = 'Lifetime' | 'Annual' | 'Monthly' | 'Other';
 
 export const licenseTerms: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
@@ -156,11 +162,11 @@ export interface License {
   quantity: number;
   websitePanelAddress?: string;
   licenseTerm: LicenseTerm;
-  purchaseDate?: string | null; // ISO Date
+  purchaseDate?: string | null;
   enableExpiryDate: boolean;
-  expiryDate?: string | null; // ISO Date, null if enableExpiryDate is false or not set
+  expiryDate?: string | null;
   sendExpiryNotification?: boolean;
-  notificationDaysBefore?: number; // e.g., 1-30 days
+  notificationDaysBefore?: number;
   notes?: string;
   isActive: boolean;
   createdAt: string;

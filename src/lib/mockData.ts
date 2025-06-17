@@ -1,6 +1,6 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScopeOptions } from '@/types';
-import { toast } from '@/hooks/use-toast'; // Import toast for notifications
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScopeOptions, ScheduleType, CustomIntervalUnit, DayOfWeek } from '@/types';
+import { toast } from '@/hooks/use-toast';
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
@@ -167,10 +167,10 @@ try {
         \$upgradeErrors.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  \$\_" }
     }
 
-    if (\$exitCode -eq 0 -or \$exitCode -eq -1978334889 -or \$upgradeOutput -match "No applicable update found" -or \$upgradeOutput -match "No installed package found matching input criteria.") {
+    if (\$exitCode -eq 0 -or \$exitCode -eq -1978334889 -or \$upgradeOutput -match "No applicable update found" -or \$upgradeOutput -match "No installed package found matching input criteria.") { # -1978334889 is winget's "no update found" code
         Write-Log "Application updates completed or no updates were found/needed."
         if (\$upgradeOutput -match "No applicable update found" -or \$upgradeOutput -match "No installed package found matching input criteria." -or \$exitCode -eq -1978334889) {
-            Write-Host "OUTPUT: No application updates were found or needed."
+             Write-Host "OUTPUT: No application updates were found or needed."
         } else {
             Write-Host "OUTPUT: Application updates attempted. Review logs for details. Summary: \$(\$upgradeOutput.Split([System.Environment]::NewLine) | Select-Object -First 5 -Last 5 | Out-String)"
         }
@@ -204,7 +204,7 @@ function Write-Log {
 Write-Log "Starting Application Update procedure (winget - Specific Packages)..."
 Write-Log "Target packages: ${packageList || "NONE SPECIFIED"}"
 
-if (-not ("${packageList}").Trim()) {
+if (-not ("${packageList}".Trim())) {
     Write-Log "No specific packages were provided to update."
     Write-Host "OUTPUT: No specific packages were specified for update."
     exit 0
@@ -234,25 +234,29 @@ foreach (\$pkgId in \$packages) {
         \$processInfoArgs = "upgrade --id \$(\$pkgId) --silent --accept-source-agreements --accept-package-agreements"
         Write-Log "Executing: winget \$(\$processInfoArgs)"
 
-        # Using a temporary file for output redirection as it's more robust with Start-Process
         \$outputFile = New-TemporaryFile
         \$errorFile = New-TemporaryFile
         
-        \$process = Start-Process winget -ArgumentList \$processInfoArgs -PassThru -Wait -RedirectStandardOutput \$outputFile.FullName -RedirectStandardError \$errorFile.FullName -WindowStyle Hidden
-        \$exitCode = \$process.ExitCode
-        \$upgradeOutput = Get-Content \$outputFile.FullName -Raw
-        \$upgradeErrors = Get-Content \$errorFile.FullName -Raw
+        # Using Start-Process as it's generally more robust for external commands, especially with output redirection.
+        # The -Wait parameter is crucial here.
+        \$process = Start-Process winget -ArgumentList \$processInfoArgs -PassThru -Wait -RedirectStandardOutput \$outputFile.FullName -RedirectStandardError \$errorFile.FullName -WindowStyle Hidden -ErrorAction Stop
+        
+        \$exitCode = \$process.ExitCode # Should be available after -Wait
+        \$upgradeOutput = Get-Content \$outputFile.FullName -Raw -ErrorAction SilentlyContinue
+        \$upgradeErrors = Get-Content \$errorFile.FullName -Raw -ErrorAction SilentlyContinue
+        
         Remove-Item \$outputFile.FullName, \$errorFile.FullName -Force -ErrorAction SilentlyContinue
         
         Write-Log "Package '\$(\$pkgId)' upgrade attempt. Exit Code: \$(\$exitCode)"
         if (\$upgradeOutput) { Write-Log "Output for \$(\$pkgId): \$(\$upgradeOutput)" }
         if (\$upgradeErrors) { Write-Log "Error for \$(\$pkgId): \$(\$upgradeErrors)" }
 
-        if (\$exitCode -ne 0 -and \$exitCode -ne -1978334889) { # -1978334889 is often "no update found"
-            \$overallSuccess = \$false
+        if (\$exitCode -ne 0 -and \$exitCode -ne -1978334889) { # -1978334889 is winget's "no update found" code
+            Write-Log "Package \$(\$pkgId) upgrade potentially failed or had issues. Exit code: \$(\$exitCode)"
+            \$overallSuccess = \$false # Mark overall as not fully successful if any package fails
         }
          \$allOutputs += "--- \$(\$pkgId) Output (Exit Code: \$(\$exitCode)) ---\`n\$(\$upgradeOutput)"
-         \$allErrors += "--- \$(\$pkgId) Errors ---\`n\$(\$upgradeErrors)"
+         if(\$upgradeErrors) { \$allErrors += "--- \$(\$pkgId) Errors ---\`n\$(\$upgradeErrors)" }
 
     } catch {
         Write-Log "Error processing package \$(\$pkgId): \$(\$_.Exception.Message)"
@@ -267,7 +271,6 @@ if (\$overallSuccess) {
 } else {
     Write-Log "One or more specified application updates failed or had issues."
     Write-Host "ERROR: One or more specified application updates failed. Review logs. Summary:\`n\$(\$allOutputs -join "\`\`n\`\`n")\`nErrors:\`n\$(\$allErrors -join "\`\`n\`\`n")"
-    # exit 1 # Decide if partial success is an overall failure for the RMM
 }
 
 Write-Log "Application Update procedure (winget - Specific Packages) finished."
@@ -320,9 +323,9 @@ export let mockProcedures: Procedure[] = [
     id: 'proc-4',
     name: 'Managed Windows Updates',
     description: 'Installs selected categories of Windows updates. Does not force a system reboot.',
-    scriptType: 'PowerShell',
-    scriptContent: windowsUpdateScriptContent,
-    runAsUser: false,
+    scriptType: 'PowerShell', // System managed, but underlying is PS
+    scriptContent: windowsUpdateScriptContent, // System defined
+    runAsUser: false, // System managed
     procedureSystemType: 'WindowsUpdate',
     windowsUpdateScopeOptions: { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true },
     createdAt: new Date().toISOString(),
@@ -335,15 +338,15 @@ const defaultSchedule: ScheduleConfig = { type: 'disabled' };
 export let mockComputerGroups: ComputerGroup[] = [
   { id: 'group-1', name: 'Development Machines', description: 'All computers used by the development team.', computerIds: ['comp-1', 'comp-3'],
     associatedProcedures: [
-        { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'interval', intervalValue: 24, intervalUnit: 'hours'} },
-        { procedureId: 'proc-4', runOnNewMember: false, schedule: { type: 'interval', intervalValue: 7, intervalUnit: 'days'} }
+        { procedureId: 'proc-1', runOnNewMember: true, schedule: { type: 'daily', time: '03:00'} },
+        { procedureId: 'proc-4', runOnNewMember: false, schedule: { type: 'weekly', dayOfWeek: 1, time: '02:00'} }
     ],
-    associatedMonitors: [{monitorId: 'mon-1', schedule: { type: 'interval', intervalValue: 5, intervalUnit: 'minutes'}}]
+    associatedMonitors: [{monitorId: 'mon-1', schedule: { type: 'customInterval', intervalValue: 5, intervalUnit: 'minutes'}}]
   },
   { id: 'group-2', name: 'Production Servers', description: 'Critical production servers.', computerIds: ['comp-2', 'comp-5'],
     associatedProcedures: [
         { procedureId: 'proc-2', runOnNewMember: false, schedule: defaultSchedule },
-        { procedureId: 'proc-4', runOnNewMember: true, schedule: {type: 'interval', intervalValue: 1, intervalUnit: 'days'}}
+        { procedureId: 'proc-4', runOnNewMember: true, schedule: {type: 'daily', time: '01:00'}}
     ],
     associatedMonitors: []
   },
@@ -518,8 +521,7 @@ export const updateComputer = (id: string, updates: Partial<Computer>): Computer
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      // @ts-ignore - assuming Computer type might have updatedAt later, or it's fine for mock
-      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() };
+      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; // Assume updatedAt is part of Computer or add it
       return updatedComputer;
     }
     return c;
@@ -547,7 +549,7 @@ export const addComputerGroup = (groupData: Omit<ComputerGroup, 'id'>): Computer
     ...groupData,
     id: `group-${Date.now()}`,
     associatedProcedures: (groupData.associatedProcedures || []).map(ap => ({...ap, schedule: ap.schedule || { type: 'disabled' }})),
-    associatedMonitors: (groupData.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'interval', intervalValue: 15, intervalUnit: 'minutes' }})),
+    associatedMonitors: (groupData.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'customInterval', intervalValue: 15, intervalUnit: 'minutes' }})),
   };
   mockComputerGroups = [...mockComputerGroups, newGroup];
   newGroup.computerIds.forEach(compId => {
@@ -571,14 +573,13 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
      ...oldGroup,
      ...updates,
      associatedProcedures: (updates.associatedProcedures || oldGroup.associatedProcedures || []).map(ap => ({...ap, schedule: ap.schedule || { type: 'disabled' }})),
-     associatedMonitors: (updates.associatedMonitors || oldGroup.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'interval', intervalValue: 15, intervalUnit: 'minutes'}})),
+     associatedMonitors: (updates.associatedMonitors || oldGroup.associatedMonitors || []).map(am => ({...am, schedule: am.schedule || { type: 'customInterval', intervalValue: 15, intervalUnit: 'minutes'}})),
   };
   mockComputerGroups[oldGroupIndex] = updatedGroup;
 
   const oldComputerIdsSet = new Set(oldGroup.computerIds);
   const newComputerIdsSet = new Set(updatedGroup.computerIds);
 
-  // Update computers removed from the group
   oldGroup.computerIds.forEach(compId => {
     if (!newComputerIdsSet.has(compId)) {
       const comp = getComputerById(compId);
@@ -588,13 +589,12 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
     }
   });
 
-  // Update computers added to the group and trigger procedures for new members
   updatedGroup.computerIds.forEach(compId => {
     const comp = getComputerById(compId);
-    if (comp && !(comp.groupIds || []).includes(id)) { // Computer is in the group, ensure its groupIds list reflects this
+    if (comp && !(comp.groupIds || []).includes(id)) {
       updateComputer(compId, { groupIds: [...(comp.groupIds || []), id] });
     }
-    if (comp && !oldComputerIdsSet.has(compId)) { // Computer was newly added to the group
+    if (comp && !oldComputerIdsSet.has(compId)) {
       triggerAutomatedProceduresForNewMember(compId, updatedGroup!.id);
     }
   });
@@ -641,7 +641,7 @@ export const addProcedure = (
     } else {
       finalScriptContent = softwareUpdateWingetScriptSpecific(finalSpecificSoftware);
     }
-  } else { // CustomScript
+  } else {
      finalScriptType = procData.scriptType;
      finalScriptContent = procData.scriptContent;
      finalRunAsUser = procData.runAsUser || false;
@@ -680,9 +680,9 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
 
       if (currentSystemType === 'WindowsUpdate') {
          newWindowsUpdateScopeOptions = updates.windowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true };
-         newScriptContent = windowsUpdateScriptContent; // System defined
-         newScriptType = 'PowerShell'; // System defined
-         newRunAsUser = false; // System defined
+         newScriptContent = windowsUpdateScriptContent;
+         newScriptType = 'PowerShell';
+         newRunAsUser = false;
          updatedProcedure = {
            ...p,
            name: updates.name || p.name,
@@ -703,8 +703,8 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
           } else {
               newScriptContent = softwareUpdateWingetScriptSpecific(newSpecificSoftware);
           }
-          newScriptType = 'PowerShell'; // System defined
-          newRunAsUser = false; // System defined
+          newScriptType = 'PowerShell';
+          newRunAsUser = false;
           updatedProcedure = {
             ...p,
             name: updates.name || p.name,
@@ -717,15 +717,14 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
             runAsUser: newRunAsUser,
             updatedAt: new Date().toISOString()
           };
-      } else { // CustomScript
+      } else { 
          updatedProcedure = {
            ...p,
-           ...updates, // Apply all general updates first
-           procedureSystemType: 'CustomScript', // Ensure it stays custom
-           scriptType: updates.scriptType || p.scriptType, // Keep existing if not updated
-           scriptContent: updates.scriptContent || p.scriptContent, // Keep existing if not updated
+           ...updates,
+           procedureSystemType: 'CustomScript',
+           scriptType: updates.scriptType || p.scriptType, 
+           scriptContent: updates.scriptContent || p.scriptContent, 
            runAsUser: updates.runAsUser ?? p.runAsUser ?? false,
-           // Clear system-specific options if it's now a CustomScript
            windowsUpdateScopeOptions: undefined,
            softwareUpdateMode: undefined,
            specificSoftwareToUpdate: undefined,
@@ -768,13 +767,12 @@ export const getProcedureExecutionsForProcedure = (procedureId: string): Procedu
 }
 
 const getWindowsUpdateScopeLogText = (options?: WindowsUpdateScopeOptions): string => {
-    if (!options) return "Kapsam: Varsayılan (Tümü)";
+    if (!options) return "Kapsam: Belirtilmemiş (varsayılan tümü olabilir)";
     const scopes: string[] = [];
-    if (options.includeOsUpdates) scopes.push("OS Güncellemeleri");
+    if (options.includeOsUpdates) scopes.push("İS Güncellemeleri");
     if (options.includeMicrosoftProductUpdates) scopes.push("Microsoft Ürünleri");
     if (options.includeFeatureUpdates) scopes.push("Özellik Güncellemeleri");
-    if (scopes.length === 0) return "Kapsam: Hiçbiri seçilmedi (etkisiz)";
-    if (scopes.length === 3) return "Kapsam: Tümü";
+    if (scopes.length === 0) return "Kapsam: Hiçbiri seçilmedi";
     return `Kapsam: ${scopes.join(', ')}`;
 };
 
@@ -844,9 +842,9 @@ export const executeMockProcedure = (procedureId: string, computerIds: string[])
                 procedureId,
                 computerId: compId,
                 status: 'Pending',
-                logs: ``, // Initial log message will be constructed in addProcedureExecution
+                logs: ``, 
                 startTime: new Date().toISOString(),
-                runAsUser: proc.procedureSystemType === 'CustomScript' ? proc.runAsUser : false, // System procedures run as SYSTEM
+                runAsUser: proc.procedureSystemType === 'CustomScript' ? proc.runAsUser : false,
             });
             executions.push(exec);
         }
@@ -934,8 +932,8 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
             const newCommand: CustomCommand = {
                 ...baseCommand,
                 id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-                computerId: compId, // For group commands, computerId refers to the specific member
-                targetId: group.id, // targetId remains the group's ID
+                computerId: compId, 
+                targetId: group.id, 
                 targetType: 'group'
             };
             mockCustomCommands = [newCommand, ...mockCustomCommands];
@@ -943,13 +941,13 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
         }
     });
      if (commandsSent.length === 0 && group.computerIds.length > 0) {
-         const groupSendCommand: CustomCommand = { // A single command representing the attempt on the group
+         const groupSendCommand: CustomCommand = { 
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, // For display purposes, point to the group itself
+            computerId: group.id, 
             targetId: group.id,
             targetType: 'group',
-            status: 'Sent', // Or perhaps 'Information' or 'NoOnlineMembers'
+            status: 'Sent', 
             output: "Command sent to group, but no online members found to execute immediately."
         };
         mockCustomCommands = [groupSendCommand, ...mockCustomCommands];
@@ -957,7 +955,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     }
     return commandsSent;
 
-  } else { // targetType === 'computer'
+  } else { 
     const computer = getComputerById(commandData.targetId);
     if (!computer) throw new Error('Computer not found');
     if (computer.status !== 'Online') throw new Error('Computer is offline. Command cannot be sent.');
@@ -965,7 +963,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
     const newCommand: CustomCommand = {
         ...baseCommand,
         id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        computerId: commandData.targetId, // For computer commands, computerId is the targetId
+        computerId: commandData.targetId, 
         targetId: commandData.targetId,
         targetType: 'computer'
     };
@@ -984,7 +982,6 @@ export const getAiSettings = (): AiSettings => {
   if (!mockAiSettings.providerConfigs) {
     mockAiSettings.providerConfigs = [];
   }
-  // Ensure there's always a default if any provider is enabled
   const hasDefault = mockAiSettings.providerConfigs.some(p => p.isDefault && p.isEnabled);
   if (!hasDefault) {
     const firstEnabled = mockAiSettings.providerConfigs.find(p => p.isEnabled);
@@ -999,45 +996,39 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
   let newProviderConfigs = [...(settings.providerConfigs || [])];
   let defaultProviderId: string | null = null;
 
-  // First pass: identify if an explicit default is set and enabled
   let explicitlySetDefaultExists = false;
   newProviderConfigs.forEach(p => {
     if (p.isDefault) {
-      if (!explicitlySetDefaultExists) { // Only one can be default
+      if (!explicitlySetDefaultExists) { 
         defaultProviderId = p.id;
-        p.isEnabled = true; // Default must be enabled
+        p.isEnabled = true; 
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false; // Ensure no other provider is marked default
+        p.isDefault = false; 
       }
     }
   });
 
-  // If no explicit default was found (or if it was disabled and deselected),
-  // try to set the first enabled provider as default.
   if (!defaultProviderId) {
     const firstEnabledProvider = newProviderConfigs.find(p => p.isEnabled);
     if (firstEnabledProvider) {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
-      firstEnabledProvider.isEnabled = true; // Should already be true, but ensure
+      firstEnabledProvider.isEnabled = true; 
     }
   }
 
-   // If still no default (e.g., all providers are disabled, or no providers exist),
-   // and if there are providers, make the first one default and enable it.
    if (!defaultProviderId && newProviderConfigs.length > 0) {
     newProviderConfigs[0].isDefault = true;
     newProviderConfigs[0].isEnabled = true;
     defaultProviderId = newProviderConfigs[0].id;
   }
 
-  // Ensure only the true default is marked and enabled
   if (defaultProviderId) {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, // Default must be enabled
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, 
     }));
   }
 
@@ -1077,12 +1068,10 @@ export const triggerAutomatedProceduresForNewMember = (computerId: string, group
     }
 };
 
-// --- License Management Mock Data & Functions ---
 let notifiedLicenseIdsThisSession: Set<string> = new Set();
 
 export const getLicenses = (): License[] => {
   const today = new Date();
-  // Simulate license expiry notifications
   mockLicenses.forEach(lic => {
     if (lic.isActive && lic.enableExpiryDate && lic.expiryDate && lic.sendExpiryNotification && lic.notificationDaysBefore) {
       const expiryDate = new Date(lic.expiryDate);
@@ -1091,18 +1080,15 @@ export const getLicenses = (): License[] => {
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
         if (!notifiedLicenseIdsThisSession.has(lic.id)) {
-          // In a real app, this would trigger an email or other notification.
-          // Here, we'll just log it and use a toast if SMTP is configured.
-          // console.log(`LICENSE ALERT (Mock): License "${lic.productName}" will expire in ${diffDays} day(s).`);
-          if (mockSmtpSettings.defaultToEmail) { // Check if a recipient is configured
+          if (mockSmtpSettings.defaultToEmail) { 
             toast({
               title: "License Expiry Alert",
               description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
-              variant: "default", // Or "destructive" if very soon
+              variant: "default", 
               duration: 10000,
             });
           }
-          notifiedLicenseIdsThisSession.add(lic.id); // Mark as notified for this session
+          notifiedLicenseIdsThisSession.add(lic.id); 
         }
       }
     }
@@ -1121,11 +1107,11 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     id: `lic-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    sendExpiryNotification: licenseData.sendExpiryNotification ?? false, // Default if undefined
-    notificationDaysBefore: licenseData.notificationDaysBefore ?? 30, // Default if undefined
+    sendExpiryNotification: licenseData.sendExpiryNotification ?? false, 
+    notificationDaysBefore: licenseData.notificationDaysBefore ?? 30, 
   };
   mockLicenses = [...mockLicenses, newLicense];
-  notifiedLicenseIdsThisSession.clear(); // Reset session notifications on data change
+  notifiedLicenseIdsThisSession.clear(); 
   return newLicense;
 };
 
@@ -1144,52 +1130,39 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
     }
     return lic;
   });
-  notifiedLicenseIdsThisSession.clear(); // Reset session notifications on data change
+  notifiedLicenseIdsThisSession.clear(); 
   return updatedLicense;
 };
 
 export const deleteLicenseFromMock = (id: string): boolean => {
   const initialLength = mockLicenses.length;
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
-  notifiedLicenseIdsThisSession.delete(id); // Remove from session notifications if deleted
+  notifiedLicenseIdsThisSession.delete(id); 
   return mockLicenses.length < initialLength;
 };
 
-// Function to simulate periodic monitor checks (simplified)
 function simulateMonitorChecks() {
-    // console.log("Simulating monitor checks for online computers...");
-    // This would iterate through online computers, check their group's associated monitors,
-    // and if a monitor's schedule is met, simulate its script execution and log the result.
-    // For brevity, this is highly simplified here.
 }
 
-// Run simulation only in browser environment
 if (typeof window !== 'undefined') {
-    // setInterval(simulateMonitorChecks, 30000); // e.g., every 30 seconds
 }
 
-// Ensure existing mock data conforms to new types if necessary
 mockProcedures = mockProcedures.map(p => ({
     ...p,
-    runAsUser: p.runAsUser || false, // Default to false if undefined
-    procedureSystemType: p.procedureSystemType || 'CustomScript' // Default to CustomScript if undefined
+    runAsUser: p.runAsUser || false, 
+    procedureSystemType: p.procedureSystemType || 'CustomScript' 
 }));
 
-// Ensure proc-4 (Windows Update) is correctly typed
 const proc4Index = mockProcedures.findIndex(p => p.id === 'proc-4');
 if (proc4Index !== -1) {
     mockProcedures[proc4Index].procedureSystemType = 'WindowsUpdate';
     mockProcedures[proc4Index].windowsUpdateScopeOptions = mockProcedures[proc4Index].windowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true };
-    mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent; // Ensure it has the system script
+    mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent; 
     mockProcedures[proc4Index].scriptType = 'PowerShell';
     mockProcedures[proc4Index].runAsUser = false;
     mockProcedures[proc4Index].description = mockProcedures[proc4Index].description || 'Installs selected categories of Windows updates. Does not force a system reboot.';
 }
 
-
-// Ensure default runAsUser is false for custom commands
 mockCustomCommands = mockCustomCommands.map(c => ({...c, runAsUser: c.runAsUser || false }));
-// Ensure default runAsUser for procedure executions (especially for older data)
 mockProcedureExecutions = mockProcedureExecutions.map(e => ({...e, runAsUser: e.runAsUser || false }));
-
     
