@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock, Settings, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent, DialogClose } from '@/components/ui/dialog'; // DialogTrigger removed as it's not directly used on page level
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -252,8 +252,8 @@ export default function ManageGroupProceduresPage() {
     }
   };
   
-  const formatScheduleSummary = (schedule: ScheduleConfig): string => {
-    if (schedule.type === 'disabled') return 'Disabled';
+  const formatScheduleSummary = (schedule?: ScheduleConfig): string => {
+    if (!schedule || schedule.type === 'disabled') return 'Disabled';
     if (schedule.type === 'runOnce') return `Once at ${schedule.time || 'N/A'}`;
     if (schedule.type === 'daily') return `Daily at ${schedule.time || 'N/A'}`;
     if (schedule.type === 'weekly') {
@@ -292,11 +292,12 @@ export default function ManageGroupProceduresPage() {
         </Button>
         <div className="flex items-center gap-4">
             <Dialog open={isAddProceduresModalOpen} onOpenChange={(isOpen) => { setIsAddProceduresModalOpen(isOpen); if(!isOpen) { setAddProcToGroupSearchTerm(''); setTempSelectedProcIdsForAddDialog(new Set());}}}>
-                <DialogTrigger asChild>
-                    <Button variant="outline" disabled={isSaving} className="h-9 text-sm">
+                <DialogHeader className="sr-only"><DialogTitle>Add Procedures Modal</DialogTitle></DialogHeader> 
+                <Button asChild variant="outline" disabled={isSaving} className="h-9 text-sm">
+                   <DialogTrigger>
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Procedures to Group
-                    </Button>
-                </DialogTrigger>
+                   </DialogTrigger>
+                </Button>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Add Procedures to Group: {group.name}</DialogTitle>
@@ -338,7 +339,7 @@ export default function ManageGroupProceduresPage() {
                         ))}
                     </ScrollArea>
                     <DialogFooter className="pt-4">
-                        <Button variant="outline" onClick={() => { setIsAddProceduresModalOpen(false); setAddProcToGroupSearchTerm(''); setTempSelectedProcIdsForAddDialog(new Set());}} disabled={isSaving} className="h-9 text-sm">Cancel</Button>
+                         <DialogClose asChild><Button variant="outline" disabled={isSaving} className="h-9 text-sm">Cancel</Button></DialogClose>
                         <Button onClick={handleAddProceduresToGroupDialogSubmit} disabled={isSaving || tempSelectedProcIdsForAddDialog.size === 0} className="h-9 text-sm">
                             Add Selected ({tempSelectedProcIdsForAddDialog.size}) to List
                         </Button>
@@ -376,7 +377,7 @@ export default function ManageGroupProceduresPage() {
                     </div>
                   );
                 }
-                const currentScheduleType = assocProc.schedule?.type || 'disabled';
+                
                 return (
                   <Card key={assocProc.procedureId} className="p-3">
                     <div className="flex justify-between items-start mb-2.5">
@@ -417,102 +418,99 @@ export default function ManageGroupProceduresPage() {
                         
                         <div className="space-y-1.5">
                             <Label className="text-xs font-semibold text-muted-foreground">Schedule Execution</Label>
-                            <div className="flex items-center gap-1.5">
-                                <Select
-                                    value={currentScheduleType}
-                                    onValueChange={(value: ScheduleType) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.type', value)}
-                                    disabled={isSaving}
-                                >
-                                    <SelectTrigger className="flex-1 h-8 text-xs px-2"><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        {scheduleTypes.map(st => <SelectItem key={st.value} value={st.value} className="text-xs">{st.label}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                                {currentScheduleType !== 'disabled' && (
-                                    <Popover open={editingScheduleForProcId === assocProc.procedureId} onOpenChange={(isOpen) => setEditingScheduleForProcId(isOpen ? assocProc.procedureId : null)}>
-                                        <PopoverTrigger asChild>
-                                            <Button variant="outline" size="icon" className="h-8 w-8" disabled={isSaving} title="Configure Schedule Details">
-                                                <Settings className="h-4 w-4" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-64 p-3 space-y-2">
-                                            <p className="text-sm font-medium mb-2 border-b pb-2">Details for: {scheduleTypes.find(s => s.value === currentScheduleType)?.label}</p>
-                                            {(currentScheduleType === 'runOnce' || currentScheduleType === 'daily' || currentScheduleType === 'weekly' || currentScheduleType === 'monthly') && (
-                                                <div className="space-y-0.5">
-                                                    <Label htmlFor={`time-${assocProc.procedureId}`} className="text-xs">Time (HH:MM)</Label>
-                                                    <Input
-                                                        id={`time-${assocProc.procedureId}`}
-                                                        type="time"
-                                                        value={assocProc.schedule.time || ''}
-                                                        onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.time', e.target.value)}
-                                                        disabled={isSaving} className="h-8 text-xs px-2"
-                                                    />
-                                                </div>
-                                            )}
-                                            {currentScheduleType === 'weekly' && (
-                                                <div className="space-y-0.5">
-                                                    <Label htmlFor={`dayOfWeek-${assocProc.procedureId}`} className="text-xs">Day of Week</Label>
-                                                    <Select
-                                                        value={assocProc.schedule.dayOfWeek?.toString() || '1'}
-                                                        onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfWeek', parseInt(value))}
-                                                        disabled={isSaving}
-                                                    >
-                                                        <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {daysOfWeek.map(day => <SelectItem key={day.value} value={day.value.toString()} className="text-xs">{day.label}</SelectItem>)}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                            )}
-                                            {currentScheduleType === 'monthly' && (
-                                                <div className="space-y-0.5">
-                                                    <Label htmlFor={`dayOfMonth-${assocProc.procedureId}`} className="text-xs">Day of Month (1-31)</Label>
-                                                    <Input
-                                                        id={`dayOfMonth-${assocProc.procedureId}`}
-                                                        type="number" min="1" max="31"
-                                                        value={assocProc.schedule.dayOfMonth || ''}
-                                                        onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfMonth', e.target.value ? parseInt(e.target.value) : undefined)}
-                                                        disabled={isSaving} className="h-8 text-xs px-2"
-                                                    />
-                                                </div>
-                                            )}
-                                            {currentScheduleType === 'customInterval' && (
-                                                <>
-                                                    <div className="space-y-0.5">
-                                                        <Label htmlFor={`intervalValue-${assocProc.procedureId}`} className="text-xs">Value</Label>
-                                                        <Input
-                                                            id={`intervalValue-${assocProc.procedureId}`}
-                                                            type="number" placeholder="Val" min="1"
-                                                            value={assocProc.schedule.intervalValue || ''}
-                                                            onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
-                                                            disabled={isSaving} className="h-8 text-xs px-2"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-0.5">
-                                                        <Label htmlFor={`intervalUnit-${assocProc.procedureId}`} className="text-xs">Unit</Label>
-                                                        <Select
-                                                            value={assocProc.schedule.intervalUnit || 'minutes'}
-                                                            onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalUnit', value as CustomIntervalUnit)}
-                                                            disabled={isSaving}
-                                                        >
-                                                            <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
-                                                            <SelectContent>
-                                                                {customIntervalUnits.map(unit => <SelectItem key={unit.value} value={unit.value} className="text-xs">{unit.label}</SelectItem>)}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </>
-                                            )}
-                                            <Button size="xs" className="mt-2 w-full h-7 text-xs" onClick={() => setEditingScheduleForProcId(null)}>Done</Button>
-                                        </PopoverContent>
-                                    </Popover>
-                                )}
-                            </div>
-                            {currentScheduleType !== 'disabled' && (
-                                 <p className="text-xs text-muted-foreground pl-1 pt-0.5">
-                                    Current: {formatScheduleSummary(assocProc.schedule)}
-                                </p>
-                            )}
+                             <Popover open={editingScheduleForProcId === assocProc.procedureId} onOpenChange={(isOpen) => setEditingScheduleForProcId(isOpen ? assocProc.procedureId : null)}>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-full justify-start text-left h-8 text-xs px-2 font-normal" disabled={isSaving}>
+                                        <Clock className="mr-1.5 h-3.5 w-3.5 opacity-70" />
+                                        <span className="truncate flex-1">{formatScheduleSummary(assocProc.schedule)}</span>
+                                        <Settings className="ml-auto h-3.5 w-3.5 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-64 p-3 space-y-2">
+                                    <p className="text-sm font-medium mb-1 border-b pb-1.5">Configure Schedule</p>
+                                    <div className="space-y-0.5">
+                                        <Label htmlFor={`scheduleType-${assocProc.procedureId}`} className="text-xs">Type</Label>
+                                        <Select
+                                            value={assocProc.schedule?.type || 'disabled'}
+                                            onValueChange={(value: ScheduleType) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.type', value)}
+                                            disabled={isSaving}
+                                        >
+                                            <SelectTrigger id={`scheduleType-${assocProc.procedureId}`} className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
+                                            <SelectContent>
+                                                {scheduleTypes.map(st => <SelectItem key={st.value} value={st.value} className="text-xs">{st.label}</SelectItem>)}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {(assocProc.schedule?.type === 'runOnce' || assocProc.schedule?.type === 'daily' || assocProc.schedule?.type === 'weekly' || assocProc.schedule?.type === 'monthly') && (
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor={`time-${assocProc.procedureId}`} className="text-xs">Time (HH:MM)</Label>
+                                            <Input
+                                                id={`time-${assocProc.procedureId}`}
+                                                type="time"
+                                                value={assocProc.schedule.time || ''}
+                                                onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.time', e.target.value)}
+                                                disabled={isSaving} className="h-8 text-xs px-2"
+                                            />
+                                        </div>
+                                    )}
+                                    {assocProc.schedule?.type === 'weekly' && (
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor={`dayOfWeek-${assocProc.procedureId}`} className="text-xs">Day of Week</Label>
+                                            <Select
+                                                value={assocProc.schedule.dayOfWeek?.toString() || '1'}
+                                                onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfWeek', parseInt(value))}
+                                                disabled={isSaving}
+                                            >
+                                                <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
+                                                <SelectContent>
+                                                    {daysOfWeek.map(day => <SelectItem key={day.value} value={day.value.toString()} className="text-xs">{day.label}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+                                    {assocProc.schedule?.type === 'monthly' && (
+                                        <div className="space-y-0.5">
+                                            <Label htmlFor={`dayOfMonth-${assocProc.procedureId}`} className="text-xs">Day of Month (1-31)</Label>
+                                            <Input
+                                                id={`dayOfMonth-${assocProc.procedureId}`}
+                                                type="number" min="1" max="31"
+                                                value={assocProc.schedule.dayOfMonth || ''}
+                                                onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.dayOfMonth', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                disabled={isSaving} className="h-8 text-xs px-2"
+                                            />
+                                        </div>
+                                    )}
+                                    {assocProc.schedule?.type === 'customInterval' && (
+                                        <>
+                                            <div className="space-y-0.5">
+                                                <Label htmlFor={`intervalValue-${assocProc.procedureId}`} className="text-xs">Value</Label>
+                                                <Input
+                                                    id={`intervalValue-${assocProc.procedureId}`}
+                                                    type="number" placeholder="Val" min="1"
+                                                    value={assocProc.schedule.intervalValue || ''}
+                                                    onChange={(e) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalValue', e.target.value ? parseInt(e.target.value) : undefined)}
+                                                    disabled={isSaving} className="h-8 text-xs px-2"
+                                                />
+                                            </div>
+                                            <div className="space-y-0.5">
+                                                <Label htmlFor={`intervalUnit-${assocProc.procedureId}`} className="text-xs">Unit</Label>
+                                                <Select
+                                                    value={assocProc.schedule.intervalUnit || 'minutes'}
+                                                    onValueChange={(value) => handleAssociatedProcedureConfigChange(assocProc.procedureId, 'schedule.intervalUnit', value as CustomIntervalUnit)}
+                                                    disabled={isSaving}
+                                                >
+                                                    <SelectTrigger className="h-8 text-xs px-2"><SelectValue /></SelectTrigger>
+                                                    <SelectContent>
+                                                        {customIntervalUnits.map(unit => <SelectItem key={unit.value} value={unit.value} className="text-xs">{unit.label}</SelectItem>)}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        </>
+                                    )}
+                                    <Button size="xs" className="mt-2 w-full h-7 text-xs" onClick={() => setEditingScheduleForProcId(null)}>Done</Button>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     </div>
                   </Card>
