@@ -1,59 +1,11 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType } from '@/types';
 import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
 export const licenseTermsList: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
 
-
-export let mockComputers: Computer[] = [
-  {
-    id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101',
-    lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'],
-    model: 'Dell XPS 15', processor: 'Intel Core i7-11800H @ 2.30GHz, 8C/16T', ramSize: '32 GB RAM', storage: '1TB NVMe SSD',
-    graphicsCard: 'NVIDIA GeForce RTX 3050 Ti', serialNumber: 'DEVXPS15001', publicIpAddress: '88.99.170.10',
-    macAddressLan: '00:1A:2B:3C:4D:5E', macAddressWifi: '00:1A:2B:3C:4D:5F',
-  },
-  {
-    id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5',
-    lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'],
-    model: 'HP ProLiant DL380 Gen10', processor: 'Intel Xeon Silver 4210 @ 2.20GHz, 10C/20T', ramSize: '64 GB ECC RAM', storage: '2x 4TB SAS RAID 1',
-    graphicsCard: 'Matrox G200eH2', serialNumber: 'PRODSERV002', publicIpAddress: '212.58.244.70',
-    macAddressLan: 'A0:B1:C2:D3:E4:F0', macAddressWifi: undefined,
-  },
-  {
-    id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153',
-    lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'],
-    model: 'Lenovo ThinkPad X1 Carbon', processor: 'Intel Core i5-10210U @ 1.60GHz, 4C/8T', ramSize: '16 GB RAM', storage: '512GB NVMe SSD',
-    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20',
-    macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD',
-  },
-  {
-    id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20',
-    lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [],
-    model: 'Advantech Kiosk TPC-1551T', processor: 'Intel Celeron J1900 @ 2.00GHz, 4C/4T', ramSize: '4 GB RAM', storage: '128GB SSD',
-    graphicsCard: 'Intel HD Graphics', serialNumber: 'KIOSKLOBBY004', publicIpAddress: '91.101.190.30',
-    macAddressLan: 'DD:EE:FF:77:88:99', macAddressWifi: 'DD:EE:FF:77:88:9A',
-  },
-  {
-    id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15',
-    lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'],
-    model: 'VMware Virtual Platform', processor: 'Virtual CPU @ 2.50GHz, 2C/4T', ramSize: '8 GB RAM', storage: '250GB Virtual Disk',
-    graphicsCard: 'VMware SVGA II Adapter', serialNumber: 'VMTESTENV005', publicIpAddress: '212.58.244.75',
-    macAddressLan: '00:0C:29:1A:2B:3C', macAddressWifi: undefined,
-  },
-];
-
-export let mockProcedures: Procedure[] = [
-  { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', runAsUser: false, createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
-  { id: 'proc-3', name: 'Apply Security Registry Fix (CMD)', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', runAsUser: false, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
-  {
-    id: 'proc-4',
-    name: 'Manage Windows Updates',
-    description: 'Checks for, downloads, and installs Windows updates. Logs if a reboot is required but does not force it.',
-    scriptType: 'PowerShell',
-    scriptContent: `
+const windowsUpdateScriptContent = `
 # Script to check, download, and install Windows Updates without rebooting.
 
 function Write-Log {
@@ -147,8 +99,138 @@ try {
     Write-Host "ERROR: $($_.Exception.Message)"
     exit 1
 }
-`,
+`;
+
+const softwareUpdateWingetScriptContent = `
+# Script to update all applications using winget.
+# This is a placeholder for a more advanced 3rd party patch management feature.
+# Currently, it attempts to upgrade all packages.
+
+function Write-Log {
+    param ([string]$Message)
+    Write-Host "LOG: $($Message)"
+}
+
+Write-Log "Starting Application Update procedure (winget)..."
+
+$wingetPath = Get-Command winget -ErrorAction SilentlyContinue
+if (-not $wingetPath) {
+    Write-Log "winget command not found. Please ensure App Installer (winget) is installed and in PATH."
+    Write-Host "ERROR: winget command not found. Cannot proceed with updates."
+    exit 1
+}
+Write-Log "winget found at: $($wingetPath.Source)"
+
+Write-Log "Attempting to upgrade all applications using 'winget upgrade --all --silent --accept-source-agreements --accept-package-agreements'..."
+$upgradeOutput = ""
+$upgradeErrors = ""
+
+try {
+    $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $processInfo.FileName = "winget"
+    $processInfo.Arguments = "upgrade --all --silent --accept-source-agreements --accept-package-agreements"
+    $processInfo.RedirectStandardOutput = $true
+    $processInfo.RedirectStandardError = $true
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $processInfo
+    
+    $process.Start() | Out-Null
+    
+    $upgradeOutput = $process.StandardOutput.ReadToEnd()
+    $upgradeErrors = $process.StandardError.ReadToEnd()
+    
+    $process.WaitForExit()
+    
+    $exitCode = $process.ExitCode
+    Write-Log "Winget process exit code: $exitCode"
+    
+    if ($upgradeOutput) {
+        Write-Log "Winget Standard Output:"
+        $upgradeOutput.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  $_" }
+    }
+    if ($upgradeErrors) {
+        Write-Log "Winget Standard Error:"
+        $upgradeErrors.Split([System.Environment]::NewLine) | ForEach-Object { Write-Log "  $_" }
+    }
+
+    if ($exitCode -eq 0 -or $exitCode -eq -1978334889 -or $upgradeOutput -match "No applicable update found" -or $upgradeOutput -match "No installed package found matching input criteria.") {
+        Write-Log "Application updates completed or no updates were found/needed."
+        if ($upgradeOutput -match "No applicable update found" -or $upgradeOutput -match "No installed package found matching input criteria." -or $exitCode -eq -1978334889) {
+            Write-Host "OUTPUT: No application updates were found or needed."
+        } else {
+            Write-Host "OUTPUT: Application updates attempted. Review logs for details."
+        }
+    } else {
+        Write-Log "Winget upgrade process failed or completed with errors. Exit Code: $exitCode."
+        Write-Host "ERROR: Winget upgrade failed or had issues. Exit Code: $exitCode."
+        exit 1 
+    }
+
+} catch {
+    Write-Log "An error occurred while trying to run winget: $($_.Exception.Message)"
+    Write-Log "Stack Trace: $($_.ScriptStackTrace)"
+    if($upgradeOutput) { Write-Log "Partial Output: $upgradeOutput" }
+    if($upgradeErrors) { Write-Log "Partial Error: $upgradeErrors" }
+    Write-Host "ERROR: Script error during winget execution: $($_.Exception.Message)"
+    exit 1
+}
+
+Write-Log "Application Update procedure (winget) finished."
+`;
+
+export let mockComputers: Computer[] = [
+  {
+    id: 'comp-1', name: 'Workstation-Dev-01', status: 'Online', os: 'Windows 11 Pro', ipAddress: '192.168.1.101',
+    lastSeen: new Date(Date.now() - 3600000).toISOString(), cpuUsage: 25, ramUsage: 60, diskUsage: 75, groupIds: ['group-1'],
+    model: 'Dell XPS 15', processor: 'Intel Core i7-11800H @ 2.30GHz, 8C/16T', ramSize: '32 GB RAM', storage: '1TB NVMe SSD',
+    graphicsCard: 'NVIDIA GeForce RTX 3050 Ti', serialNumber: 'DEVXPS15001', publicIpAddress: '88.99.170.10',
+    macAddressLan: '00:1A:2B:3C:4D:5E', macAddressWifi: '00:1A:2B:3C:4D:5F',
+  },
+  {
+    id: 'comp-2', name: 'Server-Prod-Main', status: 'Online', os: 'Windows Server 2022', ipAddress: '10.0.0.5',
+    lastSeen: new Date(Date.now() - 600000).toISOString(), cpuUsage: 10, ramUsage: 30, diskUsage: 40, groupIds: ['group-2'],
+    model: 'HP ProLiant DL380 Gen10', processor: 'Intel Xeon Silver 4210 @ 2.20GHz, 10C/20T', ramSize: '64 GB ECC RAM', storage: '2x 4TB SAS RAID 1',
+    graphicsCard: 'Matrox G200eH2', serialNumber: 'PRODSERV002', publicIpAddress: '212.58.244.70',
+    macAddressLan: 'A0:B1:C2:D3:E4:F0', macAddressWifi: undefined,
+  },
+  {
+    id: 'comp-3', name: 'Laptop-Sales-03', status: 'Offline', os: 'Windows 10 Home', ipAddress: '192.168.1.153',
+    lastSeen: new Date(Date.now() - 86400000 * 2).toISOString(), groupIds: ['group-1', 'group-3'],
+    model: 'Lenovo ThinkPad X1 Carbon', processor: 'Intel Core i5-10210U @ 1.60GHz, 4C/8T', ramSize: '16 GB RAM', storage: '512GB NVMe SSD',
+    graphicsCard: 'Intel UHD Graphics', serialNumber: 'SALESLAP003', publicIpAddress: '90.100.180.20',
+    macAddressLan: '11:22:33:AA:BB:CC', macAddressWifi: '11:22:33:AA:BB:CD',
+  },
+  {
+    id: 'comp-4', name: 'Kiosk-Lobby', status: 'Error', os: 'Windows 10 IoT', ipAddress: '192.168.2.20',
+    lastSeen: new Date(Date.now() - 7200000).toISOString(), cpuUsage: 90, ramUsage: 85, diskUsage: 95, groupIds: [],
+    model: 'Advantech Kiosk TPC-1551T', processor: 'Intel Celeron J1900 @ 2.00GHz, 4C/4T', ramSize: '4 GB RAM', storage: '128GB SSD',
+    graphicsCard: 'Intel HD Graphics', serialNumber: 'KIOSKLOBBY004', publicIpAddress: '91.101.190.30',
+    macAddressLan: 'DD:EE:FF:77:88:99', macAddressWifi: 'DD:EE:FF:77:88:9A',
+  },
+  {
+    id: 'comp-5', name: 'VM-Test-Environment', status: 'Online', os: 'Windows Server 2019', ipAddress: '10.0.1.15',
+    lastSeen: new Date().toISOString(), cpuUsage: 5, ramUsage: 15, diskUsage: 20, groupIds: ['group-2'],
+    model: 'VMware Virtual Platform', processor: 'Virtual CPU @ 2.50GHz, 2C/4T', ramSize: '8 GB RAM', storage: '250GB Virtual Disk',
+    graphicsCard: 'VMware SVGA II Adapter', serialNumber: 'VMTESTENV005', publicIpAddress: '212.58.244.75',
+    macAddressLan: '00:0C:29:1A:2B:3C', macAddressWifi: undefined,
+  },
+];
+
+export let mockProcedures: Procedure[] = [
+  { id: 'proc-1', name: 'Disk Cleanup', description: 'Runs a standard disk cleanup utility.', scriptType: 'CMD', scriptContent: 'cleanmgr /sagerun:1', runAsUser: false, procedureSystemType: 'CustomScript', createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), updatedAt: new Date(Date.now() - 86400000).toISOString() },
+  { id: 'proc-2', name: 'Restart Print Spooler', description: 'Restarts the print spooler service.', scriptType: 'PowerShell', scriptContent: 'Restart-Service -Name Spooler -Force', runAsUser: false, procedureSystemType: 'CustomScript', createdAt: new Date(Date.now() - 86400000 * 10).toISOString(), updatedAt: new Date(Date.now() - 86400000 * 2).toISOString() },
+  { id: 'proc-3', name: 'Apply Security Registry Fix (CMD)', description: 'Applies a common security registry fix via CMD.', scriptType: 'CMD', scriptContent: 'REG ADD "HKLM\\Software\\MyCorp\\Security" /v "SecureSetting" /t REG_DWORD /d 1 /f', runAsUser: false, procedureSystemType: 'CustomScript', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()},
+  {
+    id: 'proc-4',
+    name: 'Manage Windows Updates (Internal)',
+    description: 'Checks for, downloads, and installs Windows updates. Logs if a reboot is required but does not force it.',
+    scriptType: 'PowerShell',
+    scriptContent: windowsUpdateScriptContent,
     runAsUser: false, 
+    procedureSystemType: 'WindowsUpdate',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -416,13 +498,33 @@ export const deleteComputerGroup = (id: string): boolean => {
 export const getProcedures = (): Procedure[] => mockProcedures.sort((a,b) => a.name.localeCompare(b.name));
 export const getProcedureById = (id: string): Procedure | undefined => mockProcedures.find(p => p.id === id);
 
-export const addProcedure = (procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'>): Procedure => {
+export const addProcedure = (
+  procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: ProcedureSystemType }
+): Procedure => {
+  let finalScriptContent = procData.scriptContent;
+  let finalScriptType = procData.scriptType;
+  let finalRunAsUser = procData.runAsUser || false;
+
+  if (procData.procedureSystemType === 'WindowsUpdate') {
+    finalScriptContent = windowsUpdateScriptContent;
+    finalScriptType = 'PowerShell';
+    finalRunAsUser = false;
+  } else if (procData.procedureSystemType === 'SoftwareUpdate') {
+    finalScriptContent = softwareUpdateWingetScriptContent;
+    finalScriptType = 'PowerShell';
+    finalRunAsUser = false;
+  }
+
   const newProcedure: Procedure = {
-    ...procData,
-    id: `proc-${Date.now()}`,
+    name: procData.name,
+    description: procData.description,
+    scriptType: finalScriptType,
+    scriptContent: finalScriptContent,
+    runAsUser: finalRunAsUser,
+    procedureSystemType: procData.procedureSystemType,
+    id: `proc-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    runAsUser: procData.runAsUser || false,
   };
   mockProcedures = [...mockProcedures, newProcedure];
   return newProcedure;
@@ -432,7 +534,22 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
   let updatedProcedure: Procedure | undefined;
   mockProcedures = mockProcedures.map(p => {
     if (p.id === id) {
-      updatedProcedure = { ...p, ...updates, runAsUser: updates.runAsUser ?? p.runAsUser ?? false, updatedAt: new Date().toISOString() };
+      // For system procedures, only allow name and description updates
+      if (p.procedureSystemType === 'WindowsUpdate' || p.procedureSystemType === 'SoftwareUpdate') {
+         updatedProcedure = { 
+           ...p, 
+           name: updates.name || p.name,
+           description: updates.description || p.description,
+           updatedAt: new Date().toISOString() 
+         };
+      } else { // CustomScript can update more fields
+         updatedProcedure = { 
+           ...p, 
+           ...updates, 
+           runAsUser: updates.runAsUser ?? p.runAsUser ?? false, 
+           updatedAt: new Date().toISOString() 
+         };
+      }
       return updatedProcedure;
     }
     return p;
@@ -754,11 +871,11 @@ export const getLicenses = (): License[] => {
             toast({
               title: "License Expiry Alert",
               description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
-              variant: "default", // Or a more attention-grabbing variant if you add one
-              duration: 10000, // Show for 10 seconds
+              variant: "default", 
+              duration: 10000, 
             });
           }
-          notifiedLicenseIdsThisSession.add(lic.id); // Mark as notified for this session
+          notifiedLicenseIdsThisSession.add(lic.id); 
         }
       }
     }
@@ -781,7 +898,7 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     notificationDaysBefore: licenseData.notificationDaysBefore ?? 30,
   };
   mockLicenses = [...mockLicenses, newLicense];
-  notifiedLicenseIdsThisSession.clear(); // Clear to re-evaluate notifications on next load
+  notifiedLicenseIdsThisSession.clear(); 
   return newLicense;
 };
 
@@ -800,58 +917,40 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
     }
     return lic;
   });
-  notifiedLicenseIdsThisSession.clear(); // Clear to re-evaluate notifications on next load
+  notifiedLicenseIdsThisSession.clear(); 
   return updatedLicense;
 };
 
 export const deleteLicenseFromMock = (id: string): boolean => {
   const initialLength = mockLicenses.length;
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
-  notifiedLicenseIdsThisSession.delete(id); // Remove from session notified set if deleted
+  notifiedLicenseIdsThisSession.delete(id); 
   return mockLicenses.length < initialLength;
 };
 
-// Simulate periodic monitor checks (very basic example)
-// This is a very crude simulation. In a real app, this would be backend driven.
-// This simulation is also disabled by default as it might be noisy during UI dev.
 function simulateMonitorChecks() {
     // console.log("Simulating monitor checks for online computers...");
-    // const onlineComputers = mockComputers.filter(c => c.status === 'Online');
-    // onlineComputers.forEach(computer => {
-    //     mockComputerGroups.forEach(group => {
-    //         if (group.computerIds.includes(computer.id) && group.associatedMonitors) {
-    //             group.associatedMonitors.forEach(assocMon => {
-    //                 const monitor = getMonitorById(assocMon.monitorId);
-    //                 if (monitor && assocMon.schedule.type === 'interval') {
-    //                     // Extremely simplified: Randomly trigger alert or OK
-    //                     const isAlert = Math.random() < 0.1; // 10% chance of alert
-    //                     const status = isAlert ? 'ALERT' : 'OK';
-    //                     const message = isAlert ? `Simulated ALERT for ${monitor.name}` : `Simulated OK for ${monitor.name}`;
-                        
-    //                     addMonitorLog({
-    //                         monitorId: monitor.id,
-    //                         computerId: computer.id,
-    //                         status: status,
-    //                         message: message
-    //                     });
-    //                     if (isAlert && monitor.sendEmailOnAlert && mockSmtpSettings.defaultToEmail) {
-    //                         console.log(`SIMULATED EMAIL: Alert for ${monitor.name} on ${computer.name} to ${mockSmtpSettings.defaultToEmail}`);
-    //                         toast({title: `Simulated Email Alert`, description: `${monitor.name} on ${computer.name} triggered an alert. Email 'sent' to ${mockSmtpSettings.defaultToEmail}.`});
-    //                     }
-    //                 }
-    //             });
-    //         }
-    //     });
-    // });
 }
 
 if (typeof window !== 'undefined') {
-    // setInterval(simulateMonitorChecks, 30000); // Run every 30 seconds - currently commented out
+    // setInterval(simulateMonitorChecks, 30000); 
+}
+
+mockProcedures = mockProcedures.map(p => ({ 
+    ...p, 
+    runAsUser: p.runAsUser || false,
+    procedureSystemType: p.procedureSystemType || 'CustomScript' // Default to CustomScript if not set
+}));
+// Ensure proc-4 is correctly typed
+const proc4Index = mockProcedures.findIndex(p => p.id === 'proc-4');
+if (proc4Index !== -1) {
+    mockProcedures[proc4Index].procedureSystemType = 'WindowsUpdate';
+    mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent; // Ensure it has the correct script
+    mockProcedures[proc4Index].scriptType = 'PowerShell';
+    mockProcedures[proc4Index].runAsUser = false;
 }
 
 
-// Ensure all procedures have a runAsUser property, defaulting to false if not present.
-mockProcedures = mockProcedures.map(p => ({ ...p, runAsUser: p.runAsUser || false }));
 mockCustomCommands = mockCustomCommands.map(c => ({...c, runAsUser: c.runAsUser || false }));
 mockProcedureExecutions = mockProcedureExecutions.map(e => ({...e, runAsUser: e.runAsUser || false }));
 

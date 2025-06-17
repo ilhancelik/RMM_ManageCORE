@@ -1,13 +1,13 @@
 
 "use client";
 
-import type { Procedure, ScriptType, AiSettings } from '@/types';
+import type { Procedure, ScriptType, AiSettings, ProcedureSystemType } from '@/types';
 import { scriptTypes, getProcedures, addProcedure, updateProcedureInMock, deleteProcedureFromMock, getAiSettings } from '@/lib/mockData'; 
 import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-script-flow';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot, HardDrive, RefreshCw } from 'lucide-react'; // Added HardDrive, RefreshCw for new types
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,8 @@ export default function ProceduresPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [currentProcedure, setCurrentProcedure] = useState<Procedure | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [procedureCreationSystemType, setProcedureCreationSystemType] = useState<ProcedureSystemType>('CustomScript');
 
   const [procedureName, setProcedureName] = useState('');
   const [procedureDescription, setProcedureDescription] = useState('');
@@ -56,6 +58,7 @@ export default function ProceduresPage() {
 
 
   const [filterType, setFilterType] = useState<ScriptType | 'All'>('All');
+  const [filterSystemType, setFilterSystemType] = useState<ProcedureSystemType | 'All'>('All');
   const [procedureSearchTerm, setProcedureSearchTerm] = useState('');
 
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null);
@@ -90,7 +93,10 @@ export default function ProceduresPage() {
   
   const filteredProcedures = useMemo(() => {
     let results = procedures;
-    if (filterType !== 'All') {
+    if (filterSystemType !== 'All') {
+      results = results.filter(proc => proc.procedureSystemType === filterSystemType);
+    }
+    if (filterSystemType === 'CustomScript' && filterType !== 'All') {
       results = results.filter(proc => proc.scriptType === filterType);
     }
     if (procedureSearchTerm.trim() !== '') {
@@ -101,7 +107,7 @@ export default function ProceduresPage() {
       );
     }
     return results;
-  }, [procedures, filterType, procedureSearchTerm]);
+  }, [procedures, filterType, filterSystemType, procedureSearchTerm]);
 
 
   const resetForm = () => {
@@ -118,46 +124,77 @@ export default function ProceduresPage() {
     setAiExplanation('');
     setIsGeneratingWithAi(false);
     setAiGenerationError(null);
+    setProcedureCreationSystemType('CustomScript'); // Reset to default
   };
 
-  const handleOpenCreateModal = () => {
+  const handleOpenCreateModal = (systemType: ProcedureSystemType) => {
     resetForm();
+    setProcedureCreationSystemType(systemType);
     setIsEditMode(false);
     setCurrentProcedure(null);
+    if (systemType === 'WindowsUpdate') {
+        setProcedureName('Windows Update Task');
+        setProcedureDescription('Installs all available Windows updates without forcing a reboot.');
+    } else if (systemType === 'SoftwareUpdate') {
+        setProcedureName('3rd Party Software Update Task');
+        setProcedureDescription('Updates all applicable 3rd party software using winget.');
+    }
     setIsModalOpen(true);
   };
   
   const handleOpenEditModal = (procedure: Procedure) => {
     resetForm();
+    setProcedureCreationSystemType(procedure.procedureSystemType || 'CustomScript');
     setIsEditMode(true);
     setCurrentProcedure(procedure);
     setProcedureName(procedure.name);
     setProcedureDescription(procedure.description);
-    setProcedureScriptType(procedure.scriptType);
-    setProcedureScriptContent(procedure.scriptContent);
-    setProcedureRunAsUser(procedure.runAsUser || false);
+    if (procedure.procedureSystemType === 'CustomScript') {
+        setProcedureScriptType(procedure.scriptType);
+        setProcedureScriptContent(procedure.scriptContent);
+        setProcedureRunAsUser(procedure.runAsUser || false);
+    }
     setIsModalOpen(true);
   };
 
   const handleSubmit = () => {
-    if (!procedureName.trim() || !procedureScriptContent.trim()) {
-        toast({ title: "Validation Error", description: "Procedure Name and Script Content are required.", variant: "destructive"});
+    if (!procedureName.trim()) {
+        toast({ title: "Validation Error", description: "Procedure Name is required.", variant: "destructive"});
         return;
     }
+    if (procedureCreationSystemType === 'CustomScript' && !procedureScriptContent.trim()) {
+        toast({ title: "Validation Error", description: "Script Content is required for custom scripts.", variant: "destructive"});
+        return;
+    }
+
     setIsSubmitting(true);
     try {
-      const procData = {
+      const baseProcData = {
         name: procedureName,
         description: procedureDescription,
-        scriptType: procedureScriptType,
-        scriptContent: procedureScriptContent,
-        runAsUser: procedureRunAsUser,
+        procedureSystemType: procedureCreationSystemType,
       };
+
+      let procData;
+
+      if (procedureCreationSystemType === 'CustomScript') {
+        procData = {
+          ...baseProcData,
+          scriptType: procedureScriptType,
+          scriptContent: procedureScriptContent,
+          runAsUser: procedureRunAsUser,
+        };
+      } else {
+        // For WindowsUpdate and SoftwareUpdate, scriptType, content, and runAsUser are set by addProcedure/updateProcedureInMock
+        procData = baseProcData;
+      }
+      
+
       if (isEditMode && currentProcedure) {
-        updateProcedureInMock(currentProcedure.id, procData);
+        updateProcedureInMock(currentProcedure.id, procData as Partial<Procedure>);
         toast({title: "Success", description: `Procedure "${procedureName}" updated (Mock).`});
       } else {
-        addProcedure(procData);
+        addProcedure(procData as Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: ProcedureSystemType });
         toast({title: "Success", description: `Procedure "${procedureName}" created (Mock).`});
       }
       
@@ -210,7 +247,7 @@ export default function ProceduresPage() {
 
     const input: GenerateScriptInput = {
         description: aiPrompt,
-        scriptType: procedureScriptType,
+        scriptType: procedureScriptType, // Use the selected script type for custom scripts
         context: `This script is for a system administration procedure. Target OS is likely Windows. Ensure the script is safe and follows best practices for ${procedureScriptType}.`,
     };
     
@@ -244,110 +281,127 @@ export default function ProceduresPage() {
         <Label htmlFor="description" className="text-right">Description</Label>
         <Textarea id="description" value={procedureDescription} onChange={(e) => setProcedureDescription(e.target.value)} className="col-span-3" disabled={isSubmitting} />
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="procedureRunAsUserModal" className="text-right">Execution Context</Label>
-        <div className="col-span-3 flex items-center space-x-2">
-            <Checkbox
-                id="procedureRunAsUserModal"
-                checked={procedureRunAsUser}
-                onCheckedChange={(checked) => setProcedureRunAsUser(checked === true)}
-                disabled={isSubmitting}
+
+      {procedureCreationSystemType === 'CustomScript' && (
+        <>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="procedureRunAsUserModal" className="text-right">Execution Context</Label>
+            <div className="col-span-3 flex items-center space-x-2">
+                <Checkbox
+                    id="procedureRunAsUserModal"
+                    checked={procedureRunAsUser}
+                    onCheckedChange={(checked) => setProcedureRunAsUser(checked === true)}
+                    disabled={isSubmitting}
+                />
+                <Label htmlFor="procedureRunAsUserModal" className="font-normal">
+                    Run as User (otherwise SYSTEM)
+                </Label>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="scriptType" className="text-right">Script Type</Label>
+            <Select value={procedureScriptType} onValueChange={(value: ScriptType) => setProcedureScriptType(value)} disabled={isSubmitting || isGeneratingWithAi}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select script type" />
+              </SelectTrigger>
+              <SelectContent>
+                {scriptTypes.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-4 items-start gap-4">
+            <Label htmlFor="scriptContent" className="text-right pt-2">Script Content</Label>
+            <Textarea
+              id="scriptContent"
+              value={procedureScriptContent}
+              onChange={(e) => setProcedureScriptContent(e.target.value)}
+              className="col-span-3 font-code"
+              rows={10}
+              placeholder={`Enter ${procedureScriptType} script here...`}
+              disabled={isSubmitting}
             />
-            <Label htmlFor="procedureRunAsUserModal" className="font-normal">
-                Run as User (otherwise SYSTEM)
-            </Label>
-        </div>
-      </div>
-      <div className="grid grid-cols-4 items-center gap-4">
-        <Label htmlFor="scriptType" className="text-right">Script Type</Label>
-        <Select value={procedureScriptType} onValueChange={(value: ScriptType) => setProcedureScriptType(value)} disabled={isSubmitting || isGeneratingWithAi}>
-          <SelectTrigger className="col-span-3">
-            <SelectValue placeholder="Select script type" />
-          </SelectTrigger>
-          <SelectContent>
-            {scriptTypes.map(type => (
-              <SelectItem key={type} value={type}>{type}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-4 items-start gap-4">
-        <Label htmlFor="scriptContent" className="text-right pt-2">Script Content</Label>
-        <Textarea
-          id="scriptContent"
-          value={procedureScriptContent}
-          onChange={(e) => setProcedureScriptContent(e.target.value)}
-          className="col-span-3 font-code"
-          rows={10}
-          placeholder={`Enter ${procedureScriptType} script here...`}
-          disabled={isSubmitting}
-        />
-      </div>
-      
-      <Separator />
-      <div className="space-y-2">
-        <Button
-            type="button"
-            variant="outline"
-            onClick={() => setShowAiSection(!showAiSection)}
-            disabled={isSubmitting || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)}
-            className="w-full"
-        >
-            <Sparkles className="mr-2 h-4 w-4" />
-            {showAiSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
-            {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
-        </Button>
+          </div>
+          
+          <Separator />
+          <div className="space-y-2">
+            <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAiSection(!showAiSection)}
+                disabled={isSubmitting || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)}
+                className="w-full"
+            >
+                <Sparkles className="mr-2 h-4 w-4" />
+                {showAiSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
+                {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
+            </Button>
 
-        {showAiSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
-            <Card className="p-4 space-y-3 bg-muted/50">
-                 <Alert variant="default" className="bg-background">
-                    <Bot className="h-4 w-4" />
-                    <AlertTitle>AI Script Generation</AlertTitle>
-                    <AlertDescription>
-                        Describe what you want the script to do. The AI will attempt to generate a {procedureScriptType} script.
-                        <strong className="block mt-1">Always review AI-generated scripts carefully before use.</strong>
-                    </AlertDescription>
-                </Alert>
-                <div>
-                    <Label htmlFor="aiPrompt">Describe the script's purpose:</Label>
-                    <Textarea
-                        id="aiPrompt"
-                        value={aiPrompt}
-                        onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder={`e.g., "List all running services", "Delete temp files older than 30 days in C:\\Temp"`}
-                        rows={3}
-                        disabled={isGeneratingWithAi || isPendingAI}
-                    />
-                </div>
-                <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || isPendingAI || !aiPrompt.trim() || isSubmitting}>
-                    {isGeneratingWithAi || isPendingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                    {isGeneratingWithAi || isPendingAI ? 'Generating...' : 'Generate'}
-                </Button>
-
-                {aiGenerationError && <p className="text-sm text-destructive">{aiGenerationError}</p>}
-                
-                {aiGeneratedScript && (
-                    <div className="space-y-2 pt-2">
-                        <Label htmlFor="aiGeneratedScript">AI Generated Script:</Label>
-                        <ScrollArea className="h-40 border rounded-md p-2 bg-background">
-                           <pre className="text-xs font-code whitespace-pre-wrap">{aiGeneratedScript}</pre>
-                        </ScrollArea>
-                        {aiExplanation && (
-                            <>
-                                <Label htmlFor="aiExplanation">Explanation:</Label>
-                                <ScrollArea className="h-20 border rounded-md p-2 bg-background text-xs">
-                                    <p className="whitespace-pre-wrap">{aiExplanation}</p>
-                                </ScrollArea>
-                            </>
-                        )}
-                        <Button type="button" size="sm" variant="outline" onClick={() => {setProcedureScriptContent(aiGeneratedScript); toast({title: "Script Copied", description: "AI generated script copied to script content field."})}}>
-                            Use this Script
-                        </Button>
+            {showAiSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
+                <Card className="p-4 space-y-3 bg-muted/50">
+                    <Alert variant="default" className="bg-background">
+                        <Bot className="h-4 w-4" />
+                        <AlertTitle>AI Script Generation</AlertTitle>
+                        <AlertDescription>
+                            Describe what you want the script to do. The AI will attempt to generate a {procedureScriptType} script.
+                            <strong className="block mt-1">Always review AI-generated scripts carefully before use.</strong>
+                        </AlertDescription>
+                    </Alert>
+                    <div>
+                        <Label htmlFor="aiPrompt">Describe the script's purpose:</Label>
+                        <Textarea
+                            id="aiPrompt"
+                            value={aiPrompt}
+                            onChange={(e) => setAiPrompt(e.target.value)}
+                            placeholder={`e.g., "List all running services", "Delete temp files older than 30 days in C:\\Temp"`}
+                            rows={3}
+                            disabled={isGeneratingWithAi || isPendingAI}
+                        />
                     </div>
-                )}
-            </Card>
-        )}
-      </div>
+                    <Button type="button" onClick={handleGenerateWithAI} disabled={isGeneratingWithAi || isPendingAI || !aiPrompt.trim() || isSubmitting}>
+                        {isGeneratingWithAi || isPendingAI ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        {isGeneratingWithAi || isPendingAI ? 'Generating...' : 'Generate'}
+                    </Button>
+
+                    {aiGenerationError && <p className="text-sm text-destructive">{aiGenerationError}</p>}
+                    
+                    {aiGeneratedScript && (
+                        <div className="space-y-2 pt-2">
+                            <Label htmlFor="aiGeneratedScript">AI Generated Script:</Label>
+                            <ScrollArea className="h-40 border rounded-md p-2 bg-background">
+                              <pre className="text-xs font-code whitespace-pre-wrap">{aiGeneratedScript}</pre>
+                            </ScrollArea>
+                            {aiExplanation && (
+                                <>
+                                    <Label htmlFor="aiExplanation">Explanation:</Label>
+                                    <ScrollArea className="h-20 border rounded-md p-2 bg-background text-xs">
+                                        <p className="whitespace-pre-wrap">{aiExplanation}</p>
+                                    </ScrollArea>
+                                </>
+                            )}
+                            <Button type="button" size="sm" variant="outline" onClick={() => {setProcedureScriptContent(aiGeneratedScript); toast({title: "Script Copied", description: "AI generated script copied to script content field."})}}>
+                                Use this Script
+                            </Button>
+                        </div>
+                    )}
+                </Card>
+            )}
+          </div>
+        </>
+      )}
+      {(procedureCreationSystemType === 'WindowsUpdate' || procedureCreationSystemType === 'SoftwareUpdate') && (
+        <Alert variant="default" className="mt-4">
+            {procedureCreationSystemType === 'WindowsUpdate' ? <HardDrive className="h-4 w-4" /> : <RefreshCw className="h-4 w-4" />}
+            <AlertTitle>System Procedure</AlertTitle>
+            <AlertDescription>
+                This is a system-managed procedure. The script content and execution context are predefined.
+                You can only edit the Name and Description.
+                {procedureCreationSystemType === 'WindowsUpdate' && " It will install all available Windows updates without forcing a reboot."}
+                {procedureCreationSystemType === 'SoftwareUpdate' && " It will attempt to update all applicable 3rd party software using winget."}
+            </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 
@@ -407,30 +461,63 @@ export default function ProceduresPage() {
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="outline">
-                        <ListFilter className="mr-2 h-4 w-4" /> Filter ({filterType})
+                        <ListFilter className="mr-2 h-4 w-4" /> Filter ({filterSystemType === 'All' ? 'All Types' : filterSystemType}
+                        {filterSystemType === 'CustomScript' && filterType !== 'All' && ` / ${filterType}`})
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Filter by System Type</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={() => setFilterSystemType('All')}>All System Types</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setFilterSystemType('CustomScript')}>Custom Script</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setFilterSystemType('WindowsUpdate')}>Windows Update</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setFilterSystemType('SoftwareUpdate')}>Software Update (winget)</DropdownMenuItem>
+                    
+                    {filterSystemType === 'CustomScript' && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Filter Custom Script by Language</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onSelect={() => setFilterType('All')}>All Languages</DropdownMenuItem>
+                            {scriptTypes.map(type => (
+                                <DropdownMenuItem key={type} onSelect={() => setFilterType(type)}>{type}</DropdownMenuItem>
+                            ))}
+                        </>
+                    )}
+                </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button disabled={isSubmitting}>
+                        <PlusCircle className="mr-2 h-4 w-4" /> Create Procedure
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Filter by Type</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setFilterType('All')}>All</DropdownMenuItem>
-                    {scriptTypes.map(type => (
-                        <DropdownMenuItem key={type} onSelect={() => setFilterType(type)}>{type}</DropdownMenuItem>
-                    ))}
+                    <DropdownMenuItem onSelect={() => handleOpenCreateModal('CustomScript')}>
+                        <FileCode className="mr-2 h-4 w-4" /> Create Custom Script Procedure
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleOpenCreateModal('WindowsUpdate')}>
+                        <HardDrive className="mr-2 h-4 w-4" /> Create Windows Update Procedure
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => handleOpenCreateModal('SoftwareUpdate')}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Create Software Update Procedure
+                    </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
-            <Button onClick={handleOpenCreateModal} disabled={isSubmitting}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Create Procedure
-            </Button>
         </div>
       </div>
       
       <Dialog open={isModalOpen} onOpenChange={(isOpen) => { if (!isSubmitting) setIsModalOpen(isOpen); if (!isOpen) resetForm(); }}>
         <DialogContent className="sm:max-w-[625px]">
           <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit Procedure' : 'Create New Procedure'}</DialogTitle>
+            <DialogTitle>
+              {isEditMode 
+                ? `Edit ${currentProcedure?.procedureSystemType === 'CustomScript' ? 'Custom Script' : currentProcedure?.procedureSystemType === 'WindowsUpdate' ? 'Windows Update' : 'Software Update'} Procedure`
+                : `Create New ${procedureCreationSystemType === 'CustomScript' ? 'Custom Script' : procedureCreationSystemType === 'WindowsUpdate' ? 'Windows Update' : 'Software Update'} Procedure`}
+            </DialogTitle>
             <DialogDescription>
-              {isEditMode ? 'Update the details of your existing procedure.' : 'Define a new script or set of commands to run on managed computers (Mock Data).'}
+              {isEditMode ? 'Update the details of your existing procedure.' : `Define a new ${procedureCreationSystemType.toLowerCase().replace('update', ' update')} procedure (Mock Data).`}
             </DialogDescription>
           </DialogHeader>
           {ProcedureFormFields}
@@ -447,11 +534,12 @@ export default function ProceduresPage() {
       <Card>
         <CardHeader>
             <CardTitle>
-                {filterType !== 'All' ? `${filterType} Procedures` : 'All Procedures'}
+                {filterSystemType !== 'All' ? `${filterSystemType.replace(/([A-Z])/g, ' $1').trim()} Procedures` : 'All Procedures'}
+                {filterSystemType === 'CustomScript' && filterType !== 'All' && ` (${filterType})`}
                 {procedureSearchTerm && ` (Filtered by "${procedureSearchTerm}")`}
             </CardTitle>
             <CardDescription>
-                {`View and manage ${filterType !== 'All' ? filterType.toLowerCase() : 'all'} script procedures.`}
+                {`View and manage procedures.`}
                 {!isLoading && filteredProcedures.length === 0 && ' No procedures match your current filters.'}
             </CardDescription>
         </CardHeader>
@@ -468,24 +556,15 @@ export default function ProceduresPage() {
                 <div className="text-center py-8 text-muted-foreground">
                     <FileCode className="mx-auto h-12 w-12 mb-4" />
                     <p className="font-semibold">
-                        {procedureSearchTerm || filterType !== 'All'
+                        {procedureSearchTerm || filterType !== 'All' || filterSystemType !== 'All'
                         ? 'No Procedures Found'
                         : 'No Procedures Yet'}
                     </p>
                     <p className="text-sm">
-                    {procedureSearchTerm && filterType !== 'All'
-                        ? `No procedures match your search for "${procedureSearchTerm}" with type "${filterType}".`
-                        : procedureSearchTerm
-                        ? `No procedures match your search for "${procedureSearchTerm}".`
-                        : filterType !== 'All'
-                            ? `No procedures found for type "${filterType}". Try a different filter or create one.`
-                            : 'Create procedures to automate tasks on your computers.'}
+                    {procedureSearchTerm || filterType !== 'All' || filterSystemType !== 'All'
+                        ? `No procedures match your current criteria.`
+                        : 'Create procedures to automate tasks on your computers.'}
                     </p>
-                     {!procedureSearchTerm && filterType === 'All' && (
-                        <Button onClick={handleOpenCreateModal} disabled={isSubmitting} className="mt-4">
-                            <PlusCircle className="mr-2 h-4 w-4" /> Create Your First Procedure
-                        </Button>
-                    )}
                 </div>
             ) : (
                 <ProcedureTable 
@@ -505,6 +584,4 @@ export default function ProceduresPage() {
     </div>
   );
 }
-    
-
     

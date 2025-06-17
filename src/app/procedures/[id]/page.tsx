@@ -9,7 +9,7 @@ import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield } from 'lucide-react'; // Added UserCircle, Shield
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -75,9 +75,11 @@ export default function ProcedureDetailPage() {
         if (fetchedProcedure) {
           setEditName(fetchedProcedure.name);
           setEditDescription(fetchedProcedure.description);
-          setEditScriptType(fetchedProcedure.scriptType);
-          setEditScriptContent(fetchedProcedure.scriptContent);
-          setEditRunAsUser(fetchedProcedure.runAsUser || false);
+          if (fetchedProcedure.procedureSystemType === 'CustomScript' || !fetchedProcedure.procedureSystemType) {
+            setEditScriptType(fetchedProcedure.scriptType);
+            setEditScriptContent(fetchedProcedure.scriptContent);
+            setEditRunAsUser(fetchedProcedure.runAsUser || false);
+          }
           
           setExecutions(getExecutions({ procedureId: id }));
           setAllComputers(getComputers().filter(c => c.status === 'Online'));
@@ -114,21 +116,32 @@ export default function ProcedureDetailPage() {
     if (!procedure) return;
     setIsSaving(true);
     try {
-      const updatedData = {
-        name: editName,
-        description: editDescription,
-        scriptType: editScriptType,
-        scriptContent: editScriptContent,
-        runAsUser: editRunAsUser,
-      };
+      let updatedData: Partial<Procedure>;
+      if (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType) {
+        updatedData = {
+          name: editName,
+          description: editDescription,
+          scriptType: editScriptType,
+          scriptContent: editScriptContent,
+          runAsUser: editRunAsUser,
+        };
+      } else {
+        updatedData = { // For system procedures, only name and description
+          name: editName,
+          description: editDescription,
+        };
+      }
+      
       const updatedProc = updateProcedureInMock(procedure.id, updatedData);
       if (updatedProc) {
         setProcedure(updatedProc); 
         setEditName(updatedProc.name);
         setEditDescription(updatedProc.description);
-        setEditScriptType(updatedProc.scriptType);
-        setEditScriptContent(updatedProc.scriptContent);
-        setEditRunAsUser(updatedProc.runAsUser || false);
+        if (updatedProc.procedureSystemType === 'CustomScript' || !updatedProc.procedureSystemType) {
+            setEditScriptType(updatedProc.scriptType);
+            setEditScriptContent(updatedProc.scriptContent);
+            setEditRunAsUser(updatedProc.runAsUser || false);
+        }
       }
       setIsEditing(false);
       toast({ title: "Procedure Saved (Mock)", description: `${updatedProc?.name || ''} has been updated.` });
@@ -144,9 +157,11 @@ export default function ProcedureDetailPage() {
     if (procedure) {
         setEditName(procedure.name);
         setEditDescription(procedure.description);
-        setEditScriptType(procedure.scriptType);
-        setEditScriptContent(procedure.scriptContent);
-        setEditRunAsUser(procedure.runAsUser || false);
+        if (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType) {
+            setEditScriptType(procedure.scriptType);
+            setEditScriptContent(procedure.scriptContent);
+            setEditRunAsUser(procedure.runAsUser || false);
+        }
     }
     setIsEditing(false);
   }
@@ -158,7 +173,7 @@ export default function ProcedureDetailPage() {
     }
     setIsExecuting(true);
     try {
-      executeMockProcedure(procedure.id, selectedComputerIds); // executeMockProcedure now uses procedure's runAsUser setting
+      executeMockProcedure(procedure.id, selectedComputerIds); 
       toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
       setSelectedComputerIds([]); 
       setTimeout(() => { 
@@ -173,7 +188,10 @@ export default function ProcedureDetailPage() {
   };
 
   const handleImproveProcedure = async () => {
-    if (!procedure) return;
+    if (!procedure || !(procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType)) {
+        toast({ title: "AI Improvement Not Applicable", description: "AI improvement is only available for Custom Script procedures.", variant: "default"});
+        return;
+    }
     setIsImproving(true);
     setAiError(null);
     setImprovedScript('');
@@ -227,6 +245,15 @@ export default function ProcedureDetailPage() {
   };
   
   const defaultTab = searchParams.get('tab') || 'details';
+  
+  const getSystemTypeLabel = (systemType?: Procedure['procedureSystemType']) => {
+    switch (systemType) {
+      case 'CustomScript': return 'Custom Script';
+      case 'WindowsUpdate': return 'Windows Update';
+      case 'SoftwareUpdate': return 'Software Update (winget)';
+      default: return 'Custom Script';
+    }
+  };
 
   if (isLoading) {
     return (
@@ -281,6 +308,7 @@ export default function ProcedureDetailPage() {
      );
   }
 
+  const isSystemProcedure = procedure.procedureSystemType === 'WindowsUpdate' || procedure.procedureSystemType === 'SoftwareUpdate';
 
   return (
     <div className="container mx-auto py-2">
@@ -294,6 +322,11 @@ export default function ProcedureDetailPage() {
             <div>
               <CardTitle className="text-3xl font-bold">{isEditing ? editName : procedure.name}</CardTitle>
               <CardDescription>{isEditing ? editDescription : procedure.description} (Mock Data)</CardDescription>
+              <Badge variant="outline" className="mt-2 text-sm">
+                {procedure.procedureSystemType === 'WindowsUpdate' && <HardDrive className="mr-2 h-4 w-4" />}
+                {procedure.procedureSystemType === 'SoftwareUpdate' && <RefreshCw className="mr-2 h-4 w-4" />}
+                {getSystemTypeLabel(procedure.procedureSystemType)}
+              </Badge>
             </div>
             {!isEditing && (
               <Button variant="outline" onClick={() => setIsEditing(true)} disabled={isSaving}>
@@ -322,44 +355,57 @@ export default function ProcedureDetailPage() {
                         <Label htmlFor="editDescription" className="text-right">Description</Label>
                         <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" disabled={isSaving} />
                     </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                        <Label htmlFor="editScriptType" className="text-right">Script Type</Label>
-                        <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving}>
-                        <SelectTrigger className="col-span-3">
-                            <SelectValue placeholder="Select script type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {scriptTypes.map(type => (
-                            <SelectItem key={type} value={type}>{type}</SelectItem>
-                            ))}
-                        </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="grid grid-cols-4 items-start gap-4">
-                        <Label htmlFor="editScriptContent" className="text-right pt-2">Script Content</Label>
-                        <Textarea
-                        id="editScriptContent"
-                        value={editScriptContent}
-                        onChange={(e) => setEditScriptContent(e.target.value)}
-                        className="col-span-3 font-code"
-                        rows={10}
-                        disabled={isSaving}
-                        />
-                    </div>
-                    <div className="grid grid-cols-4 items-center gap-4">
-                         <Label htmlFor="editRunAsUser" className="text-right">Execution Context</Label>
-                         <div className="col-span-3 flex items-center space-x-2">
-                            <Checkbox
-                                id="editRunAsUser"
-                                checked={editRunAsUser}
-                                onCheckedChange={(checked) => setEditRunAsUser(checked === true)}
+                    {!isSystemProcedure && (
+                        <>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="editScriptType" className="text-right">Script Type</Label>
+                                <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving}>
+                                <SelectTrigger className="col-span-3">
+                                    <SelectValue placeholder="Select script type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {scriptTypes.map(type => (
+                                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="grid grid-cols-4 items-start gap-4">
+                                <Label htmlFor="editScriptContent" className="text-right pt-2">Script Content</Label>
+                                <Textarea
+                                id="editScriptContent"
+                                value={editScriptContent}
+                                onChange={(e) => setEditScriptContent(e.target.value)}
+                                className="col-span-3 font-code"
+                                rows={10}
                                 disabled={isSaving}
-                            />
-                            <Label htmlFor="editRunAsUser" className="font-normal">
-                                Run this procedure as User (otherwise runs as SYSTEM)
-                            </Label>
-                        </div>
-                    </div>
+                                />
+                            </div>
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label htmlFor="editRunAsUser" className="text-right">Execution Context</Label>
+                                <div className="col-span-3 flex items-center space-x-2">
+                                    <Checkbox
+                                        id="editRunAsUser"
+                                        checked={editRunAsUser}
+                                        onCheckedChange={(checked) => setEditRunAsUser(checked === true)}
+                                        disabled={isSaving}
+                                    />
+                                    <Label htmlFor="editRunAsUser" className="font-normal">
+                                        Run this procedure as User (otherwise runs as SYSTEM)
+                                    </Label>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                     {isSystemProcedure && (
+                         <Alert variant="default" className="col-span-4">
+                            <Terminal className="h-4 w-4" />
+                            <AlertTitle>System Procedure</AlertTitle>
+                            <AlertDescription>
+                                For this type of procedure, only Name and Description can be edited. The script and execution context are system-managed.
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </div>
             </CardContent>
         )}
@@ -369,7 +415,7 @@ export default function ProcedureDetailPage() {
         <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="execute">Execute</TabsTrigger>
-          <TabsTrigger value="improve">Improve with AI</TabsTrigger>
+          <TabsTrigger value="improve" disabled={isSystemProcedure}>Improve with AI</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -379,20 +425,31 @@ export default function ProcedureDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label className="text-sm text-muted-foreground">Script Type</Label>
-                <p className="font-semibold">{procedure.scriptType}</p>
+                <Label className="text-sm text-muted-foreground">System Type</Label>
+                <p className="font-semibold">{getSystemTypeLabel(procedure.procedureSystemType)}</p>
               </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Default Execution Context</Label>
-                <div className="flex items-center gap-2">
-                    {procedure.runAsUser ? <UserCircle className="h-5 w-5 text-blue-600" /> : <Shield className="h-5 w-5 text-gray-600" />}
-                    <p className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</p>
-                </div>
-              </div>
-              <div>
+              
+              {(!procedure.procedureSystemType || procedure.procedureSystemType === 'CustomScript') && (
+                <>
+                    <div>
+                        <Label className="text-sm text-muted-foreground">Script Type</Label>
+                        <p className="font-semibold">{procedure.scriptType}</p>
+                    </div>
+                    <div>
+                        <Label className="text-sm text-muted-foreground">Default Execution Context</Label>
+                        <div className="flex items-center gap-2">
+                            {procedure.runAsUser ? <UserCircle className="h-5 w-5 text-blue-600" /> : <Shield className="h-5 w-5 text-gray-600" />}
+                            <p className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</p>
+                        </div>
+                    </div>
+                </>
+              )}
+               <div>
                 <Label className="text-sm text-muted-foreground">Script Content</Label>
                 <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
-                  <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                  <pre className="text-sm font-code whitespace-pre-wrap">
+                    {isSystemProcedure ? `# This is a system-managed script and its content is not displayed here.\n# It performs ${procedure.procedureSystemType === 'WindowsUpdate' ? 'Windows Update operations.' : '3rd party software updates via winget.'}` : procedure.scriptContent}
+                  </pre>
                 </ScrollArea>
               </div>
               <div>
@@ -512,6 +569,7 @@ export default function ProcedureDetailPage() {
               </div>
               <CardDescription>
                 Analyze execution logs and the current script to get AI-powered suggestions for improvement and safety checks.
+                (Only available for Custom Script procedures)
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -533,7 +591,7 @@ export default function ProcedureDetailPage() {
                     Load recent execution logs
                  </Button>
               </div>
-              <Button onClick={handleImproveProcedure} disabled={isImproving || isPendingAI}>
+              <Button onClick={handleImproveProcedure} disabled={isImproving || isPendingAI || isSystemProcedure}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 {isImproving || isPendingAI ? 'Analyzing...' : 'Get AI Suggestions'}
               </Button>
@@ -569,7 +627,16 @@ export default function ProcedureDetailPage() {
                       <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/40">
                         <pre className="text-sm font-code whitespace-pre-wrap">{improvedScript}</pre>
                       </ScrollArea>
-                       <Button size="sm" className="mt-2" onClick={() => { setEditScriptContent(improvedScript); toast({title: "Script updated in editor."}); router.replace(`/procedures/${id}?tab=details`); setIsEditing(true); }}>
+                       <Button size="sm" className="mt-2" onClick={() => { 
+                           if (procedure && (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType)) {
+                               setEditScriptContent(improvedScript); 
+                               toast({title: "Script updated in editor."}); 
+                               router.replace(`/procedures/${id}?tab=details`); 
+                               setIsEditing(true); 
+                           } else {
+                               toast({title: "Cannot Apply Script", description: "This script can only be applied to Custom Script procedures.", variant: "destructive"});
+                           }
+                        }}>
                             Use this Script
                         </Button>
                     </div>
@@ -597,3 +664,4 @@ export default function ProcedureDetailPage() {
     </div>
   );
 }
+

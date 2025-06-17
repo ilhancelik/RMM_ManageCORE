@@ -48,14 +48,17 @@ export interface ComputerGroup {
 }
 
 export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
+export type ProcedureSystemType = 'CustomScript' | 'WindowsUpdate' | 'SoftwareUpdate';
+
 
 export interface Procedure {
   id: string;
   name: string;
   description: string;
-  scriptType: ScriptType;
+  scriptType: ScriptType; // Remains for CustomScript, set internally for others
   scriptContent: string;
   runAsUser?: boolean;
+  procedureSystemType?: ProcedureSystemType; // New field to differentiate
   createdAt: string;
   updatedAt: string;
 }
