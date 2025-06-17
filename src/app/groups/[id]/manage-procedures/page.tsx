@@ -18,6 +18,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge'; // Added Badge import
 
 const intervalUnits: ScheduleConfig['intervalUnit'][] = ['minutes', 'hours', 'days'];
 
