@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScope } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScopeOptions } from '@/types';
 import { toast } from '@/hooks/use-toast'; // Import toast for notifications
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
@@ -15,11 +15,14 @@ function Write-Log {
 }
 
 Write-Log "Starting Windows Update procedure..."
-# The actual search criteria might need to be adjusted in a real system based on the selected scope (all, microsoftProducts, osFeatureUpdates)
+# The actual search criteria might need to be adjusted in a real system based on the selected scope options.
 # For this mock, the script is generic but the intent is logged.
-# Example for "All": "IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0"
-# Example for "OS/Feature Updates": "IsInstalled=0 and Type='Software' and CategoryIDs contains '...GUID for OS...' or UpdateClassificationTitle = 'Upgrades'"
-# Example for "Microsoft Products": "IsInstalled=0 and Type='Software' and CategoryIDs contains '...GUID for MS Products...'"
+# A real agent would parse windowsUpdateScopeOptions (includeOsUpdates, includeMicrosoftProductUpdates, includeFeatureUpdates)
+# to build a dynamic search query.
+# Example: "IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0" is a broad query.
+# Specific queries:
+# - OS/Feature Updates: "IsInstalled=0 and Type='Software' and (CategoryIDs contains '...GUID for OS...' or UpdateClassificationTitle = 'Upgrades')"
+# - Microsoft Products: "IsInstalled=0 and Type='Software' and CategoryIDs contains '...GUID for MS Products...'"
 
 try {
     Write-Log "Creating Update Session and Searcher..."
@@ -27,9 +30,9 @@ try {
     \$updateSearcher = \$updateSession.CreateUpdateSearcher()
 
     # This search criteria is broad and typically covers OS, Feature, and MS Product updates.
-    # In a real scenario, this query might be dynamically adjusted based on the procedure's windowsUpdateScope.
+    # In a real scenario, this query might be dynamically adjusted based on the procedure's windowsUpdateScopeOptions.
     \$searchCriteria = "IsInstalled=0 and Type='Software' and IsHidden=0 and BrowseOnly=0"
-    Write-Log "Searching for available updates using criteria: \$searchCriteria (Scope intent will refine this in a real agent)"
+    Write-Log "Searching for available updates using criteria: \$searchCriteria (Scope options will refine this in a real agent)"
     \$searchResult = \$updateSearcher.Search(\$searchCriteria)
 
     if (\$searchResult.Updates.Count -eq 0) {
@@ -125,7 +128,7 @@ Write-Log "Starting Application Update procedure (winget - Update All)..."
 if (-not \$wingetPath) {
     Write-Log "winget command not found. Please ensure App Installer (winget) is installed and in PATH."
     Write-Host "ERROR: winget command not found. Cannot proceed with updates."
-    exit 1 
+    exit 1
 }
 Write-Log "winget found at: \$(\$wingetPath.Source)"
 
@@ -174,7 +177,7 @@ try {
     } else {
         Write-Log "Winget upgrade process failed or completed with errors. Exit Code: \$(\$exitCode)."
         Write-Host "ERROR: Winget upgrade failed or had issues. Exit Code: \$(\$exitCode). Errors: \$(\$upgradeErrors) Output: \$(\$upgradeOutput)"
-        exit 1 
+        exit 1
     }
 
 } catch {
@@ -316,12 +319,12 @@ export let mockProcedures: Procedure[] = [
   {
     id: 'proc-4',
     name: 'Manage Windows Updates',
-    description: 'Installs all available Windows updates, including Microsoft products and feature updates. This procedure does not force a system reboot.',
+    description: 'Installs Windows updates. Does not force a system reboot.',
     scriptType: 'PowerShell',
     scriptContent: windowsUpdateScriptContent,
-    runAsUser: false, 
+    runAsUser: false,
     procedureSystemType: 'WindowsUpdate',
-    windowsUpdateScope: 'all', // Default scope
+    windowsUpdateScopeOptions: { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true }, // Default to all
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   },
@@ -340,7 +343,7 @@ export let mockProcedureExecutions: ProcedureExecution[] = [
   { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '1.2GB freed.', runAsUser: false },
   { id: 'exec-2', procedureId: 'proc-2', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Failed', startTime: new Date(Date.now() - 7200000).toISOString(), endTime: new Date(Date.now() - 7200000 + 30000).toISOString(), logs: 'Restarting Spooler (as SYSTEM)...\\nError: Access Denied.', output: 'Failed with exit code 5', runAsUser: false },
   { id: 'exec-3', procedureId: 'proc-1', computerId: 'comp-5', computerName: 'VM-Test-Environment', status: 'Running', startTime: new Date().toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '', runAsUser: false },
-  { id: 'exec-4', procedureId: 'proc-4', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Success', startTime: new Date(Date.now() - 86400000).toISOString(), endTime: new Date(Date.now() - 86400000 + 1200000).toISOString(), logs: 'Windows Update (Scope: All) initiated (as SYSTEM)... Search found 3 updates. Downloading... Installing... Success. Reboot required: No.', output: '3 updates installed successfully.', runAsUser: false },
+  { id: 'exec-4', procedureId: 'proc-4', computerId: 'comp-2', computerName: 'Server-Prod-Main', status: 'Success', startTime: new Date(Date.now() - 86400000).toISOString(), endTime: new Date(Date.now() - 86400000 + 1200000).toISOString(), logs: 'Windows Update (Scope: OS, MS Products, Features) initiated (as SYSTEM)... Search found 3 updates. Downloading... Installing... Success. Reboot required: No.', output: '3 updates installed successfully.', runAsUser: false },
 ];
 
 export let mockMonitors: Monitor[] = [
@@ -594,30 +597,30 @@ export const addProcedure = (
   procData: Omit<Procedure, 'id' | 'createdAt' | 'updatedAt'> & { procedureSystemType: ProcedureSystemType }
 ): Procedure => {
   let finalScriptContent = procData.scriptContent;
-  let finalScriptType: ScriptType = procData.scriptType || 'PowerShell'; 
+  let finalScriptType: ScriptType = procData.scriptType || 'PowerShell';
   let finalRunAsUser = procData.runAsUser || false;
   let finalSoftwareUpdateMode = procData.softwareUpdateMode;
   let finalSpecificSoftware = procData.specificSoftwareToUpdate;
-  let finalWindowsUpdateScope = procData.windowsUpdateScope;
+  let finalWindowsUpdateScopeOptions = procData.windowsUpdateScopeOptions;
 
   if (procData.procedureSystemType === 'WindowsUpdate') {
-    finalScriptContent = windowsUpdateScriptContent; // Standard script for all Windows Update scopes in mock
+    finalScriptContent = windowsUpdateScriptContent;
     finalScriptType = 'PowerShell';
     finalRunAsUser = false;
-    finalWindowsUpdateScope = procData.windowsUpdateScope || 'all'; // Default to 'all' if not specified
+    finalWindowsUpdateScopeOptions = procData.windowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true };
   } else if (procData.procedureSystemType === 'SoftwareUpdate') {
     finalScriptType = 'PowerShell';
     finalRunAsUser = false;
-    finalSoftwareUpdateMode = procData.softwareUpdateMode || 'all'; 
+    finalSoftwareUpdateMode = procData.softwareUpdateMode || 'all';
     finalSpecificSoftware = procData.specificSoftwareToUpdate || '';
     if (finalSoftwareUpdateMode === 'all') {
       finalScriptContent = softwareUpdateWingetScriptContentAll;
-      finalSpecificSoftware = ''; 
+      finalSpecificSoftware = '';
     } else {
       finalScriptContent = softwareUpdateWingetScriptSpecific(finalSpecificSoftware);
     }
   } else { // CustomScript
-     finalScriptType = procData.scriptType; 
+     finalScriptType = procData.scriptType;
      finalScriptContent = procData.scriptContent;
      finalRunAsUser = procData.runAsUser || false;
   }
@@ -629,7 +632,7 @@ export const addProcedure = (
     scriptContent: finalScriptContent,
     runAsUser: finalRunAsUser,
     procedureSystemType: procData.procedureSystemType,
-    windowsUpdateScope: finalWindowsUpdateScope,
+    windowsUpdateScopeOptions: finalWindowsUpdateScopeOptions,
     softwareUpdateMode: finalSoftwareUpdateMode,
     specificSoftwareToUpdate: finalSpecificSoftware,
     id: `proc-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -647,16 +650,15 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
       let newSoftwareUpdateMode = updates.softwareUpdateMode ?? p.softwareUpdateMode;
       let newSpecificSoftware = updates.specificSoftwareToUpdate ?? p.specificSoftwareToUpdate;
       let newScriptContent = updates.scriptContent ?? p.scriptContent;
-      let newWindowsUpdateScope = updates.windowsUpdateScope ?? p.windowsUpdateScope;
+      let newWindowsUpdateScopeOptions = updates.windowsUpdateScopeOptions ?? p.windowsUpdateScopeOptions;
 
       if (p.procedureSystemType === 'WindowsUpdate') {
-         updatedProcedure = { 
-           ...p, 
+         updatedProcedure = {
+           ...p,
            name: updates.name || p.name,
            description: updates.description || p.description,
-           windowsUpdateScope: newWindowsUpdateScope || 'all', // Ensure scope is set
-           // scriptContent remains windowsUpdateScriptContent for mock simplicity
-           updatedAt: new Date().toISOString() 
+           windowsUpdateScopeOptions: newWindowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true },
+           updatedAt: new Date().toISOString()
          };
       } else if (p.procedureSystemType === 'SoftwareUpdate') {
           newSoftwareUpdateMode = updates.softwareUpdateMode || p.softwareUpdateMode || 'all';
@@ -673,15 +675,15 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
             description: updates.description || p.description,
             softwareUpdateMode: newSoftwareUpdateMode,
             specificSoftwareToUpdate: newSpecificSoftware,
-            scriptContent: newScriptContent, 
+            scriptContent: newScriptContent,
             updatedAt: new Date().toISOString()
           };
       } else { // CustomScript
-         updatedProcedure = { 
-           ...p, 
-           ...updates, 
-           runAsUser: updates.runAsUser ?? p.runAsUser ?? false, 
-           updatedAt: new Date().toISOString() 
+         updatedProcedure = {
+           ...p,
+           ...updates,
+           runAsUser: updates.runAsUser ?? p.runAsUser ?? false,
+           updatedAt: new Date().toISOString()
          };
       }
       return updatedProcedure;
@@ -719,14 +721,26 @@ export const getProcedureExecutionsForProcedure = (procedureId: string): Procedu
     .sort((a,b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime());
 }
 
+const getWindowsUpdateScopeLogText = (options?: WindowsUpdateScopeOptions): string => {
+    if (!options) return "Kapsam: Belirtilmemiş";
+    const scopes: string[] = [];
+    if (options.includeOsUpdates) scopes.push("OS Güncellemeleri");
+    if (options.includeMicrosoftProductUpdates) scopes.push("MS Ürünleri");
+    if (options.includeFeatureUpdates) scopes.push("Özellik Günc.");
+    if (scopes.length === 0) return "Kapsam: Hiçbiri seçilmedi";
+    if (scopes.length === 3) return "Kapsam: Tümü (OS, MS Ürünleri, Özellik)";
+    return `Kapsam: ${scopes.join(', ')}`;
+};
+
+
 export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'id' | 'computerName'>): ProcedureExecution => {
   const computer = getComputerById(executionData.computerId);
   const procedure = getProcedureById(executionData.procedureId);
   const runContext = executionData.runAsUser ?? procedure?.runAsUser ?? false;
-  
+
   let logs = `Executing "${procedure?.name || 'Unknown Procedure'}" on "${computer?.name || executionData.computerId}" (as ${runContext ? 'User' : 'SYSTEM'}).`;
   if (procedure?.procedureSystemType === 'WindowsUpdate') {
-    logs += `\nWindows Update Scope: ${procedure.windowsUpdateScope || 'all'}.`;
+    logs += `\nWindows Update. ${getWindowsUpdateScopeLogText(procedure.windowsUpdateScopeOptions)}.`;
   } else if (procedure?.procedureSystemType === 'SoftwareUpdate') {
     logs += `\nSoftware Update Mode: ${procedure.softwareUpdateMode || 'all'}.`;
     if (procedure.softwareUpdateMode === 'specific') {
@@ -755,10 +769,10 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
         newExecution.status = finalStatus;
         newExecution.endTime = new Date().toISOString();
         newExecution.logs += `\nExecution finished with status: ${finalStatus}`;
-        
+
         let mockOutput = finalStatus === 'Success' ? 'Mock output: Operation completed successfully.' : 'Mock output: Operation failed.';
         if (procedure?.procedureSystemType === 'WindowsUpdate') {
-            mockOutput = finalStatus === 'Success' ? `Mock output: Windows Updates (Scope: ${procedure.windowsUpdateScope || 'all'}) installed.` : `Mock output: Windows Update (Scope: ${procedure.windowsUpdateScope || 'all'}) failed.`;
+            mockOutput = finalStatus === 'Success' ? `Mock output: Windows Updates (${getWindowsUpdateScopeLogText(procedure.windowsUpdateScopeOptions)}) installed.` : `Mock output: Windows Update (${getWindowsUpdateScopeLogText(procedure.windowsUpdateScopeOptions)}) failed.`;
         } else if (procedure?.procedureSystemType === 'SoftwareUpdate') {
             if (procedure.softwareUpdateMode === 'specific') {
                  mockOutput = finalStatus === 'Success' ? `Mock output: Specified software update process completed for: ${procedure.specificSoftwareToUpdate || "N/A"}` : 'Mock output: Specified software update process failed.';
@@ -886,7 +900,7 @@ export const addCustomCommand = (commandData: Omit<CustomCommand, 'id' | 'execut
          const groupSendCommand: CustomCommand = {
             ...baseCommand,
             id: `cmd-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            computerId: group.id, 
+            computerId: group.id,
             targetId: group.id,
             targetType: 'group',
             status: 'Sent',
@@ -941,12 +955,12 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
   let explicitlySetDefaultExists = false;
   newProviderConfigs.forEach(p => {
     if (p.isDefault) {
-      if (!explicitlySetDefaultExists) { 
+      if (!explicitlySetDefaultExists) {
         defaultProviderId = p.id;
-        p.isEnabled = true; 
+        p.isEnabled = true;
         explicitlySetDefaultExists = true;
       } else {
-        p.isDefault = false; 
+        p.isDefault = false;
       }
     }
   });
@@ -956,7 +970,7 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
     if (firstEnabledProvider) {
       firstEnabledProvider.isDefault = true;
       defaultProviderId = firstEnabledProvider.id;
-      firstEnabledProvider.isEnabled = true; 
+      firstEnabledProvider.isEnabled = true;
     }
   }
 
@@ -970,7 +984,7 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
     newProviderConfigs = newProviderConfigs.map(p => ({
       ...p,
       isDefault: p.id === defaultProviderId,
-      isEnabled: p.id === defaultProviderId ? true : p.isEnabled, 
+      isEnabled: p.id === defaultProviderId ? true : p.isEnabled,
     }));
   }
 
@@ -1022,15 +1036,15 @@ export const getLicenses = (): License[] => {
 
       if (diffDays >= 0 && diffDays <= lic.notificationDaysBefore) {
         if (!notifiedLicenseIdsThisSession.has(lic.id)) {
-          if (mockSmtpSettings.defaultToEmail) { 
+          if (mockSmtpSettings.defaultToEmail) {
             toast({
               title: "License Expiry Alert",
               description: `License "${lic.productName}" will expire in ${diffDays} day(s) (on ${expiryDate.toLocaleDateString()}). An email simulation to ${mockSmtpSettings.defaultToEmail} would occur. (Configured for ${lic.notificationDaysBefore} days before for this license).`,
-              variant: "default", 
-              duration: 10000, 
+              variant: "default",
+              duration: 10000,
             });
           }
-          notifiedLicenseIdsThisSession.add(lic.id); 
+          notifiedLicenseIdsThisSession.add(lic.id);
         }
       }
     }
@@ -1053,7 +1067,7 @@ export const addLicenseToMock = (licenseData: Omit<License, 'id' | 'createdAt' |
     notificationDaysBefore: licenseData.notificationDaysBefore ?? 30,
   };
   mockLicenses = [...mockLicenses, newLicense];
-  notifiedLicenseIdsThisSession.clear(); 
+  notifiedLicenseIdsThisSession.clear();
   return newLicense;
 };
 
@@ -1072,14 +1086,14 @@ export const updateLicenseInMock = (id: string, updates: Partial<Omit<License, '
     }
     return lic;
   });
-  notifiedLicenseIdsThisSession.clear(); 
+  notifiedLicenseIdsThisSession.clear();
   return updatedLicense;
 };
 
 export const deleteLicenseFromMock = (id: string): boolean => {
   const initialLength = mockLicenses.length;
   mockLicenses = mockLicenses.filter(lic => lic.id !== id);
-  notifiedLicenseIdsThisSession.delete(id); 
+  notifiedLicenseIdsThisSession.delete(id);
   return mockLicenses.length < initialLength;
 };
 
@@ -1088,20 +1102,20 @@ function simulateMonitorChecks() {
 }
 
 if (typeof window !== 'undefined') {
-    // setInterval(simulateMonitorChecks, 30000); 
+    // setInterval(simulateMonitorChecks, 30000);
 }
 
-mockProcedures = mockProcedures.map(p => ({ 
-    ...p, 
+mockProcedures = mockProcedures.map(p => ({
+    ...p,
     runAsUser: p.runAsUser || false,
-    procedureSystemType: p.procedureSystemType || 'CustomScript' 
+    procedureSystemType: p.procedureSystemType || 'CustomScript'
 }));
 
 const proc4Index = mockProcedures.findIndex(p => p.id === 'proc-4');
 if (proc4Index !== -1) {
     mockProcedures[proc4Index].procedureSystemType = 'WindowsUpdate';
-    mockProcedures[proc4Index].windowsUpdateScope = mockProcedures[proc4Index].windowsUpdateScope || 'all';
-    mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent; 
+    mockProcedures[proc4Index].windowsUpdateScopeOptions = mockProcedures[proc4Index].windowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true };
+    mockProcedures[proc4Index].scriptContent = windowsUpdateScriptContent;
     mockProcedures[proc4Index].scriptType = 'PowerShell';
     mockProcedures[proc4Index].runAsUser = false;
     mockProcedures[proc4Index].description = mockProcedures[proc4Index].description || 'Installs Windows updates. Does not force a system reboot.';

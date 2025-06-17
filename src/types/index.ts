@@ -49,22 +49,26 @@ export interface ComputerGroup {
 
 export type ScriptType = 'CMD' | 'PowerShell' | 'Python';
 export type ProcedureSystemType = 'CustomScript' | 'WindowsUpdate' | 'SoftwareUpdate';
-export type WindowsUpdateScope = 'all' | 'microsoftProducts' | 'osFeatureUpdates';
 
+export interface WindowsUpdateScopeOptions {
+  includeOsUpdates?: boolean;
+  includeMicrosoftProductUpdates?: boolean;
+  includeFeatureUpdates?: boolean;
+}
 
 export interface Procedure {
   id: string;
   name: string;
   description: string;
-  scriptType: ScriptType; 
+  scriptType: ScriptType;
   scriptContent: string;
   runAsUser?: boolean;
-  procedureSystemType?: ProcedureSystemType; 
-  windowsUpdateScope?: WindowsUpdateScope; // Added for Windows Update procedure type
+  procedureSystemType?: ProcedureSystemType;
+  windowsUpdateScopeOptions?: WindowsUpdateScopeOptions; // Changed from windowsUpdateScope
   createdAt: string;
   updatedAt: string;
-  softwareUpdateMode?: 'all' | 'specific'; 
-  specificSoftwareToUpdate?: string; 
+  softwareUpdateMode?: 'all' | 'specific';
+  specificSoftwareToUpdate?: string;
 }
 
 export interface ProcedureExecution {
@@ -82,9 +86,9 @@ export interface ProcedureExecution {
 
 export interface CustomCommand {
     id:string;
-    computerId: string; 
+    computerId: string;
     targetType?: 'computer' | 'group';
-    targetId: string; 
+    targetId: string;
     command: string;
     scriptType: ScriptType;
     runAsUser?: boolean;
@@ -130,8 +134,8 @@ export interface SMTPSettings {
 export interface AiProviderConfig {
   id: string;
   name: string;
-  providerType: 'googleAI'; 
-  apiKey?: string; 
+  providerType: 'googleAI';
+  apiKey?: string;
   isEnabled: boolean;
   isDefault: boolean;
 }
@@ -158,7 +162,7 @@ export interface License {
   sendExpiryNotification?: boolean;
   notificationDaysBefore?: number; // e.g., 1-30 days
   notes?: string;
-  isActive: boolean; 
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }

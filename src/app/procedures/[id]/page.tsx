@@ -4,7 +4,7 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useTransition, useCallback } from 'react';
 import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure } from '@/lib/mockData';
-import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScope } from '@/types';
+import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScopeOptions, ProcedureSystemType } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,13 +37,19 @@ export default function ProcedureDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editScriptType, setEditScriptType] = useState<ScriptType>('PowerShell');
   const [editScriptContent, setEditScriptContent] = useState('');
   const [editRunAsUser, setEditRunAsUser] = useState(false);
-  const [editWindowsUpdateScope, setEditWindowsUpdateScope] = useState<WindowsUpdateScope>('all');
+
+  // Windows Update Scope Options for editing
+  const [editWuIncludeOsUpdates, setEditWuIncludeOsUpdates] = useState(true);
+  const [editWuIncludeMicrosoftProductUpdates, setEditWuIncludeMicrosoftProductUpdates] = useState(true);
+  const [editWuIncludeFeatureUpdates, setEditWuIncludeFeatureUpdates] = useState(true);
+
+  // Software Update Options for editing
   const [editSoftwareUpdateMode, setEditSoftwareUpdateMode] = useState<'all' | 'specific'>('all');
   const [editSpecificSoftware, setEditSpecificSoftware] = useState('');
 
@@ -51,10 +57,10 @@ export default function ProcedureDetailPage() {
   const [allComputers, setAllComputers] = useState<Computer[]>([]);
   const [isLoadingTargetComputers, setIsLoadingTargetComputers] = useState(true);
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
-  const [executions, setExecutions] = useState<ProcedureExecution[]>([]); 
+  const [executions, setExecutions] = useState<ProcedureExecution[]>([]);
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
-  
+
   const [aiInputLogs, setAiInputLogs] = useState('');
   const [improvedScript, setImprovedScript] = useState('');
   const [improvementExplanation, setImprovementExplanation] = useState('');
@@ -79,17 +85,21 @@ export default function ProcedureDetailPage() {
         if (fetchedProcedure) {
           setEditName(fetchedProcedure.name);
           setEditDescription(fetchedProcedure.description);
-          if (fetchedProcedure.procedureSystemType === 'CustomScript' || !fetchedProcedure.procedureSystemType) {
+          const systemType = fetchedProcedure.procedureSystemType || 'CustomScript';
+
+          if (systemType === 'CustomScript') {
             setEditScriptType(fetchedProcedure.scriptType);
             setEditScriptContent(fetchedProcedure.scriptContent);
             setEditRunAsUser(fetchedProcedure.runAsUser || false);
-          } else if (fetchedProcedure.procedureSystemType === 'WindowsUpdate') {
-            setEditWindowsUpdateScope(fetchedProcedure.windowsUpdateScope || 'all');
-          } else if (fetchedProcedure.procedureSystemType === 'SoftwareUpdate') {
+          } else if (systemType === 'WindowsUpdate') {
+            setEditWuIncludeOsUpdates(fetchedProcedure.windowsUpdateScopeOptions?.includeOsUpdates ?? true);
+            setEditWuIncludeMicrosoftProductUpdates(fetchedProcedure.windowsUpdateScopeOptions?.includeMicrosoftProductUpdates ?? true);
+            setEditWuIncludeFeatureUpdates(fetchedProcedure.windowsUpdateScopeOptions?.includeFeatureUpdates ?? true);
+          } else if (systemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(fetchedProcedure.softwareUpdateMode || 'all');
             setEditSpecificSoftware(fetchedProcedure.specificSoftwareToUpdate || '');
           }
-          
+
           setExecutions(getExecutions({ procedureId: id }));
           setAllComputers(getComputers().filter(c => c.status === 'Online'));
         } else {
@@ -114,7 +124,7 @@ export default function ProcedureDetailPage() {
   const refreshExecutions = useCallback(() => {
     if (!procedure) return;
     setIsLoadingExecutions(true);
-    setTimeout(() => { 
+    setTimeout(() => {
         setExecutions(getExecutions({ procedureId: procedure.id }));
         setIsLoadingExecutions(false);
         toast({ title: "Execution history refreshed (Mock)"});
@@ -126,7 +136,9 @@ export default function ProcedureDetailPage() {
     setIsSaving(true);
     try {
       let updatedData: Partial<Procedure>;
-      if (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType) {
+      const systemType = procedure.procedureSystemType || 'CustomScript';
+
+      if (systemType === 'CustomScript') {
         updatedData = {
           name: editName,
           description: editDescription,
@@ -134,38 +146,55 @@ export default function ProcedureDetailPage() {
           scriptContent: editScriptContent,
           runAsUser: editRunAsUser,
         };
-      } else if (procedure.procedureSystemType === 'WindowsUpdate') {
+      } else if (systemType === 'WindowsUpdate') {
+        if (!editWuIncludeOsUpdates && !editWuIncludeMicrosoftProductUpdates && !editWuIncludeFeatureUpdates) {
+            toast({ title: "Validation Error", description: "Please select at least one Windows Update scope.", variant: "destructive"});
+            setIsSaving(false);
+            return;
+        }
         updatedData = {
             name: editName,
             description: editDescription,
-            windowsUpdateScope: editWindowsUpdateScope,
+            windowsUpdateScopeOptions: {
+                includeOsUpdates: editWuIncludeOsUpdates,
+                includeMicrosoftProductUpdates: editWuIncludeMicrosoftProductUpdates,
+                includeFeatureUpdates: editWuIncludeFeatureUpdates,
+            },
         };
-      } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
+      } else if (systemType === 'SoftwareUpdate') {
+        if (editSoftwareUpdateMode === 'specific' && !editSpecificSoftware.trim()) {
+            toast({ title: "Validation Error", description: "Please specify software packages to update or choose 'Update all'.", variant: "destructive"});
+            setIsSaving(false);
+            return;
+        }
         updatedData = {
           name: editName,
           description: editDescription,
           softwareUpdateMode: editSoftwareUpdateMode,
           specificSoftwareToUpdate: editSoftwareUpdateMode === 'specific' ? editSpecificSoftware : '',
         };
-      } else { 
-        updatedData = { 
+      } else {
+        updatedData = {
           name: editName,
           description: editDescription,
         };
       }
-      
+
       const updatedProc = updateProcedureInMock(procedure.id, updatedData);
       if (updatedProc) {
-        setProcedure(updatedProc); 
+        setProcedure(updatedProc);
         setEditName(updatedProc.name);
         setEditDescription(updatedProc.description);
-        if (updatedProc.procedureSystemType === 'CustomScript' || !updatedProc.procedureSystemType) {
+        const newSystemType = updatedProc.procedureSystemType || 'CustomScript';
+        if (newSystemType === 'CustomScript') {
             setEditScriptType(updatedProc.scriptType);
             setEditScriptContent(updatedProc.scriptContent);
             setEditRunAsUser(updatedProc.runAsUser || false);
-        } else if (updatedProc.procedureSystemType === 'WindowsUpdate') {
-            setEditWindowsUpdateScope(updatedProc.windowsUpdateScope || 'all');
-        } else if (updatedProc.procedureSystemType === 'SoftwareUpdate') {
+        } else if (newSystemType === 'WindowsUpdate') {
+            setEditWuIncludeOsUpdates(updatedProc.windowsUpdateScopeOptions?.includeOsUpdates ?? true);
+            setEditWuIncludeMicrosoftProductUpdates(updatedProc.windowsUpdateScopeOptions?.includeMicrosoftProductUpdates ?? true);
+            setEditWuIncludeFeatureUpdates(updatedProc.windowsUpdateScopeOptions?.includeFeatureUpdates ?? true);
+        } else if (newSystemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(updatedProc.softwareUpdateMode || 'all');
             setEditSpecificSoftware(updatedProc.specificSoftwareToUpdate || '');
         }
@@ -176,21 +205,24 @@ export default function ProcedureDetailPage() {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred while saving (Mock).';
         toast({ title: "Error Saving Procedure", description: errorMessage, variant: "destructive" });
     } finally {
-        setTimeout(() => setIsSaving(false), 500); 
+        setTimeout(() => setIsSaving(false), 500);
     }
   };
-  
+
   const handleCancelEdit = () => {
     if (procedure) {
         setEditName(procedure.name);
         setEditDescription(procedure.description);
-        if (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType) {
+        const systemType = procedure.procedureSystemType || 'CustomScript';
+        if (systemType === 'CustomScript') {
             setEditScriptType(procedure.scriptType);
             setEditScriptContent(procedure.scriptContent);
             setEditRunAsUser(procedure.runAsUser || false);
-        } else if (procedure.procedureSystemType === 'WindowsUpdate') {
-            setEditWindowsUpdateScope(procedure.windowsUpdateScope || 'all');
-        } else if (procedure.procedureSystemType === 'SoftwareUpdate') {
+        } else if (systemType === 'WindowsUpdate') {
+            setEditWuIncludeOsUpdates(procedure.windowsUpdateScopeOptions?.includeOsUpdates ?? true);
+            setEditWuIncludeMicrosoftProductUpdates(procedure.windowsUpdateScopeOptions?.includeMicrosoftProductUpdates ?? true);
+            setEditWuIncludeFeatureUpdates(procedure.windowsUpdateScopeOptions?.includeFeatureUpdates ?? true);
+        } else if (systemType === 'SoftwareUpdate') {
             setEditSoftwareUpdateMode(procedure.softwareUpdateMode || 'all');
             setEditSpecificSoftware(procedure.specificSoftwareToUpdate || '');
         }
@@ -205,13 +237,13 @@ export default function ProcedureDetailPage() {
     }
     setIsExecuting(true);
     try {
-      executeMockProcedure(procedure.id, selectedComputerIds); 
+      executeMockProcedure(procedure.id, selectedComputerIds);
       toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
-      setSelectedComputerIds([]); 
-      setTimeout(() => { 
+      setSelectedComputerIds([]);
+      setTimeout(() => {
         refreshExecutions();
         setIsExecuting(false);
-      }, 2000); 
+      }, 2000);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
       toast({ title: "Error Executing Procedure", description: errorMessage, variant: "destructive" });
@@ -254,7 +286,7 @@ export default function ProcedureDetailPage() {
       }
     });
   };
-  
+
   const handleComputerSelection = (computerId: string) => {
     setSelectedComputerIds(prev =>
       prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
@@ -275,10 +307,10 @@ export default function ProcedureDetailPage() {
       toast({ title: "Copy failed", description: err.message, variant: "destructive"});
     });
   };
-  
+
   const defaultTab = searchParams.get('tab') || 'details';
-  
-  const getSystemTypeLabel = (systemType?: Procedure['procedureSystemType']) => {
+
+  const getSystemTypeLabel = (systemType?: ProcedureSystemType) => {
     switch (systemType) {
       case 'CustomScript': return 'Custom Script';
       case 'WindowsUpdate': return 'Windows Update';
@@ -287,15 +319,15 @@ export default function ProcedureDetailPage() {
     }
   };
 
-  const getWindowsUpdateScopeLabel = (scope?: WindowsUpdateScope) => {
-    switch (scope) {
-      case 'all': return 'Tüm Güncellemeler (MS Ürünleri & Özellik Günc. dahil)';
-      case 'microsoftProducts': return 'Sadece Microsoft Ürünleri Güncellemeleri';
-      case 'osFeatureUpdates': return 'Sadece Windows OS ve Özellik Güncellemeleri';
-      default: return 'Bilinmeyen Kapsam';
-    }
+  const getWindowsUpdateScopeOptionsText = (options?: WindowsUpdateScopeOptions): string[] => {
+    if (!options) return ["Not configured"];
+    const texts: string[] = [];
+    if (options.includeOsUpdates) texts.push("Windows Güncellemeleri (Güvenlik, Kalite vb.)");
+    if (options.includeMicrosoftProductUpdates) texts.push("Microsoft Ürün Güncelleştirmeleri (Office, SQL vb.)");
+    if (options.includeFeatureUpdates) texts.push("Windows Özellik Güncelleştirmeleri (örn: Sürüm Yükseltmeleri)");
+    return texts.length > 0 ? texts : ["No specific scopes selected (effectively all if system default)."];
   };
-  
+
 
   if (isLoading) {
     return (
@@ -314,7 +346,7 @@ export default function ProcedureDetailPage() {
                 </div>
             </CardHeader>
         </Card>
-        <Skeleton className="h-10 w-full mb-4" /> 
+        <Skeleton className="h-10 w-full mb-4" />
         <Card>
             <CardHeader><Skeleton className="h-6 w-1/3" /></CardHeader>
             <CardContent><Skeleton className="h-40 w-full" /></CardContent>
@@ -351,6 +383,8 @@ export default function ProcedureDetailPage() {
   }
 
   const isNonCustomScriptProcedure = procedure.procedureSystemType === 'WindowsUpdate' || procedure.procedureSystemType === 'SoftwareUpdate';
+  const currentSystemType = procedure.procedureSystemType || 'CustomScript';
+
 
   return (
     <div className="container mx-auto py-2">
@@ -398,29 +432,27 @@ export default function ProcedureDetailPage() {
                         <Label htmlFor="editDescription" className="text-right">Description</Label>
                         <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} className="col-span-3" disabled={isSaving} />
                     </div>
-                    
-                    {procedure.procedureSystemType === 'WindowsUpdate' && (
-                         <div className="grid grid-cols-4 items-start gap-4 pt-2">
-                            <Label className="text-right col-span-1 pt-2">Güncelleme Kapsamı</Label>
-                            <div className="col-span-3">
-                                <RadioGroup value={editWindowsUpdateScope} onValueChange={(value: WindowsUpdateScope) => setEditWindowsUpdateScope(value)} className="space-y-2" disabled={isSaving}>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="all" id="edit-scope-wu-all" />
-                                        <Label htmlFor="edit-scope-wu-all" className="font-normal">Tüm Güncellemeler (MS Ürünleri & Özellik Günc. dahil)</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="microsoftProducts" id="edit-scope-wu-msproducts" />
-                                        <Label htmlFor="edit-scope-wu-msproducts" className="font-normal">Sadece Microsoft Ürünleri Güncellemeleri</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="osFeatureUpdates" id="edit-scope-wu-osfeature" />
-                                        <Label htmlFor="edit-scope-wu-osfeature" className="font-normal">Sadece Windows OS ve Özellik Güncellemeleri</Label>
-                                    </div>
-                                </RadioGroup>
+
+                    {currentSystemType === 'WindowsUpdate' && (
+                        <div className="grid grid-cols-4 items-start gap-4 pt-2">
+                            <Label className="text-right col-span-1 pt-2">Güncelleme Kapsamları</Label>
+                            <div className="col-span-3 space-y-2">
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="editWuOsUpdates" checked={editWuIncludeOsUpdates} onCheckedChange={(checked) => setEditWuIncludeOsUpdates(checked === true)} disabled={isSaving} />
+                                    <Label htmlFor="editWuOsUpdates" className="font-normal">Windows Güncellemeleri (Güvenlik, Kalite vb.)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="editWuMsProductUpdates" checked={editWuIncludeMicrosoftProductUpdates} onCheckedChange={(checked) => setEditWuIncludeMicrosoftProductUpdates(checked === true)} disabled={isSaving} />
+                                    <Label htmlFor="editWuMsProductUpdates" className="font-normal">Microsoft Ürün Güncelleştirmeleri (Office, SQL vb.)</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Checkbox id="editWuFeatureUpdates" checked={editWuIncludeFeatureUpdates} onCheckedChange={(checked) => setEditWuIncludeFeatureUpdates(checked === true)} disabled={isSaving} />
+                                    <Label htmlFor="editWuFeatureUpdates" className="font-normal">Windows Özellik Güncelleştirmeleri (örn: Sürüm Yükseltmeleri)</Label>
+                                </div>
                             </div>
                         </div>
                     )}
-                    {procedure.procedureSystemType === 'SoftwareUpdate' && (
+                    {currentSystemType === 'SoftwareUpdate' && (
                          <div className="grid grid-cols-4 items-start gap-4 pt-2">
                             <Label className="text-right col-span-1 pt-2">Update Scope</Label>
                             <div className="col-span-3">
@@ -454,7 +486,7 @@ export default function ProcedureDetailPage() {
                         </div>
                     )}
 
-                    {(!procedure.procedureSystemType || procedure.procedureSystemType === 'CustomScript') && (
+                    {currentSystemType === 'CustomScript' && (
                         <>
                             <div className="grid grid-cols-4 items-center gap-4">
                                 <Label htmlFor="editScriptType" className="text-right">Script Type</Label>
@@ -496,17 +528,17 @@ export default function ProcedureDetailPage() {
                             </div>
                         </>
                     )}
-                     {procedure.procedureSystemType === 'WindowsUpdate' && isEditing && (
+                     {currentSystemType === 'WindowsUpdate' && isEditing && (
                          <Alert variant="default" className="col-span-4">
                             <Terminal className="h-4 w-4" />
                             <AlertTitle>System Procedure: Windows Update</AlertTitle>
                             <AlertDescription>
                                 Script içeriği ve çalıştırma bağlamı sistem tarafından yönetilir.
-                                Seçilen kapsama göre Windows güncellemelerini yükler ve yeniden başlatma yapmaz.
+                                Seçilen kapsamlara göre Windows güncellemelerini yükler ve yeniden başlatma yapmaz.
                             </AlertDescription>
                         </Alert>
                     )}
-                     {procedure.procedureSystemType === 'SoftwareUpdate' && isEditing && (
+                     {currentSystemType === 'SoftwareUpdate' && isEditing && (
                          <Alert variant="default" className="col-span-4">
                             <Terminal className="h-4 w-4" />
                             <AlertTitle>System Procedure: Software Update (winget)</AlertTitle>
@@ -525,7 +557,7 @@ export default function ProcedureDetailPage() {
         <TabsList className="grid w-full grid-cols-3 mb-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="execute">Execute</TabsTrigger>
-          <TabsTrigger value="improve" disabled={isNonCustomScriptProcedure}>Improve with AI</TabsTrigger>
+          <TabsTrigger value="improve" disabled={currentSystemType !== 'CustomScript'}>Improve with AI</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
@@ -541,11 +573,15 @@ export default function ProcedureDetailPage() {
 
               {procedure.procedureSystemType === 'WindowsUpdate' && (
                 <div>
-                    <Label className="text-sm text-muted-foreground">Windows Update Scope</Label>
-                    <p className="font-semibold">{getWindowsUpdateScopeLabel(procedure.windowsUpdateScope)}</p>
+                    <Label className="text-sm text-muted-foreground">Windows Update Scopes</Label>
+                    <ul className="list-disc list-inside font-semibold">
+                        {getWindowsUpdateScopeOptionsText(procedure.windowsUpdateScopeOptions).map((scopeText, index) => (
+                            <li key={index}>{scopeText}</li>
+                        ))}
+                    </ul>
                 </div>
               )}
-              
+
               {procedure.procedureSystemType === 'SoftwareUpdate' && (
                 <>
                     <div>
@@ -561,7 +597,7 @@ export default function ProcedureDetailPage() {
                 </>
               )}
 
-              {(!procedure.procedureSystemType || procedure.procedureSystemType === 'CustomScript') && (
+              {(currentSystemType === 'CustomScript') && (
                 <>
                     <div>
                         <Label className="text-sm text-muted-foreground">Script Type</Label>
@@ -580,9 +616,9 @@ export default function ProcedureDetailPage() {
                 <Label className="text-sm text-muted-foreground">Script Content / Behavior</Label>
                 <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
                   <pre className="text-sm font-code whitespace-pre-wrap">
-                    {procedure.procedureSystemType === 'WindowsUpdate' 
-                     ? `This is a system-managed procedure for Windows Updates.\nScope: ${getWindowsUpdateScopeLabel(procedure.windowsUpdateScope)}\nIt installs updates without forcing a reboot.`
-                     : procedure.procedureSystemType === 'SoftwareUpdate' 
+                    {procedure.procedureSystemType === 'WindowsUpdate'
+                     ? `This is a system-managed procedure for Windows Updates.\nSelected Scopes:\n- ${getWindowsUpdateScopeOptionsText(procedure.windowsUpdateScopeOptions).join('\n- ')}\nIt installs updates without forcing a reboot.`
+                     : procedure.procedureSystemType === 'SoftwareUpdate'
                        ? `This is a system-managed procedure for 3rd Party Software Updates using winget.\nMode: ${procedure.softwareUpdateMode || 'all'}${procedure.softwareUpdateMode === 'specific' ? `\nTarget Packages: ${procedure.specificSoftwareToUpdate || 'NONE'}` : ''}\n(Underlying script uses winget and runs as SYSTEM)`
                        : procedure.scriptContent}
                   </pre>
@@ -605,7 +641,7 @@ export default function ProcedureDetailPage() {
             <Card className="md:col-span-1">
               <CardHeader>
                 <CardTitle>Select Target Computers</CardTitle>
-                 <CardDescription>Select online computers to run this procedure on. It will run with its default context: <span className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</span>.</CardDescription>
+                 <CardDescription>Select online computers to run this procedure on. It will run with its default context: <span className="font-semibold">{currentSystemType !== 'CustomScript' || procedure.runAsUser ? 'User' : 'SYSTEM'}</span>.</CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoadingTargetComputers ? (
@@ -657,7 +693,7 @@ export default function ProcedureDetailPage() {
                         No executions found for this procedure.
                     </div>
                 ) : (
-                <ScrollArea className="h-[20rem]"> 
+                <ScrollArea className="h-[20rem]">
                     <Table>
                         <TableHeader>
                         <TableRow>
@@ -674,7 +710,7 @@ export default function ProcedureDetailPage() {
                             <TableCell>{exec.computerName || exec.computerId}</TableCell>
                             <TableCell>{exec.runAsUser ? 'User' : 'System'}</TableCell>
                             <TableCell>
-                                <Badge variant={exec.status === 'Success' ? 'default' : exec.status === 'Failed' ? 'destructive': 'secondary'} 
+                                <Badge variant={exec.status === 'Success' ? 'default' : exec.status === 'Failed' ? 'destructive': 'secondary'}
                                     className={exec.status === 'Success' ? 'bg-green-500 hover:bg-green-600' : exec.status === 'Failed' ? 'bg-red-500 hover:bg-red-600' : exec.status === 'Pending' || exec.status === 'Running' ? 'bg-blue-500 hover:bg-blue-600' : ''}>
                                     {exec.status}
                                 </Badge>
@@ -727,7 +763,7 @@ export default function ProcedureDetailPage() {
                     Load recent execution logs
                  </Button>
               </div>
-              <Button onClick={handleImproveProcedure} disabled={isImproving || isPendingAI || isNonCustomScriptProcedure}>
+              <Button onClick={handleImproveProcedure} disabled={isImproving || isPendingAI || currentSystemType !== 'CustomScript'}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 {isImproving || isPendingAI ? 'Analyzing...' : 'Get AI Suggestions'}
               </Button>
@@ -763,12 +799,12 @@ export default function ProcedureDetailPage() {
                       <ScrollArea className="h-60 w-full rounded-md border p-4 bg-muted/40">
                         <pre className="text-sm font-code whitespace-pre-wrap">{improvedScript}</pre>
                       </ScrollArea>
-                       <Button size="sm" className="mt-2" onClick={() => { 
+                       <Button size="sm" className="mt-2" onClick={() => {
                            if (procedure && (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType)) {
-                               setEditScriptContent(improvedScript); 
-                               toast({title: "Script updated in editor."}); 
-                               router.replace(`/procedures/${id}?tab=details`); 
-                               setIsEditing(true); 
+                               setEditScriptContent(improvedScript);
+                               toast({title: "Script updated in editor."});
+                               router.replace(`/procedures/${id}?tab=details`);
+                               setIsEditing(true);
                            } else {
                                toast({title: "Cannot Apply Script", description: "This script can only be applied to Custom Script procedures.", variant: "destructive"});
                            }
@@ -800,4 +836,4 @@ export default function ProcedureDetailPage() {
     </div>
   );
 }
-
+    
