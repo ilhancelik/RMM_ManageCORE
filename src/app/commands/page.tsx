@@ -5,7 +5,7 @@ import type { Computer, ScriptType, CustomCommand, ComputerGroup, Procedure } fr
 import { scriptTypes, getComputers, getGroups, addCustomCommand, getCommandHistory, getComputerById, getGroupById, getProcedures, executeMockProcedure } from '@/lib/mockData';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Send, ListChecks, Loader2, Play, ChevronsUpDown, Check, X, UserCircle, Shield } from 'lucide-react';
+import { Send, ListChecks, Loader2, Play, ChevronsUpDown, Check, X, UserCircle, Shield, AlertTriangle } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -39,6 +39,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from '@/lib/utils';
+import { useLicense } from '@/contexts/LicenseContext';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 
 type TargetType = "computer" | "group";
@@ -47,6 +49,7 @@ type ExecutionMode = "script" | "procedure";
 export default function CommandsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { licenseInfo, isLicenseValid, isLoadingLicense, refreshLicenseInfo } = useLicense();
 
   const [targetType, setTargetType] = useState<TargetType>("computer");
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
@@ -115,6 +118,11 @@ export default function CommandsPage() {
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
+  
+  useEffect(() => {
+    refreshLicenseInfo(); // Refresh license info when page loads or navigates
+  }, [refreshLicenseInfo]);
+
 
   useEffect(() => {
     const computerIdFromQuery = searchParams.get('computerId');
@@ -147,6 +155,10 @@ export default function CommandsPage() {
 
 
   const handleSendCommand = () => {
+    if (!isLicenseValid) {
+      toast({ title: "License Invalid", description: "Your system license is not valid. This feature is disabled.", variant: "destructive" });
+      return;
+    }
     let targetIdValue: string | string[];
     let targetName: string | undefined;
     let isTargetValid = false;
@@ -309,7 +321,10 @@ export default function CommandsPage() {
     }
   };
 
-  const isSendButtonDisabled = isSendingCommand ||
+  const isSendButtonDisabled = 
+                               !isLicenseValid ||
+                               isLoadingLicense ||
+                               isSendingCommand ||
                                isLoadingComputers ||
                                isLoadingGroups ||
                                isLoadingProcedures ||
@@ -333,6 +348,30 @@ export default function CommandsPage() {
         <h1 className="text-3xl font-bold text-foreground">Custom Commands & Procedures</h1>
       </div>
 
+      {isLoadingLicense && (
+        <Alert className="mb-6 bg-muted/50">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <AlertTitle>Loading License Information</AlertTitle>
+          <AlertDescription>
+            Please wait while we verify your system license.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isLoadingLicense && !isLicenseValid && licenseInfo && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-5 w-5" />
+          <AlertTitle>System License Invalid ({licenseInfo.status})</AlertTitle>
+          <AlertDescription>
+            RMM features are currently disabled. Please check your <a href="/system-license" className="underline font-semibold">System License</a> page.
+            {licenseInfo.status === 'Expired' && ` Your license expired on ${new Date(licenseInfo.expiryDate || '').toLocaleDateString()}.`}
+            {licenseInfo.status === 'ExceededLimit' && ` You are managing more computers than your license allows.`}
+            {licenseInfo.status === 'NotActivated' && ` Your system license is not activated.`}
+          </AlertDescription>
+        </Alert>
+      )}
+
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Execute Command or Procedure</CardTitle>
@@ -343,11 +382,11 @@ export default function CommandsPage() {
             <Label>Target Type</Label>
             <RadioGroup defaultValue="computer" value={targetType} onValueChange={(value: string) => { setTargetType(value as TargetType); setSelectedComputerIds([]); setSelectedGroupId(''); }} className="flex space-x-4 mt-2">
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="computer" id="r-computer" />
+                <RadioGroupItem value="computer" id="r-computer" disabled={!isLicenseValid || isLoadingLicense} />
                 <Label htmlFor="r-computer">Computer(s)</Label>
               </div>
               <div className="flex items-center space-x-2">
-                <RadioGroupItem value="group" id="r-group" />
+                <RadioGroupItem value="group" id="r-group" disabled={!isLicenseValid || isLoadingLicense} />
                 <Label htmlFor="r-group">Computer Group</Label>
               </div>
             </RadioGroup>
@@ -364,7 +403,7 @@ export default function CommandsPage() {
                     role="combobox"
                     aria-expanded={openComputerMultiSelectPopover}
                     className="w-full justify-between"
-                    disabled={isLoadingComputers}
+                    disabled={isLoadingComputers || !isLicenseValid || isLoadingLicense}
                   >
                     <span className="truncate">
                       {selectedComputerIds.length === 0
@@ -457,7 +496,7 @@ export default function CommandsPage() {
                     role="combobox"
                     aria-expanded={openGroupSelectPopover}
                     className="w-full justify-between"
-                    disabled={isLoadingGroups || allGroups.length === 0}
+                    disabled={isLoadingGroups || allGroups.length === 0 || !isLicenseValid || isLoadingLicense}
                   >
                     <span className="truncate">
                       {selectedGroupId
@@ -520,11 +559,11 @@ export default function CommandsPage() {
             <Label>Execution Mode</Label>
             <RadioGroup value={executionMode} onValueChange={(value) => setExecutionMode(value as ExecutionMode)} className="flex space-x-4 mt-2">
                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="script" id="mode-script" />
+                    <RadioGroupItem value="script" id="mode-script" disabled={!isLicenseValid || isLoadingLicense}/>
                     <Label htmlFor="mode-script">Custom Script</Label>
                 </div>
                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="procedure" id="mode-procedure" />
+                    <RadioGroupItem value="procedure" id="mode-procedure" disabled={!isLicenseValid || isLoadingLicense}/>
                     <Label htmlFor="mode-procedure">Pre-defined Procedure</Label>
                 </div>
             </RadioGroup>
@@ -534,7 +573,7 @@ export default function CommandsPage() {
             <>
               <div>
                 <Label htmlFor="commandScriptType">Script Type</Label>
-                <Select value={commandScriptType} onValueChange={(value: ScriptType) => setCommandScriptType(value)}>
+                <Select value={commandScriptType} onValueChange={(value: ScriptType) => setCommandScriptType(value)} disabled={!isLicenseValid || isLoadingLicense}>
                   <SelectTrigger id="commandScriptType">
                     <SelectValue placeholder="Select script type" />
                   </SelectTrigger>
@@ -550,6 +589,7 @@ export default function CommandsPage() {
                     id="runAsUser"
                     checked={runAsUser}
                     onCheckedChange={(checked) => setRunAsUser(checked === true)}
+                    disabled={!isLicenseValid || isLoadingLicense}
                 />
                 <Label htmlFor="runAsUser" className="font-normal">Run As User (otherwise runs as SYSTEM)</Label>
               </div>
@@ -562,6 +602,7 @@ export default function CommandsPage() {
                   placeholder={`Enter ${commandScriptType} command or script here...`}
                   rows={8}
                   className="font-code"
+                  disabled={!isLicenseValid || isLoadingLicense}
                 />
               </div>
             </>
@@ -580,7 +621,7 @@ export default function CommandsPage() {
                         role="combobox"
                         aria-expanded={openProcedureSelectPopover}
                         className="w-full justify-between"
-                        disabled={isLoadingProcedures || allProcedures.length === 0}
+                        disabled={isLoadingProcedures || allProcedures.length === 0 || !isLicenseValid || isLoadingLicense}
                     >
                         <span className="truncate">
                         {selectedProcedureIdForExecution

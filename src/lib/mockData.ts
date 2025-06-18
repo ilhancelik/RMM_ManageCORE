@@ -476,37 +476,35 @@ export let mockLicenses: License[] = [
 ];
 
 export let mockSystemLicense: SystemLicenseInfo = {
-  licenseKey: 'INITIAL-MOCK-SETUP-KEY', // Default key on first load
-  licensedPcCount: 2, // Start with a very small number for testing exceeded limit easily
-  expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 1 year
+  licenseKey: 'INITIAL-MOCK-SETUP-KEY',
+  licensedPcCount: 2, 
+  expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), 
   status: 'NotActivated',
 };
 
 // --- Helper Functions for Mock Data ---
 
 export const getSystemLicenseInfo = (): SystemLicenseInfo => {
-  const currentPcCount = getComputers().length;
-  let newStatus = mockSystemLicense.status;
+  // Always recalculate status based on current computers and expiry
+  const currentPcCount = getComputers().length; // Use internal getComputers to avoid infinite loop if it calls getSystemLicenseInfo
+  let newStatus: SystemLicenseInfo['status'];
 
-  if (newStatus === 'NotActivated' && mockSystemLicense.licenseKey && mockSystemLicense.licenseKey !== 'INITIAL-MOCK-SETUP-KEY') {
-    newStatus = 'Valid'; // Assume if a key exists (and not the initial one), it becomes valid on first check after key entry
-  }
-
-  if (newStatus !== 'NotActivated' && mockSystemLicense.expiryDate && new Date(mockSystemLicense.expiryDate) < new Date()) {
+  if (!mockSystemLicense.licenseKey || mockSystemLicense.licenseKey === 'INITIAL-MOCK-SETUP-KEY') {
+    newStatus = 'NotActivated';
+  } else if (mockSystemLicense.expiryDate && new Date(mockSystemLicense.expiryDate) < new Date()) {
     newStatus = 'Expired';
-  } else if (newStatus !== 'NotActivated' && newStatus !== 'Expired' && currentPcCount > mockSystemLicense.licensedPcCount) {
+  } else if (currentPcCount > mockSystemLicense.licensedPcCount) {
     newStatus = 'ExceededLimit';
-  } else if (mockSystemLicense.status === 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount && newStatus !== 'Expired') {
-     newStatus = 'Valid';
-  } else if (newStatus !== 'NotActivated' && newStatus !== 'Expired' && newStatus !== 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount) {
-    newStatus = 'Valid'; // Ensure it stays valid if conditions are met
+  } else {
+    newStatus = 'Valid';
   }
   
+  // Update the mockSystemLicense object if the status changed
   if (newStatus !== mockSystemLicense.status) {
     mockSystemLicense.status = newStatus;
   }
   
-  return { ...mockSystemLicense, status: newStatus };
+  return { ...mockSystemLicense, status: newStatus }; // Return a copy with the potentially updated status
 };
 
 const knownMockLicenseKeys: Record<string, { pcCount: number; expiryGenerator: () => string }> = {
@@ -523,22 +521,19 @@ export const updateSystemLicenseKey = (key: string): SystemLicenseInfo => {
   if (matchedKey) {
     mockSystemLicense.licensedPcCount = matchedKey.pcCount;
     mockSystemLicense.expiryDate = matchedKey.expiryGenerator();
-    mockSystemLicense.status = 'Valid'; // Key matched, so it's valid
-  } else if (key && key !== 'INITIAL-MOCK-SETUP-KEY') {
-    // If key is entered and not a known mock key, and not the initial setup key, treat as a trial
-    mockSystemLicense.licensedPcCount = 1; // Default trial PC count
-    mockSystemLicense.expiryDate = sevenDaysFromNowISO(); // Default trial expiry
-    mockSystemLicense.status = 'Valid'; 
+  } else if (key && key.trim() !== '' && key !== 'INITIAL-MOCK-SETUP-KEY') {
+    mockSystemLicense.licensedPcCount = 1; 
+    mockSystemLicense.expiryDate = sevenDaysFromNowISO(); 
     toast({ title: "Trial Activated", description: "Mock trial (1 PC, 7 days) activated for unrecognized key.", variant: "default" });
-  } else if (!key) {
-    mockSystemLicense.status = 'NotActivated';
-     toast({ title: "Activation Cleared", description: "License key cleared. System is now unactivated.", variant: "default" });
-  } else {
-    // If it's the INITIAL-MOCK-SETUP-KEY, keep status as NotActivated or let getSystemLicenseInfo handle it.
-    // No explicit toast here as it's the initial state.
+  } else if (!key || key.trim() === '') {
+     // If key is empty, revert to a 'NotActivated' state like initial
+    mockSystemLicense.licensedPcCount = 2; // Or some other default for "NotActivated"
+    mockSystemLicense.expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // Reset expiry
+    toast({ title: "Activation Cleared", description: "License key cleared. System is now unactivated.", variant: "default" });
   }
+  // For INITIAL-MOCK-SETUP-KEY, we don't change pcCount or expiry, status will be NotActivated by getSystemLicenseInfo
   
-  return getSystemLicenseInfo(); // Return the potentially updated status
+  return getSystemLicenseInfo(); // This will recalculate and set the status
 };
 
 
@@ -569,21 +564,24 @@ export const getComputerById = (id: string): Computer | undefined => {
     return undefined;
 };
 export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds'>): Computer => {
-  const licenseInfo = getSystemLicenseInfo();
+  const licenseInfo = getSystemLicenseInfo(); // Get current license status
   const currentPcCount = getComputers().length;
 
   if (licenseInfo.status === 'Expired') {
     toast({ title: "License Expired", description: "Your system license has expired. Please renew to add new computers.", variant: "destructive", duration: 7000 });
-    throw new Error('System license expired.');
+    throw new Error('System license expired. Cannot add computer.');
   }
   if (licenseInfo.status === 'NotActivated') {
     toast({ title: "License Not Activated", description: "Please activate your system license to add computers.", variant: "destructive", duration: 7000 });
-    throw new Error('System license not activated.');
+    throw new Error('System license not activated. Cannot add computer.');
   }
-  if (currentPcCount >= licenseInfo.licensedPcCount ) {
-     mockSystemLicense.status = 'ExceededLimit'; // Force status update if at limit
+  if (licenseInfo.status === 'ExceededLimit' || currentPcCount >= licenseInfo.licensedPcCount ) {
+     // Ensure status is ExceededLimit if at limit
+     if(licenseInfo.status !== 'ExceededLimit' && currentPcCount >= licenseInfo.licensedPcCount) {
+        mockSystemLicense.status = 'ExceededLimit'; 
+     }
      toast({ title: "License Limit Reached", description: `You have reached your limit of ${licenseInfo.licensedPcCount} computers. Please upgrade your license to add more.`, variant: "destructive", duration: 7000 });
-     throw new Error('License limit reached.');
+     throw new Error('License limit reached. Cannot add computer.');
   }
 
 
