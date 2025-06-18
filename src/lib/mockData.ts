@@ -1,5 +1,5 @@
 
-import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScopeOptions, ScheduleType, CustomIntervalUnit, DayOfWeek } from '@/types';
+import type { Computer, ComputerGroup, Procedure, ProcedureExecution, ScriptType, AssociatedProcedureConfig, CustomCommand, Monitor, AssociatedMonitorConfig, SMTPSettings, MonitorExecutionLog, ScheduleConfig, AiSettings, AiProviderConfig, License, LicenseTerm, ProcedureSystemType, WindowsUpdateScopeOptions, ScheduleType, CustomIntervalUnit, DayOfWeek, SystemLicenseInfo } from '@/types';
 import { toast } from '@/hooks/use-toast';
 
 export const scriptTypes: ScriptType[] = ['CMD', 'PowerShell', 'Python'];
@@ -237,11 +237,9 @@ foreach (\$pkgId in \$packages) {
         \$outputFile = New-TemporaryFile
         \$errorFile = New-TemporaryFile
         
-        # Using Start-Process as it's generally more robust for external commands, especially with output redirection.
-        # The -Wait parameter is crucial here.
         \$process = Start-Process winget -ArgumentList \$processInfoArgs -PassThru -Wait -RedirectStandardOutput \$outputFile.FullName -RedirectStandardError \$errorFile.FullName -WindowStyle Hidden -ErrorAction Stop
         
-        \$exitCode = \$process.ExitCode # Should be available after -Wait
+        \$exitCode = \$process.ExitCode 
         \$upgradeOutput = Get-Content \$outputFile.FullName -Raw -ErrorAction SilentlyContinue
         \$upgradeErrors = Get-Content \$errorFile.FullName -Raw -ErrorAction SilentlyContinue
         
@@ -251,9 +249,9 @@ foreach (\$pkgId in \$packages) {
         if (\$upgradeOutput) { Write-Log "Output for \$(\$pkgId): \$(\$upgradeOutput)" }
         if (\$upgradeErrors) { Write-Log "Error for \$(\$pkgId): \$(\$upgradeErrors)" }
 
-        if (\$exitCode -ne 0 -and \$exitCode -ne -1978334889) { # -1978334889 is winget's "no update found" code
+        if (\$exitCode -ne 0 -and \$exitCode -ne -1978334889) { 
             Write-Log "Package \$(\$pkgId) upgrade potentially failed or had issues. Exit code: \$(\$exitCode)"
-            \$overallSuccess = \$false # Mark overall as not fully successful if any package fails
+            \$overallSuccess = \$false 
         }
          \$allOutputs += "--- \$(\$pkgId) Output (Exit Code: \$(\$exitCode)) ---\`n\$(\$upgradeOutput)"
          if(\$upgradeErrors) { \$allErrors += "--- \$(\$pkgId) Errors ---\`n\$(\$upgradeErrors)" }
@@ -275,7 +273,6 @@ if (\$overallSuccess) {
 
 Write-Log "Application Update procedure (winget - Specific Packages) finished."
 `;
-
 
 export let mockComputers: Computer[] = [
   {
@@ -323,9 +320,9 @@ export let mockProcedures: Procedure[] = [
     id: 'proc-4',
     name: 'Managed Windows Updates',
     description: 'Installs selected categories of Windows updates. Does not force a system reboot.',
-    scriptType: 'PowerShell', // System managed, but underlying is PS
-    scriptContent: windowsUpdateScriptContent, // System defined
-    runAsUser: false, // System managed
+    scriptType: 'PowerShell', 
+    scriptContent: windowsUpdateScriptContent, 
+    runAsUser: false, 
     procedureSystemType: 'WindowsUpdate',
     windowsUpdateScopeOptions: { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true },
     createdAt: new Date().toISOString(),
@@ -355,7 +352,6 @@ export let mockComputerGroups: ComputerGroup[] = [
     associatedMonitors: [] 
   },
 ];
-
 
 export let mockProcedureExecutions: ProcedureExecution[] = [
   { id: 'exec-1', procedureId: 'proc-1', computerId: 'comp-1', computerName: 'Workstation-Dev-01', status: 'Success', startTime: new Date(Date.now() - 3600000 * 2).toISOString(), endTime: new Date(Date.now() - 3600000 * 2 + 60000).toISOString(), logs: 'Disk cleanup initiated (as SYSTEM)...', output: '1.2GB freed.', runAsUser: false },
@@ -437,7 +433,7 @@ export let mockMonitorExecutionLogs: MonitorExecutionLog[] = [
 
 export let mockCustomCommands: CustomCommand[] = [
   { id: 'cmd-1', targetId: 'comp-1', targetType: 'computer', command: 'ipconfig /all', scriptType: 'CMD', runAsUser: false, status: 'Success', output: 'Windows IP Configuration...', executedAt: new Date(Date.now() - 3600000).toISOString(), computerId: 'comp-1' },
-  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, // computerId here represents the group for simplicity of the old model
+  { id: 'cmd-2', targetId: 'group-1', targetType: 'group', command: 'Get-Process | Sort-Object CPU -Descending | Select-Object -First 5', scriptType: 'PowerShell', runAsUser: false, status: 'Sent', executedAt: new Date().toISOString(), computerId: 'group-1' }, 
 ];
 
 export let mockSmtpSettings: SMTPSettings = {
@@ -457,7 +453,7 @@ export let mockAiSettings: AiSettings = {
       id: 'default-google-ai',
       name: 'Default Google AI',
       providerType: 'googleAI',
-      apiKey: '', // Defaults to GOOGLE_API_KEY env var if empty
+      apiKey: '', 
       isEnabled: true,
       isDefault: true,
     }
@@ -478,8 +474,48 @@ export let mockLicenses: License[] = [
   { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
 ];
 
+export let mockSystemLicense: SystemLicenseInfo = {
+  licenseKey: 'MOCK-LICENSE-KEY-123',
+  licensedPcCount: 5, // Start with a small number for testing
+  expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 1 year
+  status: 'NotActivated', // Start as NotActivated to prompt user
+};
 
 // --- Helper Functions for Mock Data ---
+
+export const getSystemLicenseInfo = (): SystemLicenseInfo => {
+  const currentPcCount = getComputers().length;
+  let newStatus = mockSystemLicense.status;
+
+  if (newStatus === 'NotActivated' && mockSystemLicense.licenseKey) {
+    newStatus = 'Valid'; // Assume if a key exists (even mock), it becomes valid on first check
+  }
+
+  if (newStatus !== 'NotActivated' && mockSystemLicense.expiryDate && new Date(mockSystemLicense.expiryDate) < new Date()) {
+    newStatus = 'Expired';
+  } else if (newStatus !== 'NotActivated' && newStatus !== 'Expired' && currentPcCount > mockSystemLicense.licensedPcCount) {
+    newStatus = 'ExceededLimit';
+  } else if (newStatus === 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount) {
+    newStatus = 'Valid'; // Back to valid if PC count drops
+  }
+  
+  // If it was 'NotActivated' and became 'Valid' or any other status change, update the mockSystemLicense directly
+  if (newStatus !== mockSystemLicense.status) {
+    mockSystemLicense.status = newStatus;
+  }
+  
+  return { ...mockSystemLicense, status: newStatus }; // Return a copy with the potentially updated status
+};
+
+export const updateSystemLicenseKey = (key: string, pcCount: number, expiryDate: string): SystemLicenseInfo => {
+  mockSystemLicense.licenseKey = key;
+  mockSystemLicense.licensedPcCount = pcCount > 0 ? pcCount : 1; // Ensure at least 1 PC
+  mockSystemLicense.expiryDate = expiryDate;
+  // Status will be re-evaluated by getSystemLicenseInfo on next call, but we set to Valid for immediate feedback
+  mockSystemLicense.status = 'Valid'; 
+  return getSystemLicenseInfo(); // Return the potentially updated status
+};
+
 
 export const getComputers = (): Computer[] => {
   return mockComputers.map(c => {
@@ -508,6 +544,26 @@ export const getComputerById = (id: string): Computer | undefined => {
     return undefined;
 };
 export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'groupIds'>): Computer => {
+  const licenseInfo = getSystemLicenseInfo();
+  const currentPcCount = getComputers().length;
+
+  if (licenseInfo.status === 'Expired') {
+    toast({ title: "License Expired", description: "Your system license has expired. Please renew to add new computers.", variant: "destructive", duration: 7000 });
+    throw new Error('System license expired.');
+  }
+  if (licenseInfo.status === 'ExceededLimit' || (licenseInfo.status === 'Valid' && currentPcCount >= licenseInfo.licensedPcCount) ) {
+     if (currentPcCount >= licenseInfo.licensedPcCount) { // Double check for valid but at limit
+        mockSystemLicense.status = 'ExceededLimit'; // Force status update
+        toast({ title: "License Limit Reached", description: `You have reached your limit of ${licenseInfo.licensedPcCount} computers. Please upgrade your license to add more.`, variant: "destructive", duration: 7000 });
+        throw new Error('License limit reached.');
+     }
+  }
+   if (licenseInfo.status === 'NotActivated') {
+    toast({ title: "License Not Activated", description: "Please activate your system license to add computers.", variant: "destructive", duration: 7000 });
+    throw new Error('System license not activated.');
+  }
+
+
   const newComputer: Computer = {
     ...computerData,
     id: `comp-${Date.now()}`,
@@ -515,13 +571,15 @@ export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'gr
     groupIds: [],
   };
   mockComputers = [...mockComputers, newComputer];
+  // After adding, re-check if limit is now exceeded (if it was just at the limit)
+  getSystemLicenseInfo();
   return newComputer;
 };
 export const updateComputer = (id: string, updates: Partial<Computer>): Computer | undefined => {
   let updatedComputer: Computer | undefined;
   mockComputers = mockComputers.map(c => {
     if (c.id === id) {
-      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; // Assume updatedAt is part of Computer or add it
+      updatedComputer = { ...c, ...updates, updatedAt: new Date().toISOString() } as Computer; 
       return updatedComputer;
     }
     return c;
@@ -538,7 +596,11 @@ export const deleteComputer = (id: string): boolean => {
     mockProcedureExecutions = mockProcedureExecutions.filter(exec => exec.computerId !== id);
     mockMonitorExecutionLogs = mockMonitorExecutionLogs.filter(log => log.computerId !== id);
     mockCustomCommands = mockCustomCommands.filter(cmd => cmd.targetType === 'computer' && cmd.targetId !==id);
-    return mockComputers.length < initialLength;
+    const deleted = mockComputers.length < initialLength;
+    if (deleted) {
+        getSystemLicenseInfo(); // Re-check license status after deletion
+    }
+    return deleted;
 }
 
 export const getGroups = (): ComputerGroup[] => mockComputerGroups.sort((a,b) => a.name.localeCompare(b.name));
@@ -600,7 +662,6 @@ export const updateComputerGroup = (id: string, updates: Partial<Omit<ComputerGr
   });
   return updatedGroup;
 };
-
 
 export const deleteComputerGroup = (id: string): boolean => {
   const initialLength = mockComputerGroups.length;
@@ -676,7 +737,6 @@ export const updateProcedureInMock = (id: string, updates: Partial<Omit<Procedur
       let newWindowsUpdateScopeOptions = updates.windowsUpdateScopeOptions ?? p.windowsUpdateScopeOptions;
       let newScriptType = updates.scriptType ?? p.scriptType;
       let newRunAsUser = updates.runAsUser ?? p.runAsUser ?? false;
-
 
       if (currentSystemType === 'WindowsUpdate') {
          newWindowsUpdateScopeOptions = updates.windowsUpdateScopeOptions || { includeOsUpdates: true, includeMicrosoftProductUpdates: true, includeFeatureUpdates: true };
@@ -776,7 +836,6 @@ const getWindowsUpdateScopeLogText = (options?: WindowsUpdateScopeOptions): stri
     return `Kapsam: ${scopes.join(', ')}`;
 };
 
-
 export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'id' | 'computerName'>): ProcedureExecution => {
   const computer = getComputerById(executionData.computerId);
   const procedure = getProcedureById(executionData.procedureId);
@@ -794,7 +853,6 @@ export const addProcedureExecution = (executionData: Omit<ProcedureExecution, 'i
      logs += `\nCustom Script: ${procedure?.scriptContent.substring(0, 50)}...`;
   }
   logs += `\n${executionData.logs || ''}`;
-
 
   const newExecution: ProcedureExecution = {
     ...executionData,
@@ -1032,14 +1090,12 @@ export const saveAiSettings = (settings: AiSettings): AiSettings => {
     }));
   }
 
-
   mockAiSettings = {
     ...settings,
     providerConfigs: newProviderConfigs,
   };
   return mockAiSettings;
 };
-
 
 export const triggerAutomatedProceduresForNewMember = (computerId: string, groupId: string) => {
     const group = getGroupById(groupId);
@@ -1096,7 +1152,6 @@ export const getLicenses = (): License[] => {
   return mockLicenses.sort((a, b) => a.productName.localeCompare(b.productName));
 };
 
-
 export const getLicenseById = (id: string): License | undefined => {
   return mockLicenses.find(lic => lic.id === id);
 };
@@ -1140,12 +1195,6 @@ export const deleteLicenseFromMock = (id: string): boolean => {
   notifiedLicenseIdsThisSession.delete(id); 
   return mockLicenses.length < initialLength;
 };
-
-function simulateMonitorChecks() {
-}
-
-if (typeof window !== 'undefined') {
-}
 
 mockProcedures = mockProcedures.map(p => ({
     ...p,

@@ -42,7 +42,7 @@ export interface AssociatedProcedureConfig {
 
 export interface AssociatedMonitorConfig {
   monitorId: string;
-  schedule: ScheduleConfig; // Re-using ScheduleConfig for monitors too
+  schedule: ScheduleConfig;
 }
 
 export interface ComputerGroup {
@@ -110,8 +110,8 @@ export interface Monitor {
   description: string;
   scriptType: ScriptType;
   scriptContent: string;
-  defaultIntervalValue: number; // For customInterval type if not overridden by group
-  defaultIntervalUnit: CustomIntervalUnit; // For customInterval type
+  defaultIntervalValue: number; 
+  defaultIntervalUnit: CustomIntervalUnit; 
   sendEmailOnAlert: boolean;
   createdAt: string;
   updatedAt: string;
@@ -156,7 +156,7 @@ export type LicenseTerm = 'Lifetime' | 'Annual' | 'Monthly' | 'Other';
 
 export const licenseTerms: LicenseTerm[] = ['Lifetime', 'Annual', 'Monthly', 'Other'];
 
-export interface License {
+export interface License { // This is for 3rd party software licenses
   id: string;
   productName: string;
   quantity: number;
@@ -171,5 +171,13 @@ export interface License {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface SystemLicenseInfo {
+  licenseKey?: string;
+  licensedPcCount: number;
+  expiryDate?: string | null; // ISO date string
+  status: 'Valid' | 'Expired' | 'ExceededLimit' | 'NotActivated';
+  // Potentially add customerName, purchaseDate, etc. for a real system
 }
     

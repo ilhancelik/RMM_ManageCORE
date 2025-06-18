@@ -30,8 +30,9 @@ import {
   Moon,
   Sun,
   Bot,
-  Activity, // For Monitors
-  KeyRound, // For Licenses
+  Activity, 
+  KeyRound, 
+  ShieldCheck, // Icon for System License
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
@@ -41,11 +42,12 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/procedures', label: 'Procedures', icon: FileCode },
   { href: '/monitors', label: 'Monitors', icon: Activity },
-  { href: '/licenses', label: 'Software Licenses', icon: KeyRound },
+  { href: '/licenses', label: 'Software Licenses', icon: KeyRound }, // Renamed for clarity
   { href: '/commands', label: 'Custom Commands', icon: TerminalSquare },
 ];
 
 const settingsNavItems = [
+ { href: '/system-license', label: 'System License', icon: ShieldCheck }, // New Item
  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
@@ -84,7 +86,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <Separator className="my-2 bg-sidebar-border" />
           <div className="flex-1 space-y-2 mt-4">
-            {[...Array(navItems.length)].map((_, i) => ( 
+            {[...Array(navItems.length + settingsNavItems.length)].map((_, i) => ( 
               <SidebarMenuSkeleton key={i} showIcon />
             ))}
           </div>

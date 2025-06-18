@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { addComputer } from '@/lib/mockData'; // Import the mock function
+import { addComputer } from '@/lib/mockData'; 
 import type { Computer } from '@/types';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 
@@ -35,24 +35,25 @@ export default function NewComputerPage() {
 
     setIsSubmitting(true);
     try {
-      // Call the mock function to add the computer
       addComputer({ name, os, ipAddress, status });
       toast({
         title: 'Success!',
         description: `Computer "${name}" has been added to mock data.`,
       });
-      // Simulate API call delay
       setTimeout(() => {
-        router.push('/computers'); // Navigate back to the computers list
+        router.push('/computers'); 
         setIsSubmitting(false);
       }, 500);
     } catch (error) {
+      // Error might be from license check in addComputer
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
       toast({
-        title: 'Error adding computer (Mock)',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+        title: 'Error Adding Computer (Mock)',
+        description: errorMessage, // Display specific error from mockData (e.g., license limit)
         variant: 'destructive',
+        duration: 7000,
       });
-      setIsSubmitting(false);
+      setIsSubmitting(false); // Keep form open so user can see error / take action
     }
   };
 
@@ -65,7 +66,7 @@ export default function NewComputerPage() {
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle>Add New Computer (Mock Data)</CardTitle>
-          <CardDescription>Enter the details for the new computer. This will be added to local mock data.</CardDescription>
+          <CardDescription>Enter the details for the new computer. This will be added to local mock data if your license permits.</CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
