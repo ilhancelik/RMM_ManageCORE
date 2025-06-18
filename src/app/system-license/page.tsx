@@ -14,10 +14,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { format, parseISO } from 'date-fns';
 
-const initialLicenseFormState: Partial<SystemLicenseInfo> = {
+const initialLicenseFormState: { licenseKey?: string } = {
   licenseKey: '',
-  licensedPcCount: 0,
-  expiryDate: null,
 };
 
 export default function SystemLicensePage() {
@@ -39,10 +37,8 @@ export default function SystemLicensePage() {
         const fetchedComputers = getComputers();
         setLicenseInfo(fetchedLicenseInfo);
         setCurrentPcCount(fetchedComputers.length);
-        setFormState({
+        setFormState({ // Keep form state minimal, reflecting current input
             licenseKey: fetchedLicenseInfo.licenseKey || '',
-            licensedPcCount: fetchedLicenseInfo.licensedPcCount || 0,
-            expiryDate: fetchedLicenseInfo.expiryDate ? format(parseISO(fetchedLicenseInfo.expiryDate), 'yyyy-MM-dd') : '',
         });
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load license information.';
@@ -62,41 +58,27 @@ export default function SystemLicensePage() {
     const { name, value } = e.target;
     setFormState(prev => ({
       ...prev,
-      [name]: name === 'licensedPcCount' ? (parseInt(value) || 0) : value,
+      [name]: value,
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formState.licenseKey?.trim()) {
-      toast({ title: "Validation Error", description: "License Key is required.", variant: "destructive" });
+      toast({ title: "Validation Error", description: "New License Key is required.", variant: "destructive" });
       return;
-    }
-    if ((formState.licensedPcCount || 0) <= 0) {
-      toast({ title: "Validation Error", description: "Licensed PC Count must be greater than 0.", variant: "destructive" });
-      return;
-    }
-    if (!formState.expiryDate) {
-        toast({ title: "Validation Error", description: "Expiry Date is required.", variant: "destructive" });
-        return;
     }
 
     setIsSubmitting(true);
     setError(null);
     try {
-      const expiryDateObj = new Date(formState.expiryDate);
-      if (isNaN(expiryDateObj.getTime())) {
-        toast({ title: "Validation Error", description: "Invalid Expiry Date format.", variant: "destructive" });
-        setIsSubmitting(false);
-        return;
-      }
-
-      updateSystemLicenseKey(formState.licenseKey, formState.licensedPcCount || 1, expiryDateObj.toISOString());
+      updateSystemLicenseKey(formState.licenseKey);
       toast({
         title: 'Success!',
         description: 'System license information has been updated (Mock).',
       });
       loadLicenseData(); // Refresh data after update
+      setFormState({ licenseKey: '' }); // Clear the input after successful submission
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred.';
       setError(errorMessage);
@@ -208,13 +190,13 @@ export default function SystemLicensePage() {
                 </div>
                 <div>
                     <Label className="text-sm text-muted-foreground">Managed / Licensed PCs</Label>
-                    <p className="font-semibold text-lg">{currentPcCount} / {licenseInfo?.licensedPcCount || 'N/A'}</p>
+                    <p className="font-semibold text-lg">{currentPcCount} / {licenseInfo?.status !== 'NotActivated' ? (licenseInfo?.licensedPcCount || 'N/A') : 'N/A'}</p>
                 </div>
             </div>
             <div>
                 <Label className="text-sm text-muted-foreground">License Expiry Date</Label>
                 <p className="font-semibold text-lg">
-                    {licenseInfo?.expiryDate ? format(parseISO(licenseInfo.expiryDate), 'PPP') : 'N/A'}
+                    {licenseInfo?.status !== 'NotActivated' && licenseInfo?.expiryDate ? format(parseISO(licenseInfo.expiryDate), 'PPP') : 'N/A'}
                 </p>
             </div>
              <div>
@@ -234,14 +216,6 @@ export default function SystemLicensePage() {
             <div>
               <Label htmlFor="licenseKey">New License Key</Label>
               <Input id="licenseKey" name="licenseKey" value={formState.licenseKey || ''} onChange={handleInputChange} placeholder="Enter your license key" required disabled={isSubmitting} />
-            </div>
-            <div>
-              <Label htmlFor="licensedPcCount">Licensed PC Count</Label>
-              <Input id="licensedPcCount" name="licensedPcCount" type="number" min="1" value={formState.licensedPcCount || ''} onChange={handleInputChange} placeholder="e.g., 10" required disabled={isSubmitting}/>
-            </div>
-            <div>
-              <Label htmlFor="expiryDate">Expiry Date</Label>
-              <Input id="expiryDate" name="expiryDate" type="date" value={formState.expiryDate || ''} onChange={handleInputChange} required disabled={isSubmitting}/>
                <p className="text-xs text-muted-foreground mt-1">In a real system, PC count and expiry would be derived from the validated license key.</p>
             </div>
           </CardContent>

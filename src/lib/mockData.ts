@@ -460,25 +460,26 @@ export let mockAiSettings: AiSettings = {
   ],
 };
 
-const thirtyDaysFromNow = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-const sixtyDaysFromNow = () => new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
-const ninetyDaysAgo = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
-const fiveDaysFromNow = () => new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString();
+const thirtyDaysFromNowISO = () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+const oneYearFromNowISO = () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
+const lifetimeExpiryISO = () => new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(); // effectively lifetime
+const sevenDaysFromNowISO = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
 
 export let mockLicenses: License[] = [
-  { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: ninetyDaysAgo(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup', sendExpiryNotification: false, notificationDaysBefore: 30 },
-  { id: 'lic-2', productName: 'Adobe Photoshop CC', quantity: 10, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: thirtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Auto-renewal active via procurement.", sendExpiryNotification: true, notificationDaysBefore: 30 },
-  { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: sixtyDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com', sendExpiryNotification: true, notificationDaysBefore: 15 },
+  { id: 'lic-1', productName: 'Microsoft Office 2021 Pro', quantity: 50, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: true, purchaseDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://office.com/setup', sendExpiryNotification: false, notificationDaysBefore: 30 },
+  { id: 'lic-2', productName: 'Adobe Photoshop CC', quantity: 10, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: thirtyDaysFromNowISO(), isActive: true, purchaseDate: new Date(Date.now() - 300 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Auto-renewal active via procurement.", sendExpiryNotification: true, notificationDaysBefore: 30 },
+  { id: 'lic-3', productName: 'JetBrains IntelliJ IDEA Ultimate', quantity: 5, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), websitePanelAddress: 'https://account.jetbrains.com', sendExpiryNotification: true, notificationDaysBefore: 15 },
   { id: 'lic-4', productName: 'WinRAR Archiver', quantity: 100, licenseTerm: 'Lifetime', enableExpiryDate: false, expiryDate: null, isActive: false, purchaseDate: new Date(Date.now() - 1000 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Company wide old license, replaced by 7-Zip.", sendExpiryNotification: false, notificationDaysBefore: 30 },
   { id: 'lic-5', productName: 'Zoom Pro Monthly', quantity: 20, licenseTerm: 'Monthly', enableExpiryDate: true, expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), sendExpiryNotification: true, notificationDaysBefore: 7 },
-  { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: fiveDaysFromNow(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
+  { id: 'lic-6', productName: 'Acme VPN Client', quantity: 25, licenseTerm: 'Annual', enableExpiryDate: true, expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), isActive: true, purchaseDate: new Date(Date.now() - 360 * 24 * 60 * 60 * 1000).toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), notes: "Test for near expiry.", sendExpiryNotification: true, notificationDaysBefore: 3 },
 ];
 
 export let mockSystemLicense: SystemLicenseInfo = {
-  licenseKey: 'MOCK-LICENSE-KEY-123',
-  licensedPcCount: 5, // Start with a small number for testing
+  licenseKey: 'INITIAL-MOCK-SETUP-KEY', // Default key on first load
+  licensedPcCount: 2, // Start with a very small number for testing exceeded limit easily
   expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 1 year
-  status: 'NotActivated', // Start as NotActivated to prompt user
+  status: 'NotActivated',
 };
 
 // --- Helper Functions for Mock Data ---
@@ -487,32 +488,56 @@ export const getSystemLicenseInfo = (): SystemLicenseInfo => {
   const currentPcCount = getComputers().length;
   let newStatus = mockSystemLicense.status;
 
-  if (newStatus === 'NotActivated' && mockSystemLicense.licenseKey) {
-    newStatus = 'Valid'; // Assume if a key exists (even mock), it becomes valid on first check
+  if (newStatus === 'NotActivated' && mockSystemLicense.licenseKey && mockSystemLicense.licenseKey !== 'INITIAL-MOCK-SETUP-KEY') {
+    newStatus = 'Valid'; // Assume if a key exists (and not the initial one), it becomes valid on first check after key entry
   }
 
   if (newStatus !== 'NotActivated' && mockSystemLicense.expiryDate && new Date(mockSystemLicense.expiryDate) < new Date()) {
     newStatus = 'Expired';
   } else if (newStatus !== 'NotActivated' && newStatus !== 'Expired' && currentPcCount > mockSystemLicense.licensedPcCount) {
     newStatus = 'ExceededLimit';
-  } else if (newStatus === 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount) {
-    newStatus = 'Valid'; // Back to valid if PC count drops
+  } else if (mockSystemLicense.status === 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount && newStatus !== 'Expired') {
+     newStatus = 'Valid';
+  } else if (newStatus !== 'NotActivated' && newStatus !== 'Expired' && newStatus !== 'ExceededLimit' && currentPcCount <= mockSystemLicense.licensedPcCount) {
+    newStatus = 'Valid'; // Ensure it stays valid if conditions are met
   }
   
-  // If it was 'NotActivated' and became 'Valid' or any other status change, update the mockSystemLicense directly
   if (newStatus !== mockSystemLicense.status) {
     mockSystemLicense.status = newStatus;
   }
   
-  return { ...mockSystemLicense, status: newStatus }; // Return a copy with the potentially updated status
+  return { ...mockSystemLicense, status: newStatus };
 };
 
-export const updateSystemLicenseKey = (key: string, pcCount: number, expiryDate: string): SystemLicenseInfo => {
+const knownMockLicenseKeys: Record<string, { pcCount: number; expiryGenerator: () => string }> = {
+  'MOCK-BASIC-5PC-30D': { pcCount: 5, expiryGenerator: thirtyDaysFromNowISO },
+  'MOCK-PRO-20PC-1Y': { pcCount: 20, expiryGenerator: oneYearFromNowISO },
+  'MOCK-ULTRA-100PC-LIFE': { pcCount: 100, expiryGenerator: lifetimeExpiryISO },
+};
+
+export const updateSystemLicenseKey = (key: string): SystemLicenseInfo => {
   mockSystemLicense.licenseKey = key;
-  mockSystemLicense.licensedPcCount = pcCount > 0 ? pcCount : 1; // Ensure at least 1 PC
-  mockSystemLicense.expiryDate = expiryDate;
-  // Status will be re-evaluated by getSystemLicenseInfo on next call, but we set to Valid for immediate feedback
-  mockSystemLicense.status = 'Valid'; 
+  
+  const matchedKey = knownMockLicenseKeys[key.toUpperCase()];
+
+  if (matchedKey) {
+    mockSystemLicense.licensedPcCount = matchedKey.pcCount;
+    mockSystemLicense.expiryDate = matchedKey.expiryGenerator();
+    mockSystemLicense.status = 'Valid'; // Key matched, so it's valid
+  } else if (key && key !== 'INITIAL-MOCK-SETUP-KEY') {
+    // If key is entered and not a known mock key, and not the initial setup key, treat as a trial
+    mockSystemLicense.licensedPcCount = 1; // Default trial PC count
+    mockSystemLicense.expiryDate = sevenDaysFromNowISO(); // Default trial expiry
+    mockSystemLicense.status = 'Valid'; 
+    toast({ title: "Trial Activated", description: "Mock trial (1 PC, 7 days) activated for unrecognized key.", variant: "default" });
+  } else if (!key) {
+    mockSystemLicense.status = 'NotActivated';
+     toast({ title: "Activation Cleared", description: "License key cleared. System is now unactivated.", variant: "default" });
+  } else {
+    // If it's the INITIAL-MOCK-SETUP-KEY, keep status as NotActivated or let getSystemLicenseInfo handle it.
+    // No explicit toast here as it's the initial state.
+  }
+  
   return getSystemLicenseInfo(); // Return the potentially updated status
 };
 
@@ -551,16 +576,14 @@ export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'gr
     toast({ title: "License Expired", description: "Your system license has expired. Please renew to add new computers.", variant: "destructive", duration: 7000 });
     throw new Error('System license expired.');
   }
-  if (licenseInfo.status === 'ExceededLimit' || (licenseInfo.status === 'Valid' && currentPcCount >= licenseInfo.licensedPcCount) ) {
-     if (currentPcCount >= licenseInfo.licensedPcCount) { // Double check for valid but at limit
-        mockSystemLicense.status = 'ExceededLimit'; // Force status update
-        toast({ title: "License Limit Reached", description: `You have reached your limit of ${licenseInfo.licensedPcCount} computers. Please upgrade your license to add more.`, variant: "destructive", duration: 7000 });
-        throw new Error('License limit reached.');
-     }
-  }
-   if (licenseInfo.status === 'NotActivated') {
+  if (licenseInfo.status === 'NotActivated') {
     toast({ title: "License Not Activated", description: "Please activate your system license to add computers.", variant: "destructive", duration: 7000 });
     throw new Error('System license not activated.');
+  }
+  if (currentPcCount >= licenseInfo.licensedPcCount ) {
+     mockSystemLicense.status = 'ExceededLimit'; // Force status update if at limit
+     toast({ title: "License Limit Reached", description: `You have reached your limit of ${licenseInfo.licensedPcCount} computers. Please upgrade your license to add more.`, variant: "destructive", duration: 7000 });
+     throw new Error('License limit reached.');
   }
 
 
@@ -571,8 +594,7 @@ export const addComputer = (computerData: Omit<Computer, 'id' | 'lastSeen' | 'gr
     groupIds: [],
   };
   mockComputers = [...mockComputers, newComputer];
-  // After adding, re-check if limit is now exceeded (if it was just at the limit)
-  getSystemLicenseInfo();
+  getSystemLicenseInfo(); // Re-check license status after adding
   return newComputer;
 };
 export const updateComputer = (id: string, updates: Partial<Computer>): Computer | undefined => {
