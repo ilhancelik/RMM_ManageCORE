@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, PlusCircle, Search, Trash2, ArrowUp, ArrowDown, FileCode, HardDrive, RefreshCw, Clock, Settings, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent, DialogClose } from '@/components/ui/dialog'; // DialogTrigger removed as it's not directly used on page level
+import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogContent, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -132,9 +132,9 @@ export default function ManageGroupProceduresPage() {
           toast({ title: "Validation Error", description: `Procedure "${procName}" needs a time and day of month for 'Monthly' schedule.`, variant: "destructive" });
           setIsSaving(false); return;
         }
-        if (proc.schedule.type === 'customInterval' && (!proc.schedule.intervalValue || !proc.schedule.intervalUnit)) {
-          toast({ title: "Validation Error", description: `Procedure "${procName}" needs value and unit for 'Custom Interval' schedule.`, variant: "destructive" });
-          setIsSaving(false); return;
+         if (proc.schedule.type === 'customInterval' && (!proc.schedule.intervalValue || !proc.schedule.intervalUnit)) {
+           toast({ title: "Validation Error", description: `Procedure "${procName}" needs value and unit for 'Custom Interval' schedule.`, variant: "destructive" });
+           setIsSaving(false); return;
         }
          if (proc.schedule.type === 'customInterval' && proc.schedule.intervalValue && proc.schedule.intervalValue < 1) {
            toast({ title: "Validation Error", description: `Procedure "${procName}" custom interval value must be 1 or greater.`, variant: "destructive" });
@@ -293,11 +293,11 @@ export default function ManageGroupProceduresPage() {
         <div className="flex items-center gap-4">
             <Dialog open={isAddProceduresModalOpen} onOpenChange={(isOpen) => { setIsAddProceduresModalOpen(isOpen); if(!isOpen) { setAddProcToGroupSearchTerm(''); setTempSelectedProcIdsForAddDialog(new Set());}}}>
                 <DialogHeader className="sr-only"><DialogTitle>Add Procedures Modal</DialogTitle></DialogHeader> 
-                <Button asChild variant="outline" disabled={isSaving} className="h-9 text-sm">
-                   <DialogTrigger>
+                <DialogTrigger asChild>
+                    <Button variant="outline" disabled={isSaving} className="h-9 text-sm">
                         <PlusCircle className="mr-2 h-4 w-4" /> Add Procedures to Group
-                   </DialogTrigger>
-                </Button>
+                    </Button>
+                </DialogTrigger>
                 <DialogContent className="sm:max-w-2xl">
                     <DialogHeader>
                         <DialogTitle>Add Procedures to Group: {group.name}</DialogTitle>
