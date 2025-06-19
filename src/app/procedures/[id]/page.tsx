@@ -3,15 +3,15 @@
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import React, { useEffect, useState, useTransition, useCallback, useMemo } from 'react';
-import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure, getAiSettings } from '@/lib/mockData';
-import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScopeOptions, ProcedureSystemType, AiSettings } from '@/types';
+import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure, getAiSettings, getGroups, getGroupById } from '@/lib/mockData';
+import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScopeOptions, ProcedureSystemType, AiSettings, ComputerGroup } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
 import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-script-flow';
 import { useLicense } from '@/contexts/LicenseContext';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode, Search as SearchIcon, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode, Search as SearchIcon, AlertTriangle, ChevronsUpDown } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -27,6 +27,20 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import Link from 'next/link';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from '@/lib/utils';
 
 
 export default function ProcedureDetailPage() {
@@ -86,12 +100,23 @@ export default function ProcedureDetailPage() {
   const [isGeneratingWithAiForEdit, setIsGeneratingWithAiForEdit] = useState(false);
   const [aiGenerationErrorForEdit, setAiGenerationErrorForEdit] = useState<string | null>(null);
 
+  // For Execute Tab - Target Type Selection
+  type TargetTypeForExecution = 'computer' | 'group';
+  const [targetTypeForExecution, setTargetTypeForExecution] = useState<TargetTypeForExecution>('computer');
+  const [allGroups, setAllGroups] = useState<ComputerGroup[]>([]);
+  const [isLoadingGroups, setIsLoadingGroups] = useState(true);
+  const [selectedGroupIdForExecution, setSelectedGroupIdForExecution] = useState<string>('');
+  const [targetGroupSearchTerm, setTargetGroupSearchTerm] = useState('');
+  const [openComputerMultiSelectPopover, setOpenComputerMultiSelectPopover] = useState(false);
+  const [openGroupSelectPopover, setOpenGroupSelectPopover] = useState(false);
+
 
   const loadProcedureAndRelatedData = useCallback(() => {
     if (!id) return;
     setIsLoading(true);
     setIsLoadingExecutions(true);
     setIsLoadingTargetComputers(true);
+    setIsLoadingGroups(true);
     setError(null);
 
     setTimeout(() => {
@@ -99,6 +124,7 @@ export default function ProcedureDetailPage() {
         const fetchedProcedure = getProcedureById(id);
         setProcedure(fetchedProcedure || null);
         setAiSettings(getAiSettings());
+        setAllGroups(getGroups());
 
         if (fetchedProcedure) {
           setEditName(fetchedProcedure.name);
@@ -119,7 +145,7 @@ export default function ProcedureDetailPage() {
           }
 
           setExecutions(getExecutions({ procedureId: id }));
-          setAllComputers(getComputers()); // Fetch all first, then filter for online
+          setAllComputers(getComputers());
         } else {
           setError('Procedure not found in mock data.');
         }
@@ -131,6 +157,7 @@ export default function ProcedureDetailPage() {
         setIsLoading(false);
         setIsLoadingExecutions(false);
         setIsLoadingTargetComputers(false);
+        setIsLoadingGroups(false);
       }
     }, 300);
   }, [id, toast]);
@@ -271,16 +298,51 @@ export default function ProcedureDetailPage() {
         toast({ title: "License Invalid", description: "Cannot execute procedures with an invalid license.", variant: "destructive" });
         return;
     }
-    if (!procedure || selectedComputerIds.length === 0) {
-        toast({ title: "Execution Error", description: "Please select at least one computer.", variant: "destructive"});
+    if (!procedure) {
+        toast({ title: "Execution Error", description: "Procedure not found.", variant: "destructive"});
         return;
     }
+
+    let computerIdsToExecute: string[] = [];
+    let targetName: string = '';
+
+    if (targetTypeForExecution === 'computer') {
+        if (selectedComputerIds.length === 0) {
+            toast({ title: "Execution Error", description: "Please select at least one computer.", variant: "destructive"});
+            return;
+        }
+        computerIdsToExecute = selectedComputerIds;
+        targetName = `${selectedComputerIds.length} computer(s)`;
+    } else { // targetTypeForExecution === 'group'
+        if (!selectedGroupIdForExecution) {
+            toast({ title: "Execution Error", description: "Please select a computer group.", variant: "destructive"});
+            return;
+        }
+        const group = getGroupById(selectedGroupIdForExecution);
+        if (!group) {
+            toast({ title: "Execution Error", description: "Selected group not found.", variant: "destructive"});
+            return;
+        }
+        targetName = `group "${group.name}"`;
+        const onlineComputersInGroup = allComputers.filter(c => group.computerIds.includes(c.id) && c.status === 'Online');
+        if (onlineComputersInGroup.length === 0) {
+            toast({ title: "Info", description: `No online computers found in group "${group.name}" to execute the procedure.`, variant: "default"});
+            return;
+        }
+        computerIdsToExecute = onlineComputersInGroup.map(c => c.id);
+    }
+
     setIsExecuting(true);
     try {
-      executeMockProcedure(procedure.id, selectedComputerIds);
-      toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
+      executeMockProcedure(procedure.id, computerIdsToExecute);
+      toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${targetName}.`});
       setSelectedComputerIds([]);
+      setSelectedGroupIdForExecution('');
       setTargetComputerSearchTerm('');
+      setTargetGroupSearchTerm('');
+      setOpenComputerMultiSelectPopover(false);
+      setOpenGroupSelectPopover(false);
+
       setTimeout(() => {
         refreshExecutions();
         setIsExecuting(false);
@@ -376,9 +438,11 @@ export default function ProcedureDetailPage() {
     });
   };
 
-  const handleComputerSelection = (computerId: string) => {
-    setSelectedComputerIds(prev =>
-      prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
+  const handleComputerSelectionToggle = (computerId: string) => {
+    setSelectedComputerIds((prevSelected) =>
+      prevSelected.includes(computerId)
+        ? prevSelected.filter((id) => id !== computerId)
+        : [...prevSelected, computerId]
     );
   };
 
@@ -386,7 +450,11 @@ export default function ProcedureDetailPage() {
     let onlineComputers = allComputers.filter(c => c.status === 'Online');
     if (targetComputerSearchTerm.trim() !== '') {
       const lowerSearch = targetComputerSearchTerm.toLowerCase();
-      onlineComputers = onlineComputers.filter(c => c.name.toLowerCase().includes(lowerSearch));
+      onlineComputers = onlineComputers.filter(c => 
+        c.name.toLowerCase().includes(lowerSearch) ||
+        c.ipAddress.toLowerCase().includes(lowerSearch) ||
+        c.os.toLowerCase().includes(lowerSearch)
+      );
     }
     return onlineComputers;
   }, [allComputers, targetComputerSearchTerm]);
@@ -481,6 +549,9 @@ export default function ProcedureDetailPage() {
   }
 
   const currentSystemType = procedure.procedureSystemType || 'CustomScript';
+  const executeButtonDisabled = isExecuting || isLoadingTargetComputers || isLoadingGroups || !isLicenseValid ||
+                               (targetTypeForExecution === 'computer' && selectedComputerIds.length === 0) ||
+                               (targetTypeForExecution === 'group' && !selectedGroupIdForExecution);
 
 
   return (
@@ -534,7 +605,7 @@ export default function ProcedureDetailPage() {
         <TabsList className="grid w-full grid-cols-4 mb-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="script">Script</TabsTrigger>
-          <TabsTrigger value="execute" disabled={isEditing}>Execute</TabsTrigger>
+          <TabsTrigger value="execute" disabled={isEditing || !isLicenseValid}>Execute</TabsTrigger>
           <TabsTrigger value="improve" disabled={isEditing || currentSystemType !== 'CustomScript' || !isLicenseValid}>Improve with AI</TabsTrigger>
         </TabsList>
 
@@ -542,28 +613,17 @@ export default function ProcedureDetailPage() {
           <Card>
             <CardHeader><CardTitle>Procedure Details</CardTitle></CardHeader>
             <CardContent className="space-y-6">
-              {isEditing ? (
+              <div>
+                <Label htmlFor="editName">Name</Label>
+                <Input id="editName" value={isEditing ? editName : procedure.name} onChange={(e) => setEditName(e.target.value)} disabled={!isEditing || isSaving || !isLicenseValid} />
+              </div>
+              <div>
+                <Label htmlFor="editDescription">Description</Label>
+                <Textarea id="editDescription" value={isEditing ? editDescription : procedure.description} onChange={(e) => setEditDescription(e.target.value)} disabled={!isEditing || isSaving || !isLicenseValid} rows={3} />
+              </div>
+              {!isEditing && (
                 <>
                   <div>
-                    <Label htmlFor="editName">Name</Label>
-                    <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={isSaving || !isLicenseValid} />
-                  </div>
-                  <div>
-                    <Label htmlFor="editDescription">Description</Label>
-                    <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} disabled={isSaving || !isLicenseValid} rows={3} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Name</Label>
-                    <p className="font-semibold">{procedure.name}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm text-muted-foreground">Description</Label>
-                    <p>{procedure.description || 'N/A'}</p>
-                  </div>
-                   <div>
                     <Label className="text-sm text-muted-foreground">System Type</Label>
                     <p className="font-semibold">{getSystemTypeLabel(procedure.procedureSystemType)}</p>
                   </div>
@@ -587,26 +647,26 @@ export default function ProcedureDetailPage() {
             <CardContent className="space-y-6">
               {currentSystemType === 'CustomScript' && (
                 <>
-                  {isEditing ? (
+                  <div>
+                    <Label htmlFor="editRunAsUser">Execution Context</Label>
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Checkbox id="editRunAsUser" checked={isEditing ? editRunAsUser : (procedure.runAsUser || false)} onCheckedChange={(checked) => setEditRunAsUser(checked === true)} disabled={!isEditing || isSaving || !isLicenseValid} />
+                      <Label htmlFor="editRunAsUser" className="font-normal">Run as User (otherwise SYSTEM)</Label>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="editScriptType">Script Type</Label>
+                    <Select value={isEditing ? editScriptType : procedure.scriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={!isEditing || isSaving || isGeneratingWithAiForEdit || !isLicenseValid}>
+                      <SelectTrigger><SelectValue placeholder="Select script type" /></SelectTrigger>
+                      <SelectContent>{scriptTypes.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="editScriptContent">Script Content</Label>
+                    <Textarea id="editScriptContent" value={isEditing ? editScriptContent : procedure.scriptContent} onChange={(e) => setEditScriptContent(e.target.value)} className="font-code" rows={15} disabled={!isEditing || isSaving || !isLicenseValid} />
+                  </div>
+                  {isEditing && (
                     <>
-                      <div>
-                        <Label htmlFor="editRunAsUser">Execution Context</Label>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Checkbox id="editRunAsUser" checked={editRunAsUser} onCheckedChange={(checked) => setEditRunAsUser(checked === true)} disabled={isSaving || !isLicenseValid} />
-                          <Label htmlFor="editRunAsUser" className="font-normal">Run as User (otherwise SYSTEM)</Label>
-                        </div>
-                      </div>
-                      <div>
-                        <Label htmlFor="editScriptType">Script Type</Label>
-                        <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving || isGeneratingWithAiForEdit || !isLicenseValid}>
-                          <SelectTrigger><SelectValue placeholder="Select script type" /></SelectTrigger>
-                          <SelectContent>{scriptTypes.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label htmlFor="editScriptContent">Script Content</Label>
-                        <Textarea id="editScriptContent" value={editScriptContent} onChange={(e) => setEditScriptContent(e.target.value)} className="font-code" rows={15} disabled={isSaving || !isLicenseValid} />
-                      </div>
                       <Separator />
                       <div className="space-y-2">
                         <Button type="button" variant="outline" onClick={() => setShowAiGenerationSection(!showAiGenerationSection)} disabled={isSaving || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled) || !isLicenseValid} className="w-full">
@@ -632,26 +692,11 @@ export default function ProcedureDetailPage() {
                         )}
                       </div>
                     </>
-                  ) : (
-                    <>
-                      <div>
-                        <Label className="text-sm text-muted-foreground">Default Execution Context</Label>
-                        <div className="flex items-center gap-2">
-                            {procedure.runAsUser ? <UserCircle className="h-5 w-5 text-blue-600" /> : <Shield className="h-5 w-5 text-gray-600" />}
-                            <p className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-muted-foreground">Script Type</Label>
-                        <p className="font-semibold">{procedure.scriptType}</p>
-                      </div>
-                      <div>
-                        <Label className="text-sm text-muted-foreground">Script Content</Label>
-                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
-                          <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
-                        </ScrollArea>
-                      </div>
-                    </>
+                  )}
+                  {!isEditing && (
+                     <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40 mt-2">
+                        <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                    </ScrollArea>
                   )}
                 </>
               )}
@@ -680,9 +725,6 @@ export default function ProcedureDetailPage() {
                                 <li key={index}>{scopeText}</li>
                             ))}
                         </ul>
-                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40 mt-2">
-                            <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
-                        </ScrollArea>
                     </div>
                  )
               )}
@@ -720,13 +762,10 @@ export default function ProcedureDetailPage() {
                                 <p className="font-semibold whitespace-pre-wrap">{procedure.specificSoftwareToUpdate || 'N/A'}</p>
                             </div>
                         )}
-                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40 mt-2">
-                            <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
-                        </ScrollArea>
                     </>
                  )
               )}
-              {(currentSystemType === 'WindowsUpdate' || currentSystemType === 'SoftwareUpdate') && !isEditing && (
+              {(currentSystemType === 'WindowsUpdate' || currentSystemType === 'SoftwareUpdate') && (
                   <Alert variant="default" className="mt-4">
                     <Terminal className="h-4 w-4" />
                     <AlertTitle>System Procedure Information</AlertTitle>
@@ -734,6 +773,11 @@ export default function ProcedureDetailPage() {
                         This is a system-managed procedure. The script content and execution context are predefined.
                         {currentSystemType === 'WindowsUpdate' && ' It installs Windows updates based on the configured scopes and does not force a reboot.'}
                         {currentSystemType === 'SoftwareUpdate' && ' It updates 3rd party software using winget based on the configured scope.'}
+                        {!isEditing && (
+                             <ScrollArea className="h-40 w-full rounded-md border p-2 bg-background mt-2 text-xs">
+                                <pre className="font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                            </ScrollArea>
+                        )}
                     </AlertDescription>
                 </Alert>
               )}
@@ -745,49 +789,89 @@ export default function ProcedureDetailPage() {
           <div className="grid md:grid-cols-3 gap-6">
             <Card className="md:col-span-1">
               <CardHeader>
-                <CardTitle>Select Target Computers</CardTitle>
-                 <CardDescription>Select online computers to run this procedure on. It will run with its default context: <span className="font-semibold">{currentSystemType !== 'CustomScript' || procedure.runAsUser ? 'User' : 'SYSTEM'}</span>.</CardDescription>
+                <CardTitle>Select Target</CardTitle>
+                 <CardDescription>Select computers or a group to run this procedure on. Context: <span className="font-semibold">{currentSystemType !== 'CustomScript' || (isEditing ? editRunAsUser : procedure.runAsUser) ? 'User' : 'SYSTEM'}</span>.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="relative">
-                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="search"
-                        placeholder="Search online computers..."
-                        className="pl-8"
-                        value={targetComputerSearchTerm}
-                        onChange={(e) => setTargetComputerSearchTerm(e.target.value)}
-                        disabled={isLoadingTargetComputers || isExecuting || !isLicenseValid}
-                    />
+                <div>
+                    <Label>Target Type</Label>
+                    <RadioGroup value={targetTypeForExecution} onValueChange={(value: string) => { setTargetTypeForExecution(value as TargetTypeForExecution); setSelectedComputerIds([]); setSelectedGroupIdForExecution(''); }} className="flex space-x-4 mt-2" disabled={isExecuting || !isLicenseValid}>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="computer" id="exec-r-computer" /><Label htmlFor="exec-r-computer">Computer(s)</Label></div>
+                        <div className="flex items-center space-x-2"><RadioGroupItem value="group" id="exec-r-group" /><Label htmlFor="exec-r-group">Computer Group</Label></div>
+                    </RadioGroup>
                 </div>
-                {isLoadingTargetComputers ? (
-                  <div className="space-y-2 pt-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
-                ) : filteredOnlineComputersForExecution.length === 0 ? (
-                  <p className="text-sm text-muted-foreground pt-2 text-center">
-                    {targetComputerSearchTerm ? 'No online computers match your search.' : 'No online computers available.'}
-                  </p>
-                ) : (
-                  <ScrollArea className="h-64 border rounded-md p-2">
-                    {filteredOnlineComputersForExecution.map(computer => (
-                      <div key={computer.id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded-md">
-                        <Checkbox
-                          id={`comp-exec-${computer.id}`}
-                          checked={selectedComputerIds.includes(computer.id)}
-                          onCheckedChange={() => handleComputerSelection(computer.id)}
-                          disabled={isExecuting || !isLicenseValid}
-                        />
-                        <Label htmlFor={`comp-exec-${computer.id}`} className="font-normal cursor-pointer flex-1">
-                          {computer.name}
-                        </Label>
-                      </div>
-                    ))}
-                  </ScrollArea>
+
+                {targetTypeForExecution === 'computer' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="targetComputerMultiSelect">Target Computer(s)</Label>
+                    <Popover open={openComputerMultiSelectPopover} onOpenChange={setOpenComputerMultiSelectPopover}>
+                        <PopoverTrigger asChild>
+                        <Button id="targetComputerMultiSelect" variant="outline" role="combobox" aria-expanded={openComputerMultiSelectPopover} className="w-full justify-between" disabled={isLoadingTargetComputers || isExecuting || !isLicenseValid}>
+                            <span className="truncate">{selectedComputerIds.length === 0 ? "Select online computer(s)..." : `${selectedComputerIds.length} computer(s) selected`}</span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command filter={(value, search) => { const computer = allComputers.find(c => c.id === value); if (!computer || computer.status !== 'Online') return 0; if (search.trim() === '') return 1; const searchTermLower = search.toLowerCase(); if (computer.name.toLowerCase().includes(searchTermLower) || computer.ipAddress.toLowerCase().includes(searchTermLower) || computer.os.toLowerCase().includes(searchTermLower)) return 1; return 0; }}>
+                            <CommandInput placeholder="Search online computers..." value={targetComputerSearchTerm} onValueChange={setTargetComputerSearchTerm} />
+                            <CommandList>
+                            <CommandEmpty>{isLoadingTargetComputers ? "Loading..." : filteredOnlineComputersForExecution.length === 0 ? "No online computers available." : "No computers match your search."}</CommandEmpty>
+                            <CommandGroup>
+                                {filteredOnlineComputersForExecution.map((computer) => (
+                                <CommandItem key={computer.id} value={computer.id} onSelect={() => handleComputerSelectionToggle(computer.id)}>
+                                    <Check className={cn("mr-2 h-4 w-4", selectedComputerIds.includes(computer.id) ? "opacity-100" : "opacity-0")} />
+                                    {computer.name} ({computer.ipAddress})
+                                </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            </CommandList>
+                        </Command>
+                        </PopoverContent>
+                    </Popover>
+                    {selectedComputerIds.length > 0 && (
+                        <div className="flex flex-wrap gap-1 pt-1"><ScrollArea className="max-h-20 w-full">
+                        {selectedComputerIds.map(id => { const computer = allComputers.find(c => c.id === id); return computer ? (<Badge key={id} variant="secondary" className="flex items-center gap-1 m-0.5"><span className="truncate max-w-[150px]">{computer.name}</span><Button variant="ghost" size="icon" className="h-4 w-4 p-0" onClick={() => handleComputerSelectionToggle(id)}><XCircle className="h-3 w-3" /></Button></Badge>) : null; })}
+                        </ScrollArea></div>
+                    )}
+                  </div>
+                )}
+
+                {targetTypeForExecution === 'group' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="targetGroupSelect">Target Group</Label>
+                    {isLoadingGroups ? <Skeleton className="h-10 w-full" /> : (
+                    <Popover open={openGroupSelectPopover} onOpenChange={setOpenGroupSelectPopover}>
+                        <PopoverTrigger asChild>
+                        <Button id="targetGroupSelect" variant="outline" role="combobox" aria-expanded={openGroupSelectPopover} className="w-full justify-between" disabled={isLoadingGroups || isExecuting || !isLicenseValid || allGroups.length === 0}>
+                            <span className="truncate">{selectedGroupIdForExecution ? allGroups.find(g => g.id === selectedGroupIdForExecution)?.name : "Select a group..."}</span>
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command filter={(value, search) => { const group = allGroups.find(g => g.id === value); if (!group) return 0; if (search.trim() === '') return 1; const searchTermLower = search.toLowerCase(); if (group.name.toLowerCase().includes(searchTermLower) || group.description.toLowerCase().includes(searchTermLower)) return 1; return 0; }}>
+                            <CommandInput placeholder="Search groups..." value={targetGroupSearchTerm} onValueChange={setTargetGroupSearchTerm} />
+                            <CommandList>
+                            <CommandEmpty>{isLoadingGroups ? "Loading..." : allGroups.length === 0 ? "No groups available." : "No groups match."}</CommandEmpty>
+                            <CommandGroup>
+                                {allGroups.map((group) => (
+                                <CommandItem key={group.id} value={group.id} onSelect={() => { setSelectedGroupIdForExecution(group.id); setOpenGroupSelectPopover(false);}}>
+                                    <Check className={cn("mr-2 h-4 w-4", selectedGroupIdForExecution === group.id ? "opacity-100" : "opacity-0")} />
+                                    {group.name} ({group.computerIds.length} computer(s))
+                                </CommandItem>
+                                ))}
+                            </CommandGroup>
+                            </CommandList>
+                        </Command>
+                        </PopoverContent>
+                    </Popover>
+                    )}
+                  </div>
                 )}
               </CardContent>
               <CardFooter>
-                <Button onClick={handleExecuteProcedure} disabled={selectedComputerIds.length === 0 || isExecuting || isLoadingTargetComputers || !isLicenseValid} className="w-full">
+                <Button onClick={handleExecuteProcedure} disabled={executeButtonDisabled} className="w-full">
                   {isExecuting && <Loader2 className="mr-2 h-4 w-4 animate-spin" /> }
-                  {isExecuting ? 'Queueing...' : <><Play className="mr-2 h-4 w-4" /> Run on Selected ({selectedComputerIds.length})</> }
+                  {isExecuting ? 'Queueing...' : <><Play className="mr-2 h-4 w-4" /> Run on Selected</> }
                 </Button>
               </CardFooter>
             </Card>
@@ -872,13 +956,13 @@ export default function ProcedureDetailPage() {
                   placeholder="Paste relevant execution logs here or load recent ones..."
                   rows={5}
                   className="font-mono text-xs"
-                  disabled={!isLicenseValid}
+                  disabled={!isLicenseValid || isImproving || isPendingAIImprovement}
                 />
                  <Button variant="link" size="sm" className="p-0 h-auto mt-1" onClick={() => {
                     const recentLogs = executions.slice(0, 5).map(e => `Execution ID: ${e.id}\nComputer: ${e.computerName || e.computerId}\nContext: ${e.runAsUser ? 'User' : 'SYSTEM'}\nStatus: ${e.status}\nStart: ${e.startTime}\nEnd: ${e.endTime}\nLogs:\n${e.logs}\nOutput: ${e.output || 'N/A'}\n---`).join('\n\n');
                     setAiInputLogs(recentLogs || "No recent execution logs found from mock data for this procedure.");
                     if (recentLogs) toast({title: "Loaded recent logs", description: "Up to 5 most recent execution logs loaded."});
-                 }} disabled={!isLicenseValid}>
+                 }} disabled={!isLicenseValid || isImproving || isPendingAIImprovement}>
                     Load recent execution logs
                  </Button>
               </div>
