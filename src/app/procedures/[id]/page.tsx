@@ -2,7 +2,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import React, { useEffect, useState, useTransition, useCallback } from 'react';
+import React, { useEffect, useState, useTransition, useCallback, useMemo } from 'react';
 import { scriptTypes, getProcedureById, updateProcedureInMock, getExecutions, executeMockProcedure, getComputers, getProcedureExecutionsForProcedure, getAiSettings } from '@/lib/mockData';
 import type { Procedure, Computer, ProcedureExecution, ScriptType, WindowsUpdateScopeOptions, ProcedureSystemType, AiSettings } from '@/types';
 import { improveProcedure, type ImproveProcedureInput } from '@/ai/flows/improve-procedure';
@@ -11,7 +11,7 @@ import { useLicense } from '@/contexts/LicenseContext';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode, Search as SearchIcon, AlertTriangle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -63,6 +63,7 @@ export default function ProcedureDetailPage() {
   const [allComputers, setAllComputers] = useState<Computer[]>([]);
   const [isLoadingTargetComputers, setIsLoadingTargetComputers] = useState(true);
   const [selectedComputerIds, setSelectedComputerIds] = useState<string[]>([]);
+  const [targetComputerSearchTerm, setTargetComputerSearchTerm] = useState('');
   const [executions, setExecutions] = useState<ProcedureExecution[]>([]);
   const [isLoadingExecutions, setIsLoadingExecutions] = useState(false);
   const [isExecuting, setIsExecuting] = useState(false);
@@ -118,7 +119,7 @@ export default function ProcedureDetailPage() {
           }
 
           setExecutions(getExecutions({ procedureId: id }));
-          setAllComputers(getComputers().filter(c => c.status === 'Online'));
+          setAllComputers(getComputers()); // Fetch all first, then filter for online
         } else {
           setError('Procedure not found in mock data.');
         }
@@ -210,14 +211,13 @@ export default function ProcedureDetailPage() {
           softwareUpdateMode: editSoftwareUpdateMode,
           specificSoftwareToUpdate: editSoftwareUpdateMode === 'specific' ? editSpecificSoftware : '',
         };
-      } else { // Should not happen if systemType is always set
+      } else { 
         updatedData = { name: editName, description: editDescription };
       }
 
       const updatedProc = updateProcedureInMock(procedure.id, updatedData);
       if (updatedProc) {
         setProcedure(updatedProc);
-        // Update edit fields to reflect saved data
         setEditName(updatedProc.name);
         setEditDescription(updatedProc.description);
         const newSystemType = updatedProc.procedureSystemType || 'CustomScript';
@@ -245,7 +245,7 @@ export default function ProcedureDetailPage() {
   };
 
   const handleCancelEdit = () => {
-    if (procedure) { // Reset edit fields to original procedure data
+    if (procedure) { 
         setEditName(procedure.name);
         setEditDescription(procedure.description);
         const systemType = procedure.procedureSystemType || 'CustomScript';
@@ -263,7 +263,7 @@ export default function ProcedureDetailPage() {
         }
     }
     setIsEditing(false);
-    setShowAiGenerationSection(false); // Also hide AI section on cancel
+    setShowAiGenerationSection(false); 
   }
 
   const handleExecuteProcedure = () => {
@@ -280,6 +280,7 @@ export default function ProcedureDetailPage() {
       executeMockProcedure(procedure.id, selectedComputerIds);
       toast({ title: "Procedure Execution Queued (Mock)", description: `${procedure.name} has been queued for execution on ${selectedComputerIds.length} computer(s).`});
       setSelectedComputerIds([]);
+      setTargetComputerSearchTerm('');
       setTimeout(() => {
         refreshExecutions();
         setIsExecuting(false);
@@ -375,12 +376,20 @@ export default function ProcedureDetailPage() {
     });
   };
 
-
   const handleComputerSelection = (computerId: string) => {
     setSelectedComputerIds(prev =>
       prev.includes(computerId) ? prev.filter(id => id !== computerId) : [...prev, computerId]
     );
   };
+
+  const filteredOnlineComputersForExecution = useMemo(() => {
+    let onlineComputers = allComputers.filter(c => c.status === 'Online');
+    if (targetComputerSearchTerm.trim() !== '') {
+      const lowerSearch = targetComputerSearchTerm.toLowerCase();
+      onlineComputers = onlineComputers.filter(c => c.name.toLowerCase().includes(lowerSearch));
+    }
+    return onlineComputers;
+  }, [allComputers, targetComputerSearchTerm]);
 
   const copyToClipboard = (text: string, type: 'script' | 'explanation') => {
     navigator.clipboard.writeText(text).then(() => {
@@ -739,22 +748,35 @@ export default function ProcedureDetailPage() {
                 <CardTitle>Select Target Computers</CardTitle>
                  <CardDescription>Select online computers to run this procedure on. It will run with its default context: <span className="font-semibold">{currentSystemType !== 'CustomScript' || procedure.runAsUser ? 'User' : 'SYSTEM'}</span>.</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-3">
+                <div className="relative">
+                    <SearchIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        type="search"
+                        placeholder="Search online computers..."
+                        className="pl-8"
+                        value={targetComputerSearchTerm}
+                        onChange={(e) => setTargetComputerSearchTerm(e.target.value)}
+                        disabled={isLoadingTargetComputers || isExecuting || !isLicenseValid}
+                    />
+                </div>
                 {isLoadingTargetComputers ? (
-                  <div className="space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
-                ) : allComputers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No online computers available for selection.</p>
+                  <div className="space-y-2 pt-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+                ) : filteredOnlineComputersForExecution.length === 0 ? (
+                  <p className="text-sm text-muted-foreground pt-2 text-center">
+                    {targetComputerSearchTerm ? 'No online computers match your search.' : 'No online computers available.'}
+                  </p>
                 ) : (
-                  <ScrollArea className="h-72 border rounded-md p-2">
-                    {allComputers.map(computer => (
-                      <div key={computer.id} className="flex items-center space-x-2 p-1">
+                  <ScrollArea className="h-64 border rounded-md p-2">
+                    {filteredOnlineComputersForExecution.map(computer => (
+                      <div key={computer.id} className="flex items-center space-x-2 p-1 hover:bg-muted/50 rounded-md">
                         <Checkbox
                           id={`comp-exec-${computer.id}`}
                           checked={selectedComputerIds.includes(computer.id)}
                           onCheckedChange={() => handleComputerSelection(computer.id)}
                           disabled={isExecuting || !isLicenseValid}
                         />
-                        <Label htmlFor={`comp-exec-${computer.id}`} className="font-normal">
+                        <Label htmlFor={`comp-exec-${computer.id}`} className="font-normal cursor-pointer flex-1">
                           {computer.name}
                         </Label>
                       </div>
@@ -901,7 +923,6 @@ export default function ProcedureDetailPage() {
                                setEditScriptContent(improvedScript);
                                toast({title: "Script updated in editor."});
                                setIsEditing(true); 
-                               // Switch to script tab if not already there
                                router.replace(`/procedures/${id}?tab=script&edit=true`);
                            } else {
                                toast({title: "Cannot Apply Script", description: "This script can only be applied to Custom Script procedures.", variant: "destructive"});
