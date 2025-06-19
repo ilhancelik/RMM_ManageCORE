@@ -11,7 +11,7 @@ import { useLicense } from '@/contexts/LicenseContext';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode, Search as SearchIcon, AlertTriangle, ChevronsUpDown } from 'lucide-react';
+import { ArrowLeft, Play, Sparkles, Edit, Save, Bot, Terminal, ListChecks, Copy, Check, Loader2, UserCircle, Shield, HardDrive, RefreshCw, FileCode, Search as SearchIcon, AlertTriangle, ChevronsUpDown, XCircle } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -368,8 +368,9 @@ export default function ProcedureDetailPage() {
     setImprovedScript('');
     setImprovementExplanation('');
 
+    const scriptToImprove = isEditing ? editScriptContent : procedure.scriptContent;
     const input: ImproveProcedureInput = {
-      procedureScript: procedure.scriptContent,
+      procedureScript: scriptToImprove,
       executionLogs: aiInputLogs || "No specific execution logs provided for this improvement cycle. Analyze based on script itself.",
     };
 
@@ -605,8 +606,8 @@ export default function ProcedureDetailPage() {
         <TabsList className="grid w-full grid-cols-4 mb-4">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="script">Script</TabsTrigger>
-          <TabsTrigger value="execute" disabled={isEditing || !isLicenseValid}>Execute</TabsTrigger>
-          <TabsTrigger value="improve" disabled={isEditing || currentSystemType !== 'CustomScript' || !isLicenseValid}>Improve with AI</TabsTrigger>
+          <TabsTrigger value="execute" disabled={!isLicenseValid}>Execute</TabsTrigger>
+          <TabsTrigger value="improve" disabled={currentSystemType !== 'CustomScript' || !isLicenseValid}>Improve with AI</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
