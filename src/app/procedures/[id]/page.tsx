@@ -495,7 +495,7 @@ export default function ProcedureDetailPage() {
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-3xl font-bold">{isEditing ? editName : procedure.name}</CardTitle>
-              <CardDescription>{isEditing ? editDescription : procedure.description} (Mock Data)</CardDescription>
+              <CardDescription className="text-sm text-muted-foreground">{isEditing ? editDescription : procedure.description} (Mock Data)</CardDescription>
               <Badge variant="outline" className="mt-2 text-sm">
                 {procedure.procedureSystemType === 'WindowsUpdate' && <HardDrive className="mr-2 h-4 w-4" />}
                 {procedure.procedureSystemType === 'SoftwareUpdate' && <RefreshCw className="mr-2 h-4 w-4" />}
@@ -519,208 +519,215 @@ export default function ProcedureDetailPage() {
             )}
           </div>
         </CardHeader>
-        {isEditing && ( // This CardContent will only show when isEditing is true for the main form elements
-            <CardContent className="pt-6"> 
-                <div className="grid gap-6">
-                    <div>
-                        <Label htmlFor="editName">Name</Label>
-                        <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={isSaving || !isLicenseValid} />
-                    </div>
-                    <div>
-                        <Label htmlFor="editDescription">Description</Label>
-                        <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} disabled={isSaving || !isLicenseValid} rows={3} />
-                    </div>
-
-                    {currentSystemType === 'WindowsUpdate' && (
-                         <div className="space-y-3 p-4 border rounded-md bg-muted/30">
-                            <h4 className="font-medium flex items-center gap-2"><HardDrive className="h-5 w-5 text-primary"/>Windows Update Scopes</h4>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="editWuOsUpdates" checked={editWuIncludeOsUpdates} onCheckedChange={(checked) => setEditWuIncludeOsUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
-                                <Label htmlFor="editWuOsUpdates" className="font-normal">Windows Updates (Security, Quality, etc.)</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="editWuMsProductUpdates" checked={editWuIncludeMicrosoftProductUpdates} onCheckedChange={(checked) => setEditWuIncludeMicrosoftProductUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
-                                <Label htmlFor="editWuMsProductUpdates" className="font-normal">Microsoft Product Updates (Office, SQL, etc.)</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <Checkbox id="editWuFeatureUpdates" checked={editWuIncludeFeatureUpdates} onCheckedChange={(checked) => setEditWuIncludeFeatureUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
-                                <Label htmlFor="editWuFeatureUpdates" className="font-normal">Windows Feature Updates (e.g., Version Upgrades)</Label>
-                            </div>
-                        </div>
-                    )}
-                    {currentSystemType === 'SoftwareUpdate' && (
-                         <div className="space-y-3 p-4 border rounded-md bg-muted/30">
-                            <h4 className="font-medium flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary"/>Software Update (winget) Scope</h4>
-                            <RadioGroup value={editSoftwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setEditSoftwareUpdateMode(value)} className="space-y-2" disabled={isSaving || !isLicenseValid}>
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="all" id="edit-scope-su-all" />
-                                    <Label htmlFor="edit-scope-su-all" className="font-normal">Update all applicable software</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <RadioGroupItem value="specific" id="edit-scope-su-specific" />
-                                    <Label htmlFor="edit-scope-su-specific" className="font-normal">Update specific software packages</Label>
-                                </div>
-                            </RadioGroup>
-                            {editSoftwareUpdateMode === 'specific' && (
-                                <div className="mt-3 space-y-1">
-                                    <Label htmlFor="editSpecificSoftware">Software Package IDs or Names (comma-separated)</Label>
-                                    <Textarea
-                                        id="editSpecificSoftware"
-                                        value={editSpecificSoftware}
-                                        onChange={(e) => setEditSpecificSoftware(e.target.value)}
-                                        placeholder="e.g., Mozilla.Firefox, 7zip.7zip"
-                                        rows={3}
-                                        disabled={isSaving || !isLicenseValid}
-                                    />
-                                     <p className="text-xs text-muted-foreground">Enter exact Winget package IDs or full names.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {currentSystemType === 'CustomScript' && (
-                        <>
-                            <div>
-                                <Label htmlFor="editRunAsUser">Execution Context</Label>
-                                <div className="flex items-center space-x-2 mt-1">
-                                    <Checkbox id="editRunAsUser" checked={editRunAsUser} onCheckedChange={(checked) => setEditRunAsUser(checked === true)} disabled={isSaving || !isLicenseValid} />
-                                    <Label htmlFor="editRunAsUser" className="font-normal">Run as User (otherwise SYSTEM)</Label>
-                                </div>
-                            </div>
-                            <div>
-                                <Label htmlFor="editScriptType">Script Type</Label>
-                                <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving || isGeneratingWithAiForEdit || !isLicenseValid}>
-                                <SelectTrigger><SelectValue placeholder="Select script type" /></SelectTrigger>
-                                <SelectContent>
-                                    {scriptTypes.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}
-                                </SelectContent>
-                                </Select>
-                            </div>
-                            <div>
-                                <Label htmlFor="editScriptContent">Script Content</Label>
-                                <Textarea id="editScriptContent" value={editScriptContent} onChange={(e) => setEditScriptContent(e.target.value)} className="font-code" rows={15} disabled={isSaving || !isLicenseValid} />
-                            </div>
-                            <Separator />
-                            <div className="space-y-2">
-                                <Button type="button" variant="outline" onClick={() => setShowAiGenerationSection(!showAiGenerationSection)} disabled={isSaving || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled) || !isLicenseValid} className="w-full">
-                                    <Sparkles className="mr-2 h-4 w-4" /> {showAiGenerationSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
-                                    {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
-                                </Button>
-                                {showAiGenerationSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
-                                    <Card className="p-4 space-y-3 bg-muted/50">
-                                        <Alert variant="default" className="bg-background"><Bot className="h-4 w-4" /><AlertTitle>AI Script Generation</AlertTitle><AlertDescription>Describe script purpose. <strong className="block mt-1">Review AI scripts before use.</strong></AlertDescription></Alert>
-                                        <div><Label htmlFor="aiGenerationPrompt">Describe:</Label><Textarea id="aiGenerationPrompt" value={aiGenerationPrompt} onChange={(e) => setAiGenerationPrompt(e.target.value)} placeholder='e.g., "List services", "Delete temp files"' rows={3} disabled={isGeneratingWithAiForEdit || isPendingAIGeneration || !isLicenseValid} /></div>
-                                        <Button type="button" onClick={handleGenerateScriptWithAIForEdit} disabled={isGeneratingWithAiForEdit || isPendingAIGeneration || !aiGenerationPrompt.trim() || isSaving || !isLicenseValid}>
-                                            {isGeneratingWithAiForEdit || isPendingAIGeneration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} Generate
-                                        </Button>
-                                        {aiGenerationErrorForEdit && <p className="text-sm text-destructive">{aiGenerationErrorForEdit}</p>}
-                                        {aiGeneratedScriptForEdit && (
-                                            <div className="space-y-2 pt-2">
-                                                <Label>AI Generated Script:</Label><ScrollArea className="h-40 border rounded-md p-2 bg-background"><pre className="text-xs font-code whitespace-pre-wrap">{aiGeneratedScriptForEdit}</pre></ScrollArea>
-                                                {aiGenerationExplanationForEdit && <><Label>Explanation:</Label><ScrollArea className="h-20 border rounded-md p-2 bg-background text-xs"><p className="whitespace-pre-wrap">{aiGenerationExplanationForEdit}</p></ScrollArea></>}
-                                                <Button type="button" size="sm" variant="outline" onClick={() => {setEditScriptContent(aiGeneratedScriptForEdit); toast({title: "Script Copied", description: "AI script copied to content field."})}} disabled={!isLicenseValid}>Use this Script</Button>
-                                            </div>
-                                        )}
-                                    </Card>
-                                )}
-                            </div>
-                        </>
-                    )}
-                     {(currentSystemType === 'WindowsUpdate' || currentSystemType === 'SoftwareUpdate') && (
-                         <Alert variant="default" className="mt-4">
-                            <Terminal className="h-4 w-4" />
-                            <AlertTitle>System Procedure: {currentSystemType === 'WindowsUpdate' ? 'Windows Update' : 'Software Update (winget)'}</AlertTitle>
-                            <AlertDescription>
-                                Script içeriği ve çalıştırma bağlamı sistem tarafından yönetilir.
-                                {currentSystemType === 'WindowsUpdate' && ' Seçilen kapsamlara göre Windows güncellemelerini yükler ve yeniden başlatma yapmaz.'}
-                                {currentSystemType === 'SoftwareUpdate' && ' Seçilen kapsama göre 3. parti yazılım güncellemelerini winget ile yapar.'}
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                </div>
-            </CardContent>
-        )}
       </Card>
 
       <Tabs defaultValue={defaultTab} className="w-full" onValueChange={(value) => router.replace(`/procedures/${id}?tab=${value}`)}>
-        <TabsList className="grid w-full grid-cols-3 mb-4">
-          <TabsTrigger value="details" disabled={isEditing}>Details</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 mb-4">
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="script">Script</TabsTrigger>
           <TabsTrigger value="execute" disabled={isEditing}>Execute</TabsTrigger>
           <TabsTrigger value="improve" disabled={isEditing || currentSystemType !== 'CustomScript' || !isLicenseValid}>Improve with AI</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details">
           <Card>
-            <CardHeader>
-              <CardTitle>Procedure Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label className="text-sm text-muted-foreground">System Type</Label>
-                <p className="font-semibold">{getSystemTypeLabel(procedure.procedureSystemType)}</p>
-              </div>
-
-              {procedure.procedureSystemType === 'WindowsUpdate' && (
-                <div>
-                    <Label className="text-sm text-muted-foreground">Windows Update Scopes</Label>
-                    <ul className="list-disc list-inside font-semibold">
-                        {getWindowsUpdateScopeOptionsText(procedure.windowsUpdateScopeOptions).map((scopeText, index) => (
-                            <li key={index}>{scopeText}</li>
-                        ))}
-                    </ul>
-                </div>
-              )}
-
-              {procedure.procedureSystemType === 'SoftwareUpdate' && (
+            <CardHeader><CardTitle>Procedure Details</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
+              {isEditing ? (
                 <>
-                    <div>
-                        <Label className="text-sm text-muted-foreground">Software Update Mode</Label>
-                        <p className="font-semibold">{procedure.softwareUpdateMode === 'specific' ? 'Specific Packages' : 'All Applicable Packages'}</p>
-                    </div>
-                    {procedure.softwareUpdateMode === 'specific' && (
-                        <div>
-                            <Label className="text-sm text-muted-foreground">Specific Software to Update</Label>
-                            <p className="font-semibold whitespace-pre-wrap">{procedure.specificSoftwareToUpdate || 'N/A'}</p>
-                        </div>
-                    )}
+                  <div>
+                    <Label htmlFor="editName">Name</Label>
+                    <Input id="editName" value={editName} onChange={(e) => setEditName(e.target.value)} disabled={isSaving || !isLicenseValid} />
+                  </div>
+                  <div>
+                    <Label htmlFor="editDescription">Description</Label>
+                    <Textarea id="editDescription" value={editDescription} onChange={(e) => setEditDescription(e.target.value)} disabled={isSaving || !isLicenseValid} rows={3} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Name</Label>
+                    <p className="font-semibold">{procedure.name}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Description</Label>
+                    <p>{procedure.description || 'N/A'}</p>
+                  </div>
+                   <div>
+                    <Label className="text-sm text-muted-foreground">System Type</Label>
+                    <p className="font-semibold">{getSystemTypeLabel(procedure.procedureSystemType)}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Created At</Label>
+                    <p>{new Date(procedure.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <Label className="text-sm text-muted-foreground">Last Updated</Label>
+                    <p>{new Date(procedure.updatedAt).toLocaleString()}</p>
+                  </div>
                 </>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-              {(currentSystemType === 'CustomScript') && (
+        <TabsContent value="script">
+          <Card>
+            <CardHeader><CardTitle>Script Configuration</CardTitle></CardHeader>
+            <CardContent className="space-y-6">
+              {currentSystemType === 'CustomScript' && (
                 <>
-                    <div>
-                        <Label className="text-sm text-muted-foreground">Script Type</Label>
-                        <p className="font-semibold">{procedure.scriptType}</p>
-                    </div>
-                    <div>
+                  {isEditing ? (
+                    <>
+                      <div>
+                        <Label htmlFor="editRunAsUser">Execution Context</Label>
+                        <div className="flex items-center space-x-2 mt-1">
+                          <Checkbox id="editRunAsUser" checked={editRunAsUser} onCheckedChange={(checked) => setEditRunAsUser(checked === true)} disabled={isSaving || !isLicenseValid} />
+                          <Label htmlFor="editRunAsUser" className="font-normal">Run as User (otherwise SYSTEM)</Label>
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="editScriptType">Script Type</Label>
+                        <Select value={editScriptType} onValueChange={(value: ScriptType) => setEditScriptType(value)} disabled={isSaving || isGeneratingWithAiForEdit || !isLicenseValid}>
+                          <SelectTrigger><SelectValue placeholder="Select script type" /></SelectTrigger>
+                          <SelectContent>{scriptTypes.map(type => (<SelectItem key={type} value={type}>{type}</SelectItem>))}</SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="editScriptContent">Script Content</Label>
+                        <Textarea id="editScriptContent" value={editScriptContent} onChange={(e) => setEditScriptContent(e.target.value)} className="font-code" rows={15} disabled={isSaving || !isLicenseValid} />
+                      </div>
+                      <Separator />
+                      <div className="space-y-2">
+                        <Button type="button" variant="outline" onClick={() => setShowAiGenerationSection(!showAiGenerationSection)} disabled={isSaving || !aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled) || !isLicenseValid} className="w-full">
+                          <Sparkles className="mr-2 h-4 w-4" /> {showAiGenerationSection ? 'Hide AI Script Generator' : 'Generate Script with AI'}
+                          {(!aiSettings?.globalGenerationEnabled || !aiSettings?.providerConfigs.some(p=>p.isEnabled)) && <span className="ml-2 text-xs text-muted-foreground">(AI Disabled)</span>}
+                        </Button>
+                        {showAiGenerationSection && aiSettings?.globalGenerationEnabled && aiSettings?.providerConfigs.some(p=>p.isEnabled) && (
+                          <Card className="p-4 space-y-3 bg-muted/50">
+                            <Alert variant="default" className="bg-background"><Bot className="h-4 w-4" /><AlertTitle>AI Script Generation</AlertTitle><AlertDescription>Describe script purpose. <strong className="block mt-1">Review AI scripts before use.</strong></AlertDescription></Alert>
+                            <div><Label htmlFor="aiGenerationPrompt">Describe:</Label><Textarea id="aiGenerationPrompt" value={aiGenerationPrompt} onChange={(e) => setAiGenerationPrompt(e.target.value)} placeholder='e.g., "List services", "Delete temp files"' rows={3} disabled={isGeneratingWithAiForEdit || isPendingAIGeneration || !isLicenseValid} /></div>
+                            <Button type="button" onClick={handleGenerateScriptWithAIForEdit} disabled={isGeneratingWithAiForEdit || isPendingAIGeneration || !aiGenerationPrompt.trim() || isSaving || !isLicenseValid}>
+                              {isGeneratingWithAiForEdit || isPendingAIGeneration ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />} Generate
+                            </Button>
+                            {aiGenerationErrorForEdit && <p className="text-sm text-destructive">{aiGenerationErrorForEdit}</p>}
+                            {aiGeneratedScriptForEdit && (
+                              <div className="space-y-2 pt-2">
+                                <Label>AI Generated Script:</Label><ScrollArea className="h-40 border rounded-md p-2 bg-background"><pre className="text-xs font-code whitespace-pre-wrap">{aiGeneratedScriptForEdit}</pre></ScrollArea>
+                                {aiGenerationExplanationForEdit && <><Label>Explanation:</Label><ScrollArea className="h-20 border rounded-md p-2 bg-background text-xs"><p className="whitespace-pre-wrap">{aiGenerationExplanationForEdit}</p></ScrollArea></>}
+                                <Button type="button" size="sm" variant="outline" onClick={() => {setEditScriptContent(aiGeneratedScriptForEdit); toast({title: "Script Copied", description: "AI script copied to content field."})}} disabled={!isLicenseValid}>Use this Script</Button>
+                              </div>
+                            )}
+                          </Card>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
                         <Label className="text-sm text-muted-foreground">Default Execution Context</Label>
                         <div className="flex items-center gap-2">
                             {procedure.runAsUser ? <UserCircle className="h-5 w-5 text-blue-600" /> : <Shield className="h-5 w-5 text-gray-600" />}
                             <p className="font-semibold">{procedure.runAsUser ? 'User' : 'SYSTEM'}</p>
                         </div>
-                    </div>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Script Type</Label>
+                        <p className="font-semibold">{procedure.scriptType}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm text-muted-foreground">Script Content</Label>
+                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
+                          <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                        </ScrollArea>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
-               <div>
-                <Label className="text-sm text-muted-foreground">Script Content / Behavior</Label>
-                <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40">
-                  <pre className="text-sm font-code whitespace-pre-wrap">
-                    {procedure.procedureSystemType === 'WindowsUpdate'
-                     ? `This is a system-managed procedure for Windows Updates.\nSelected Scopes:\n- ${getWindowsUpdateScopeOptionsText(procedure.windowsUpdateScopeOptions).join('\n- ')}\nIt installs updates without forcing a reboot.`
-                     : procedure.procedureSystemType === 'SoftwareUpdate'
-                       ? `This is a system-managed procedure for 3rd Party Software Updates using winget.\nMode: ${procedure.softwareUpdateMode || 'all'}${procedure.softwareUpdateMode === 'specific' ? `\nTarget Packages: ${procedure.specificSoftwareToUpdate || 'NONE'}` : ''}\n(Underlying script uses winget and runs as SYSTEM)`
-                       : procedure.scriptContent}
-                  </pre>
-                </ScrollArea>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Created At</Label>
-                <p>{new Date(procedure.createdAt).toLocaleString()}</p>
-              </div>
-              <div>
-                <Label className="text-sm text-muted-foreground">Last Updated</Label>
-                <p>{new Date(procedure.updatedAt).toLocaleString()}</p>
-              </div>
+              {currentSystemType === 'WindowsUpdate' && (
+                 isEditing ? (
+                    <div className="space-y-3 p-4 border rounded-md bg-muted/30">
+                        <h4 className="font-medium flex items-center gap-2"><HardDrive className="h-5 w-5 text-primary"/>Windows Update Scopes</h4>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="editWuOsUpdates" checked={editWuIncludeOsUpdates} onCheckedChange={(checked) => setEditWuIncludeOsUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
+                            <Label htmlFor="editWuOsUpdates" className="font-normal">Windows Updates (Security, Quality, etc.)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="editWuMsProductUpdates" checked={editWuIncludeMicrosoftProductUpdates} onCheckedChange={(checked) => setEditWuIncludeMicrosoftProductUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
+                            <Label htmlFor="editWuMsProductUpdates" className="font-normal">Microsoft Product Updates (Office, SQL, etc.)</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Checkbox id="editWuFeatureUpdates" checked={editWuIncludeFeatureUpdates} onCheckedChange={(checked) => setEditWuIncludeFeatureUpdates(checked === true)} disabled={isSaving || !isLicenseValid} />
+                            <Label htmlFor="editWuFeatureUpdates" className="font-normal">Windows Feature Updates (e.g., Version Upgrades)</Label>
+                        </div>
+                    </div>
+                 ) : (
+                    <div>
+                        <Label className="text-sm text-muted-foreground">Windows Update Scopes</Label>
+                        <ul className="list-disc list-inside font-semibold">
+                            {getWindowsUpdateScopeOptionsText(procedure.windowsUpdateScopeOptions).map((scopeText, index) => (
+                                <li key={index}>{scopeText}</li>
+                            ))}
+                        </ul>
+                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40 mt-2">
+                            <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                        </ScrollArea>
+                    </div>
+                 )
+              )}
+              {currentSystemType === 'SoftwareUpdate' && (
+                 isEditing ? (
+                    <div className="space-y-3 p-4 border rounded-md bg-muted/30">
+                        <h4 className="font-medium flex items-center gap-2"><RefreshCw className="h-5 w-5 text-primary"/>Software Update (winget) Scope</h4>
+                        <RadioGroup value={editSoftwareUpdateMode} onValueChange={(value: 'all' | 'specific') => setEditSoftwareUpdateMode(value)} className="space-y-2" disabled={isSaving || !isLicenseValid}>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="all" id="edit-scope-su-all" />
+                                <Label htmlFor="edit-scope-su-all" className="font-normal">Update all applicable software</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="specific" id="edit-scope-su-specific" />
+                                <Label htmlFor="edit-scope-su-specific" className="font-normal">Update specific software packages</Label>
+                            </div>
+                        </RadioGroup>
+                        {editSoftwareUpdateMode === 'specific' && (
+                            <div className="mt-3 space-y-1">
+                                <Label htmlFor="editSpecificSoftware">Software Package IDs or Names (comma-separated)</Label>
+                                <Textarea id="editSpecificSoftware" value={editSpecificSoftware} onChange={(e) => setEditSpecificSoftware(e.target.value)} placeholder="e.g., Mozilla.Firefox, 7zip.7zip" rows={3} disabled={isSaving || !isLicenseValid} />
+                                 <p className="text-xs text-muted-foreground">Enter exact Winget package IDs or full names.</p>
+                            </div>
+                        )}
+                    </div>
+                 ) : (
+                    <>
+                        <div>
+                            <Label className="text-sm text-muted-foreground">Software Update Mode</Label>
+                            <p className="font-semibold">{procedure.softwareUpdateMode === 'specific' ? 'Specific Packages' : 'All Applicable Packages'}</p>
+                        </div>
+                        {procedure.softwareUpdateMode === 'specific' && (
+                            <div>
+                                <Label className="text-sm text-muted-foreground">Specific Software to Update</Label>
+                                <p className="font-semibold whitespace-pre-wrap">{procedure.specificSoftwareToUpdate || 'N/A'}</p>
+                            </div>
+                        )}
+                        <ScrollArea className="h-72 w-full rounded-md border p-4 bg-muted/40 mt-2">
+                            <pre className="text-sm font-code whitespace-pre-wrap">{procedure.scriptContent}</pre>
+                        </ScrollArea>
+                    </>
+                 )
+              )}
+              {(currentSystemType === 'WindowsUpdate' || currentSystemType === 'SoftwareUpdate') && !isEditing && (
+                  <Alert variant="default" className="mt-4">
+                    <Terminal className="h-4 w-4" />
+                    <AlertTitle>System Procedure Information</AlertTitle>
+                    <AlertDescription>
+                        This is a system-managed procedure. The script content and execution context are predefined.
+                        {currentSystemType === 'WindowsUpdate' && ' It installs Windows updates based on the configured scopes and does not force a reboot.'}
+                        {currentSystemType === 'SoftwareUpdate' && ' It updates 3rd party software using winget based on the configured scope.'}
+                    </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -893,8 +900,9 @@ export default function ProcedureDetailPage() {
                            if (procedure && (procedure.procedureSystemType === 'CustomScript' || !procedure.procedureSystemType)) {
                                setEditScriptContent(improvedScript);
                                toast({title: "Script updated in editor."});
-                               // No need to switch tab, edit form is now on this page
                                setIsEditing(true); 
+                               // Switch to script tab if not already there
+                               router.replace(`/procedures/${id}?tab=script&edit=true`);
                            } else {
                                toast({title: "Cannot Apply Script", description: "This script can only be applied to Custom Script procedures.", variant: "destructive"});
                            }
