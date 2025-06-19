@@ -32,7 +32,7 @@ import {
   Bot,
   Activity, 
   KeyRound, 
-  ShieldCheck, // Icon for System License
+  ShieldCheck,
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
@@ -42,12 +42,12 @@ const navItems = [
   { href: '/groups', label: 'Groups', icon: Users },
   { href: '/procedures', label: 'Procedures', icon: FileCode },
   { href: '/monitors', label: 'Monitors', icon: Activity },
-  { href: '/licenses', label: 'Software Licenses', icon: KeyRound }, // Renamed for clarity
+  { href: '/licenses', label: 'Software Licenses', icon: KeyRound },
   { href: '/commands', label: 'Custom Commands', icon: TerminalSquare },
 ];
 
 const settingsNavItems = [
- { href: '/system-license', label: 'System License', icon: ShieldCheck }, // New Item
+ { href: '/system-license', label: 'System License', icon: ShieldCheck },
  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -58,7 +58,8 @@ export default function ProceduresPage() {
     setError(null);
     setTimeout(() => {
       try {
-        setProcedures(getProcedures());
+        const procs = getProcedures();
+        setProcedures(procs || []); // Defensive check
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load data from mock.';
         setError(errorMessage);
@@ -100,18 +101,15 @@ export default function ProceduresPage() {
     if (!window.confirm(`Are you sure you want to delete procedure "${procedureNameText}"? This action cannot be undone.`)) {
         return;
     }
-    // setIsSubmitting(true); // This state no longer exists here
     try {
         deleteProcedureFromMock(procedureId);
         toast({title: "Success", description: `Procedure "${procedureNameText}" deleted (Mock).`});
         setTimeout(() => {
           loadInitialData();
-          // setIsSubmitting(false);
         }, 500);
     } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred (Mock).';
         toast({title: "Error Deleting Procedure", description: errorMessage, variant: "destructive"});
-        // setIsSubmitting(false);
     }
   };
 
@@ -282,5 +280,3 @@ export default function ProceduresPage() {
     </div>
   );
 }
-    
-
