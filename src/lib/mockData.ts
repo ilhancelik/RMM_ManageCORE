@@ -476,10 +476,10 @@ export let mockLicenses: License[] = [
 ];
 
 export let mockSystemLicense: SystemLicenseInfo = {
-  licenseKey: 'INITIAL-MOCK-SETUP-KEY',
-  licensedPcCount: 2, 
-  expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), 
-  status: 'NotActivated',
+  licenseKey: 'VALID-MOCK-LICENSE-KEY', // Default to a valid-looking key
+  licensedPcCount: 10, // Default to a count that allows current computers
+  expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(), // 1 year in the future
+  status: 'Valid', // Default to Valid
 };
 
 // --- Helper Functions for Mock Data ---
@@ -521,7 +521,7 @@ export const updateSystemLicenseKey = (key: string): SystemLicenseInfo => {
   if (matchedKey) {
     mockSystemLicense.licensedPcCount = matchedKey.pcCount;
     mockSystemLicense.expiryDate = matchedKey.expiryGenerator();
-  } else if (key && key.trim() !== '' && key !== 'INITIAL-MOCK-SETUP-KEY') {
+  } else if (key && key.trim() !== '' && key !== 'INITIAL-MOCK-SETUP-KEY' && key !== 'VALID-MOCK-LICENSE-KEY') {
     mockSystemLicense.licensedPcCount = 1; 
     mockSystemLicense.expiryDate = sevenDaysFromNowISO(); 
     toast({ title: "Trial Activated", description: "Mock trial (1 PC, 7 days) activated for unrecognized key.", variant: "default" });
@@ -529,9 +529,11 @@ export const updateSystemLicenseKey = (key: string): SystemLicenseInfo => {
      // If key is empty, revert to a 'NotActivated' state like initial
     mockSystemLicense.licensedPcCount = 2; // Or some other default for "NotActivated"
     mockSystemLicense.expiryDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // Reset expiry
+    mockSystemLicense.licenseKey = 'INITIAL-MOCK-SETUP-KEY'; // Set back to initial key
     toast({ title: "Activation Cleared", description: "License key cleared. System is now unactivated.", variant: "default" });
   }
-  // For INITIAL-MOCK-SETUP-KEY, we don't change pcCount or expiry, status will be NotActivated by getSystemLicenseInfo
+  // For INITIAL-MOCK-SETUP-KEY or VALID-MOCK-LICENSE-KEY (if entered directly), we don't change pcCount or expiry from the above rules,
+  // getSystemLicenseInfo will determine their status based on existing values.
   
   return getSystemLicenseInfo(); // This will recalculate and set the status
 };
