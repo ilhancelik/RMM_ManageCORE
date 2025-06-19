@@ -7,7 +7,8 @@ import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-sc
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, Activity, Loader2, Search, Sparkles, Bot } from 'lucide-react';
+import { Input } from '@/components/ui/input'; // Added this import
+import { PlusCircle, Edit, Trash2, Activity, Loader2, Search, Sparkles, Bot, AlertTriangle } from 'lucide-react'; // Added AlertTriangle
 import React, { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -143,7 +144,7 @@ export default function MonitorsPage() {
 
       {!isLicenseValid && (
          <Alert variant="destructive" className="mb-4">
-            <Trash2 className="h-4 w-4" /> {/* Using Trash2 as placeholder for AlertTriangle */}
+            <AlertTriangle className="h-4 w-4" />
             <AlertTitle>License Invalid</AlertTitle>
             <AlertDescription>
                 Your system license is not valid. Monitor creation and management features are disabled. Please check your <Link href="/system-license" className="underline">System License</Link>.
@@ -207,3 +208,4 @@ export default function MonitorsPage() {
   );
 }
     
+
