@@ -7,7 +7,7 @@ import { generateScript, type GenerateScriptInput } from '@/ai/flows/generate-sc
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot, HardDrive, RefreshCw } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, FileCode, ListFilter, Loader2, Search, Sparkles, Bot, HardDrive, RefreshCw, AlertTriangle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -283,3 +283,4 @@ export default function ProceduresPage() {
   );
 }
     
+
